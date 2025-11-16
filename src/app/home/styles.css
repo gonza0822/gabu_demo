@@ -1,0 +1,11 @@
+::-webkit-scrollbar {
+  background: var(--color-gabu-100);
+  height: 1.1em;
+  border-radius: 2em;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-gabu-700);
+  border-radius: 2em;
+  border: .3em solid var(--color-gabu-100);
+}

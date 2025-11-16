@@ -1,36 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+G.A.B.U Demo
 
-## Getting Started
+fixed assets management system.
 
-First, run the development server:
+The project will be divided strategically in deferent foulders which each of them will have his own functionallity, this foulders wil have rules and this rules should not be broken.
+In conjunction with the folders there are the frameworks and languajes that this project will use and this frameworks are:
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+React: the project in the client side will be made by react components and it will use some of their hooks.
+Next.js: Next will be used for server side rendering and manage the routing.
+TailwindCSS: Most of the design will be made by tailwind, some styles for example for the scrollbar there is no other choice but to make it with css only
+Redux: Redux will be used for the context.
+Node.js: Node will controll the entire logic in the server side, and will be the in charge of connecting with the database
+typescript: to make the code typed and have a better error managment.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Now here are the folders:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+demo 
+    |
+    |-src --> This folder will contain th main project with the logic on the client and server side.
+    |   |
+    |    |-app --> this folder will contain the pages that will be part of the routing and the api folder.
+    |    |    |
+    |    |    |-api --> Here the client will make the connection with the server passing data throw back to front
+    |    |
+    |    |-components --> The UI componentes that will be part of the system will be placed here, this components will be client components if it is neccesary.
+    |    |
+    |    |-store --> The redux context with all the necesary slices will be here obligatory.
+    |    |
+    |    |-lib --> This folder is the one that will manage all the logic in the server like connecting to the database and manage the objects palced in the models
+    |        |
+    |        |-models --> The classes and interfaces that contain big part of the logic in the server
+    |
+    |-public/assets --> Here will be placed all the static assets (iamges, fonts, favicons).
