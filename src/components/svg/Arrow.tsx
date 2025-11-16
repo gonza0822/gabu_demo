@@ -3,7 +3,7 @@
 import { ReactElement } from "react";
 
 export default function Arrow({size, color, hoverStyle, defaultRotation = "rotate-0", activeRotation, active} : {size: number; color: string; hoverStyle?: string; defaultRotation: string; activeRotation: string; active: boolean;}) : ReactElement {
-    let style : string = `transition-transform transform origin-center fill-current ${color} transition-colors duration-150 ${hoverStyle && hoverStyle} ${!active ? defaultRotation : activeRotation}`;
+    const style : string = `transition-transform transform origin-center fill-current ${color} transition-colors duration-150 ${hoverStyle && hoverStyle} ${!active ? defaultRotation : activeRotation}`;
 
     return (
         <svg width={size} height={size} viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" className={style}>

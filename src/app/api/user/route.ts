@@ -27,7 +27,7 @@ export async function POST(request: Request) : Promise<NextResponse<UserPostResp
         } else {
             const user : User = new User(userName, password, client);
 
-            let loginRes : { result : boolean, token : string} = user.login();
+            const loginRes : { result : boolean, token : string} = user.login();
 
             if(loginRes.result){
                 return  NextResponse.json({
@@ -38,7 +38,7 @@ export async function POST(request: Request) : Promise<NextResponse<UserPostResp
                 throw new Error("Credenciales invalidas para el cliente "+client+".");
             }
         }
-    } catch(err : any){
+    } catch(err){
         if(err instanceof Error){
             return NextResponse.json({
                 message: err.message,

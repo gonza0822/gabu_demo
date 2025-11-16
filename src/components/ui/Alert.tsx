@@ -47,10 +47,12 @@ export default function Alert({
             break;
     }
 
+    console.log(color);
+
     return (
         <AnimatePresence mode="wait">
             {showAlert && (
-                <motion.div className={`absolute top-0 w-full h-[6%] p-4 border text-${color} bg-${color}/25 flex items-center justify-center`} key="login-error-message" initial={{y: -20, opacity: 0}} animate={{y: 0, opacity: 1}} exit={{y: -20, opacity: 0}} transition={{duration: 0.3, ease: "easeInOut"}}>
+                <motion.div className={`absolute top-0 w-full h-[6%] p-4 border text-${color} bg-${color} flex items-center justify-center`} key="login-error-message" initial={{y: -20, opacity: 0}} animate={{y: 0, opacity: 1}} exit={{y: -20, opacity: 0}} transition={{duration: 0.3, ease: "easeInOut"}}>
                     <p className="text-gabu-100 text-xl ">{message}</p>
                     <Cross size={24} color="text-gabu-100" onClick={onClose}/>
                 </motion.div>

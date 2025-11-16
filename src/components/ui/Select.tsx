@@ -19,8 +19,8 @@ export default function Select({
   isLogin: boolean
 }) : ReactElement {
     const optionStyle : string = `${isLogin ? 'text-md border-l-10 border-gabu-900 py-2 pl-3 pr-2' : 'px-2'} hover:bg-gabu-300 transition-all duration-300 bg-gabu-100 w-full`;
-    let selectStyle : string = `border-2 ${isLogin && 'border-l-10'}  border-gabu-900 py-2 pl-3 pr-2 w-full flex justify-between cursor-pointer filter`;
-    let optionListStyle : string = 'w-full border-r-2 border-b-2 rounded-b-md border-gabu-900';
+    const selectStyle : string = `border-2 ${isLogin && 'border-l-10'}  border-gabu-900 py-2 pl-3 pr-2 w-full flex justify-between cursor-pointer filter`;
+    const optionListStyle : string = 'w-full border-r-2 border-b-2 rounded-b-md border-gabu-900';
     const client : string = useSelector((state : RootState) => state.authorization.client);
 
     const dispatch : Dispatch = useDispatch();

@@ -1,8 +1,8 @@
 import colors from "../colors";
 
-export default function getLineChartConfig() : {
-    options: any,
-    data: any
+export default function getLineChartConfig(data : {}[]) : {
+    options: {},
+    data: {}
 } {
     return {
         options: {
@@ -71,13 +71,13 @@ export default function getLineChartConfig() : {
             fill: true,
             tension: 0.4,
             backgroundColor: (context : any) => {
-                let {ctx, chartArea} = context.chart;
+                const {ctx, chartArea} = context.chart;
 
                 if(!chartArea){
                 return null
                 }
 
-                let chartGradient = ctx.createLinearGradient(0, 0, 0, chartArea.bottom);
+                const chartGradient = ctx.createLinearGradient(0, 0, 0, chartArea.bottom);
                 chartGradient.addColorStop(0.5, colors.strongBlue);
                 chartGradient.addColorStop(1, colors.light);
                 return chartGradient;
