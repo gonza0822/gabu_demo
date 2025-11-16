@@ -9,7 +9,7 @@ type AuthorizationState = {
     client: string
 }
 
-let initialAuthorizationState : AuthorizationState = {
+const initialAuthorizationState : AuthorizationState = {
     logged: false,
     connected: false,
     token: '',
@@ -43,7 +43,7 @@ const authorizationSlice = createSlice({
     }
 });
 
-export let authorizationActions = authorizationSlice.actions;
+export const authorizationActions = authorizationSlice.actions;
 
 export default authorizationSlice.reducer;
 

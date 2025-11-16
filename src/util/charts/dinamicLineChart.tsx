@@ -1,6 +1,6 @@
 import colors from "../colors";
 
-export default function getLineChartConfig(data : {}[]) {
+export default function getLineChartConfig() {
     return {
         options: {
             responsive: true,
@@ -20,7 +20,9 @@ export default function getLineChartConfig(data : {}[]) {
                     ticks: {
                         color: colors.strongBlue,
                     },
-                    afterBuildTicks: function(scale : any) {
+                    afterBuildTicks: function(scale : {
+                        ticks : {value : number}[]
+                    }) {
                         scale.ticks = [
                         { value: 100 },
                         { value: 2000 },
