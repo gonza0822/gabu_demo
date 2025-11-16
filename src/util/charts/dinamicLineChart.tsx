@@ -69,7 +69,7 @@ export default function getLineChartConfig() {
             borderWidth: 0,
             fill: true,
             tension: 0.4,
-            backgroundColor: (context : any) => {
+            /* backgroundColor: (context : any) => {
                 const {ctx, chartArea} = context.chart;
 
                 if(!chartArea){
@@ -80,7 +80,7 @@ export default function getLineChartConfig() {
                 chartGradient.addColorStop(0.5, colors.strongBlue);
                 chartGradient.addColorStop(1, colors.light);
                 return chartGradient;
-            },
+            }, */
             pointRadius: 0,
             pointHoverRadius: 0
             }]
