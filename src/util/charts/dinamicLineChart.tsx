@@ -1,9 +1,6 @@
 import colors from "../colors";
 
-export default function getLineChartConfig(data : {}[]) : {
-    options: {},
-    data: {}
-} {
+export default function getLineChartConfig(data : {}[]) {
     return {
         options: {
             responsive: true,
