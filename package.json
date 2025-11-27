@@ -11,8 +11,10 @@
   "dependencies": {
     "@reduxjs/toolkit": "^2.10.1",
     "chart.js": "^4.5.1",
+    "chartjs-adapter-date-fns": "^3.0.0",
     "motion": "^12.23.24",
     "next": "15.5.6",
+    "prisma": "^7.0.1",
     "react": "19.1.0",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "19.1.0",

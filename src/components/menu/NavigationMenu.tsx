@@ -119,7 +119,7 @@ const menu : Menu[] = [
         submenu: [
             {
                 submenuId: 1,
-                submenuTitle: "Calculo de amortizaciones",
+                submenuTitle: "Calculo de amort",
                 path: '',
             },
             {

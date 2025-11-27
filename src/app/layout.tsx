@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import ReduxProvider from "@/store/ReduxProvider";
+import { Rubik } from "next/font/google";
 import './globals.css';
+
+const rubik = Rubik({
+  subsets: ['latin'],
+  variable: '--font-rubik',
+});
 
 export const metadata: Metadata = {
   title: "G.A.B.U Demo",
@@ -13,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={rubik.variable}>
       <body>
         <ReduxProvider>
           {children}

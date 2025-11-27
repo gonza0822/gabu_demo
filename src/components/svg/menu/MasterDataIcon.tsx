@@ -5,7 +5,7 @@ import { ReactElement } from "react";
 export default function MasterDataIcon() : ReactElement {
 
     return (
-        <svg width="24" height="26" viewBox="0 0 24 26" fill="none" xmlns="http://www.w3.org/2000/svg" className="fill-current text-gabu-300 group-hover:text-gabu-100 transition-all duration-150">
+        <svg viewBox="0 0 24 26" fill="none" xmlns="http://www.w3.org/2000/svg" className="fill-current text-gabu-300 group-hover:text-gabu-100 transition-all duration-150 2xl:w-[23px] 2xl:h-[25px] w-[17px] h-[19px]">
             <path fillRule="evenodd" clipRule="evenodd" d="M0.0544718 4.10304C0.0243881 2.03225 1.92456 0.323847 4.29859 0.287249L22.9259 9.0306e-05L23.1982 18.7477L4.57095 19.0349C3.77961 19.0471 3.14624 19.6165 3.15627 20.3068L3.17443 21.5567C3.18445 22.2469 3.83408 22.7966 4.62543 22.7844L21.8198 22.5193L21.7835 20.0196L23.2164 19.9975L23.289 24.997L4.66174 25.2841C2.28771 25.3207 0.338758 23.6716 0.308674 21.6009L0.0544718 4.10304ZM11.59 8.92568L11.6627 13.9251L14.5284 13.8809L14.4558 8.8815L11.59 8.92568ZM14.4195 6.38185C14.4295 7.07212 13.7961 7.64157 13.0047 7.65377C12.2134 7.66597 11.5638 7.1163 11.5537 6.42603C11.5437 5.73577 12.1771 5.16626 12.9684 5.15406C13.7598 5.14186 14.4095 5.69159 14.4195 6.38185ZM20.3506 20.0417L4.58911 20.2847L4.60727 21.5346L20.3688 21.2916L20.3506 20.0417Z"/>
         </svg>
     );

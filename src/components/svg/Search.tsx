@@ -1,8 +1,8 @@
 import { ReactElement } from "react";
 
-export default function Search({size, style} : {size : number, style : string}) : ReactElement {
+export default function Search({style} : {style : string}) : ReactElement {
     return (
-        <svg width={size} height={size} viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg" className={style}>
+        <svg viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg" className={style}>
             <path d="M16 16L12.2032 12.2032M12.2032 12.2032C12.8126 11.5938 13.296 10.8703 13.6258 10.0741C13.9556 9.2779 14.1254 8.42451 14.1254 7.56269C14.1254 6.70086 13.9556 5.84748 13.6258 5.05126C13.296 4.25503 12.8126 3.53157 12.2032 2.92217C11.5938 2.31276 10.8703 1.82936 10.0741 1.49955C9.2779 1.16975 8.42451 1 7.56269 1C6.70086 1 5.84748 1.16975 5.05126 1.49955C4.25503 1.82936 3.53157 2.31277 2.92217 2.92217C1.69142 4.15291 1 5.82216 1 7.56269C1 9.30322 1.69142 10.9725 2.92217 12.2032C4.15291 13.434 5.82216 14.1254 7.56269 14.1254C9.30322 14.1254 10.9725 13.434 12.2032 12.2032Z" stroke="#486382" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
     );
