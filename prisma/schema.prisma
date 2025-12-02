@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -11,4 +5,4628 @@ generator client {
 
 datasource db {
   provider = "sqlserver"
+}
+
+model asientos01 {
+  idcodigo     Int     @id(clustered: false, map: "PK_asientos01")
+  idAsiento    String? @db.NVarChar(15)
+  FechaProceso String? @db.NVarChar(10)
+  idMoneda     String? @db.NVarChar(2)
+  idGrupo      String? @db.NVarChar(3)
+  idEmpresa    String? @db.NVarChar(5)
+  idUnegocio   String? @db.NVarChar(6)
+  idActivo     String? @db.NVarChar(30)
+  idCencos     String? @db.NVarChar(15)
+  idProyecto   String? @db.NVarChar(8)
+  idZona       String? @db.NVarChar(5)
+  idPlanta     String? @db.NVarChar(5)
+  descripcion  String? @db.NVarChar(100)
+  importe      Float?
+  tipoimporte  String? @db.NVarChar(1)
+  impdol       Float?
+}
+
+model asientos02 {
+  idcodigo     Int     @id(clustered: false, map: "PK_asientos02")
+  idAsiento    String? @db.NVarChar(15)
+  FechaProceso String? @db.NVarChar(10)
+  idMoneda     String? @db.NVarChar(2)
+  idGrupo      String? @db.NVarChar(3)
+  idEmpresa    String? @db.NVarChar(5)
+  idUnegocio   String? @db.NVarChar(6)
+  idActivo     String? @db.NVarChar(30)
+  idCencos     String? @db.NVarChar(15)
+  idProyecto   String? @db.NVarChar(8)
+  idZona       String? @db.NVarChar(5)
+  idPlanta     String? @db.NVarChar(5)
+  descripcion  String? @db.NVarChar(100)
+  importe      Float?
+  tipoimporte  String? @db.NVarChar(1)
+  impdol       Float?
+}
+
+model asientos03 {
+  idcodigo     Int     @id(clustered: false, map: "PK_asientos03")
+  idAsiento    String? @db.NVarChar(15)
+  FechaProceso String? @db.NVarChar(10)
+  idMoneda     String? @db.NVarChar(2)
+  idGrupo      String? @db.NVarChar(3)
+  idEmpresa    String? @db.NVarChar(5)
+  idUnegocio   String? @db.NVarChar(6)
+  idActivo     String? @db.NVarChar(30)
+  idCencos     String? @db.NVarChar(15)
+  idProyecto   String? @db.NVarChar(8)
+  idZona       String? @db.NVarChar(5)
+  idPlanta     String? @db.NVarChar(5)
+  descripcion  String? @db.NVarChar(100)
+  importe      Float?
+  tipoimporte  String? @db.NVarChar(1)
+  impdol       Float?
+}
+
+model asientosml {
+  idcodigo     Int     @id(clustered: false, map: "PK_asientos")
+  idAsiento    String? @db.NVarChar(15)
+  FechaProceso String? @db.NVarChar(10)
+  idMoneda     String? @db.NVarChar(2)
+  idGrupo      String? @db.NVarChar(3)
+  idEmpresa    String? @db.NVarChar(5)
+  idUnegocio   String? @db.NVarChar(6)
+  idActivo     String? @db.NVarChar(30)
+  idCencos     String? @db.NVarChar(15)
+  idProyecto   String? @db.NVarChar(8)
+  idZona       String? @db.NVarChar(5)
+  idPlanta     String? @db.NVarChar(5)
+  descripcion  String? @db.NVarChar(100)
+  importe      Float?
+  tipoimporte  String? @db.NVarChar(1)
+  impdol       Float?
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model auditoria {
+  idoperacion  Int
+  transaccion  Int?
+  modulo       String?   @db.NVarChar(20)
+  idusuario    String?   @db.NVarChar(15)
+  fechamov     DateTime? @db.DateTime
+  tipomov      String?   @db.NVarChar(15)
+  clave        String?   @db.NVarChar(20)
+  campo        String?   @db.NVarChar(20)
+  datoanterior String?   @db.NVarChar(100)
+  datoactual   String?   @db.NVarChar(100)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model C10012CC {
+  WTIPCT String  @db.Char(2)
+  WAMDCT Decimal @db.Decimal(8, 0)
+  WDESAS String  @db.Char(40)
+  WUSUAR String  @db.Char(10)
+  WTIPCB Decimal @db.Decimal(9, 4)
+  WALTCB String  @db.Char(1)
+  WCODMO String  @db.Char(1)
+  WPRDEF String  @db.Char(1)
+  WSECUE Decimal @db.Decimal(5, 0)
+  WCDEST String  @db.Char(1)
+  WTIPC2 Decimal @db.Decimal(9, 4)
+  WAJUST String  @db.Char(1)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model C10012CE {
+  WTIPCT String  @db.Char(2)
+  WAMDCT Decimal @db.Decimal(8, 0)
+  WDESAS String  @db.Char(40)
+  WUSUAR String  @db.Char(10)
+  WTIPCB Decimal @db.Decimal(9, 4)
+  WALTCB String  @db.Char(1)
+  WCODMO String  @db.Char(1)
+  WPRDEF String  @db.Char(1)
+  WSECUE Decimal @db.Decimal(5, 0)
+  WCDEST String  @db.Char(1)
+  WTIPC2 Decimal @db.Decimal(9, 4)
+  WAJUST String  @db.Char(1)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model C10012CN {
+  WTIPCT String  @db.Char(2)
+  WAMDCT Decimal @db.Decimal(8, 0)
+  WDESAS String  @db.Char(40)
+  WUSUAR String  @db.Char(10)
+  WTIPCB Decimal @db.Decimal(9, 4)
+  WALTCB String  @db.Char(1)
+  WCODMO String  @db.Char(1)
+  WPRDEF String  @db.Char(1)
+  WSECUE Decimal @db.Decimal(5, 0)
+  WCDEST String  @db.Char(1)
+  WTIPC2 Decimal @db.Decimal(9, 4)
+  WAJUST String  @db.Char(1)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model C10012CP {
+  WTIPCT String  @db.Char(2)
+  WAMDCT Decimal @db.Decimal(8, 0)
+  WDESAS String  @db.Char(40)
+  WUSUAR String  @db.Char(10)
+  WTIPCB Decimal @db.Decimal(9, 4)
+  WALTCB String  @db.Char(1)
+  WCODMO String  @db.Char(1)
+  WPRDEF String  @db.Char(1)
+  WSECUE Decimal @db.Decimal(5, 0)
+  WCDEST String  @db.Char(1)
+  WTIPC2 Decimal @db.Decimal(9, 4)
+  WAJUST String  @db.Char(1)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model C10012CT {
+  WTIPCT String  @db.Char(2)
+  WAMDCT Decimal @db.Decimal(8, 0)
+  WDESAS String  @db.Char(40)
+  WUSUAR String  @db.Char(10)
+  WTIPCB Decimal @db.Decimal(9, 4)
+  WALTCB String  @db.Char(1)
+  WCODMO String  @db.Char(1)
+  WPRDEF String  @db.Char(1)
+  WSECUE Decimal @db.Decimal(5, 0)
+  WCDEST String  @db.Char(1)
+  WTIPC2 Decimal @db.Decimal(9, 4)
+  WAJUST String  @db.Char(1)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model C10012DC {
+  WCDCTA String  @db.Char(9)
+  WCCTOS String  @db.Char(6)
+  WIMPOR Decimal @db.Decimal(15, 2)
+  WIMPUN Decimal @db.Decimal(15, 2)
+  WDEBHA String  @db.Char(1)
+  WDESIT String  @db.Char(20)
+  WREF01 String  @db.Char(10)
+  WREF02 String  @db.Char(10)
+  WREF03 String  @db.Char(10)
+  WREF04 String  @db.Char(10)
+  WREF05 String  @db.Char(10)
+  WAMDVT Decimal @db.Decimal(8, 0)
+  WSECUE Decimal @db.Decimal(5, 0)
+  WIMPEX Decimal @db.Decimal(15, 2)
+  WIMPBI Decimal @db.Decimal(15, 2)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model C10012DE {
+  WCDCTA String? @db.Char(15)
+  WCCTOS String  @db.Char(6)
+  WIMPOR Decimal @db.Decimal(15, 2)
+  WIMPUN Decimal @db.Decimal(15, 2)
+  WDEBHA String  @db.Char(1)
+  WDESIT String  @db.Char(20)
+  WREF01 String  @db.Char(10)
+  WREF02 String  @db.Char(10)
+  WREF03 String  @db.Char(10)
+  WREF04 String  @db.Char(10)
+  WREF05 String  @db.Char(10)
+  WAMDVT Decimal @db.Decimal(8, 0)
+  WSECUE Decimal @db.Decimal(5, 0)
+  WIMPEX Decimal @db.Decimal(15, 2)
+  WIMPBI Decimal @db.Decimal(15, 2)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model C10012DN {
+  WCDCTA String? @db.Char(15)
+  WCCTOS String  @db.Char(6)
+  WIMPOR Decimal @db.Decimal(15, 2)
+  WIMPUN Decimal @db.Decimal(15, 2)
+  WDEBHA String  @db.Char(1)
+  WDESIT String  @db.Char(20)
+  WREF01 String  @db.Char(10)
+  WREF02 String  @db.Char(10)
+  WREF03 String  @db.Char(10)
+  WREF04 String  @db.Char(10)
+  WREF05 String  @db.Char(10)
+  WAMDVT Decimal @db.Decimal(8, 0)
+  WSECUE Decimal @db.Decimal(5, 0)
+  WIMPEX Decimal @db.Decimal(15, 2)
+  WIMPBI Decimal @db.Decimal(15, 2)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model C10012DP {
+  WCDCTA String? @db.Char(15)
+  WCCTOS String  @db.Char(6)
+  WIMPOR Decimal @db.Decimal(15, 2)
+  WIMPUN Decimal @db.Decimal(15, 2)
+  WDEBHA String  @db.Char(1)
+  WDESIT String  @db.Char(20)
+  WREF01 String  @db.Char(10)
+  WREF02 String  @db.Char(10)
+  WREF03 String  @db.Char(10)
+  WREF04 String  @db.Char(10)
+  WREF05 String  @db.Char(10)
+  WAMDVT Decimal @db.Decimal(8, 0)
+  WSECUE Decimal @db.Decimal(5, 0)
+  WIMPEX Decimal @db.Decimal(15, 2)
+  WIMPBI Decimal @db.Decimal(15, 2)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model C10012DT {
+  WCDCTA String? @db.Char(15)
+  WCCTOS String  @db.Char(6)
+  WIMPOR Decimal @db.Decimal(15, 2)
+  WIMPUN Decimal @db.Decimal(15, 2)
+  WDEBHA String  @db.Char(1)
+  WDESIT String  @db.Char(20)
+  WREF01 String  @db.Char(10)
+  WREF02 String  @db.Char(10)
+  WREF03 String  @db.Char(10)
+  WREF04 String  @db.Char(10)
+  WREF05 String  @db.Char(10)
+  WAMDVT Decimal @db.Decimal(8, 0)
+  WSECUE Decimal @db.Decimal(5, 0)
+  WIMPEX Decimal @db.Decimal(15, 2)
+  WIMPBI Decimal @db.Decimal(15, 2)
+
+  @@ignore
+}
+
+model cabe01 {
+  idCodigo       String    @db.NVarChar(6)
+  idSubien       String    @db.NVarChar(3)
+  idSubtra       String    @db.NVarChar(3)
+  idSufijo       String    @db.NVarChar(3)
+  idDescripcion  String?   @db.NVarChar(6)
+  cantidad       Float?    @db.Real
+  descripcion    String?   @db.NText
+  idUnegocio     String?   @db.NVarChar(6)
+  idActivo       String?   @db.NVarChar(15)
+  idZona         String?   @db.NVarChar(15)
+  idPlanta       String?   @db.NVarChar(5)
+  idCencos       String?   @db.NVarChar(5)
+  idModelo       String?   @db.NVarChar(5)
+  idOrdenCompra  String?   @db.NVarChar(50)
+  idOrigen       String?   @db.NVarChar(2)
+  idProveedor    String?   @db.NVarChar(15)
+  idFabricante   String?   @db.NVarChar(50)
+  idProyecto     String?   @db.NVarChar(8)
+  idSituacion    String?   @db.NVarChar(2)
+  idFactura      String?   @db.NVarChar(30)
+  identificacion String?   @db.NVarChar(15)
+  plidPoliza     String?   @db.NVarChar(30)
+  plFecini       DateTime? @db.DateTime
+  plFecfin       DateTime? @db.DateTime
+  plidNaturaleza String?   @db.NVarChar(5)
+  plidPrima      String?   @db.NVarChar(5)
+  plarticulo     String?   @db.NVarChar(50)
+  trFecActivo    DateTime? @db.DateTime
+  tridActivo     String?   @db.NVarChar(15)
+  trFecCencos    DateTime? @db.DateTime
+  tridCencos     String?   @db.NVarChar(5)
+  trFecProyecto  DateTime? @db.DateTime
+  tridProyecto   String?   @db.NVarChar(8)
+  trFecUNegocio  DateTime? @db.DateTime
+  tridUNegocio   String?   @db.NVarChar(5)
+  trFecEmpresa   DateTime? @db.DateTime
+  tridEmpresa    String?   @db.NVarChar(5)
+  marcaSeleccion Boolean?
+  escencial      Boolean?
+  nuevo          Boolean?
+  fecpro         String    @db.NVarChar(6)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, fecpro], map: "PK_cabe01", clustered: false)
+}
+
+model cabe02 {
+  idCodigo       String    @db.NVarChar(6)
+  idSubien       String    @db.NVarChar(3)
+  idSubtra       String    @db.NVarChar(3)
+  idSufijo       String    @db.NVarChar(3)
+  idDescripcion  String?   @db.NVarChar(6)
+  cantidad       Float?    @db.Real
+  descripcion    String?   @db.NText
+  idUnegocio     String?   @db.NVarChar(6)
+  idActivo       String?   @db.NVarChar(15)
+  idZona         String?   @db.NVarChar(15)
+  idPlanta       String?   @db.NVarChar(5)
+  idCencos       String?   @db.NVarChar(5)
+  idModelo       String?   @db.NVarChar(5)
+  idOrdenCompra  String?   @db.NVarChar(50)
+  idOrigen       String?   @db.NVarChar(2)
+  idProveedor    String?   @db.NVarChar(15)
+  idFabricante   String?   @db.NVarChar(50)
+  idProyecto     String?   @db.NVarChar(8)
+  idSituacion    String?   @db.NVarChar(2)
+  idFactura      String?   @db.NVarChar(30)
+  identificacion String?   @db.NVarChar(15)
+  plidPoliza     String?   @db.NVarChar(30)
+  plFecini       DateTime? @db.DateTime
+  plFecfin       DateTime? @db.DateTime
+  plidNaturaleza String?   @db.NVarChar(5)
+  plidPrima      String?   @db.NVarChar(5)
+  plarticulo     String?   @db.NVarChar(50)
+  trFecActivo    DateTime? @db.DateTime
+  tridActivo     String?   @db.NVarChar(15)
+  trFecCencos    DateTime? @db.DateTime
+  tridCencos     String?   @db.NVarChar(5)
+  trFecProyecto  DateTime? @db.DateTime
+  tridProyecto   String?   @db.NVarChar(8)
+  trFecUNegocio  DateTime? @db.DateTime
+  tridUNegocio   String?   @db.NVarChar(5)
+  trFecEmpresa   DateTime? @db.DateTime
+  tridEmpresa    String?   @db.NVarChar(5)
+  marcaSeleccion Boolean?
+  escencial      Boolean?
+  nuevo          Boolean?
+  fecpro         String    @db.NVarChar(6)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, fecpro], map: "PK_cabe02", clustered: false)
+}
+
+model cabe03 {
+  idCodigo       String    @db.NVarChar(6)
+  idSubien       String    @db.NVarChar(3)
+  idSubtra       String    @db.NVarChar(3)
+  idSufijo       String    @db.NVarChar(3)
+  idDescripcion  String?   @db.NVarChar(6)
+  cantidad       Float?    @db.Real
+  descripcion    String?   @db.NText
+  idUnegocio     String?   @db.NVarChar(6)
+  idActivo       String?   @db.NVarChar(15)
+  idZona         String?   @db.NVarChar(15)
+  idPlanta       String?   @db.NVarChar(5)
+  idCencos       String?   @db.NVarChar(5)
+  idModelo       String?   @db.NVarChar(5)
+  idOrdenCompra  String?   @db.NVarChar(50)
+  idOrigen       String?   @db.NVarChar(2)
+  idProveedor    String?   @db.NVarChar(15)
+  idFabricante   String?   @db.NVarChar(50)
+  idProyecto     String?   @db.NVarChar(8)
+  idSituacion    String?   @db.NVarChar(2)
+  idFactura      String?   @db.NVarChar(30)
+  identificacion String?   @db.NVarChar(15)
+  plidPoliza     String?   @db.NVarChar(30)
+  plFecini       DateTime? @db.DateTime
+  plFecfin       DateTime? @db.DateTime
+  plidNaturaleza String?   @db.NVarChar(5)
+  plidPrima      String?   @db.NVarChar(5)
+  plarticulo     String?   @db.NVarChar(50)
+  trFecActivo    DateTime? @db.DateTime
+  tridActivo     String?   @db.NVarChar(15)
+  trFecCencos    DateTime? @db.DateTime
+  tridCencos     String?   @db.NVarChar(5)
+  trFecProyecto  DateTime? @db.DateTime
+  tridProyecto   String?   @db.NVarChar(8)
+  trFecUNegocio  DateTime? @db.DateTime
+  tridUNegocio   String?   @db.NVarChar(5)
+  trFecEmpresa   DateTime? @db.DateTime
+  tridEmpresa    String?   @db.NVarChar(5)
+  marcaSeleccion Boolean?
+  escencial      Boolean?
+  nuevo          Boolean?
+  fecpro         String    @db.NVarChar(6)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, fecpro], map: "PK_cabe03", clustered: false)
+}
+
+model cabe04 {
+  idCodigo       String    @db.NVarChar(6)
+  idSubien       String    @db.NVarChar(3)
+  idSubtra       String    @db.NVarChar(3)
+  idSufijo       String    @db.NVarChar(3)
+  idDescripcion  String?   @db.NVarChar(6)
+  cantidad       Float?    @db.Real
+  descripcion    String?   @db.NText
+  idUnegocio     String?   @db.NVarChar(6)
+  idActivo       String?   @db.NVarChar(15)
+  idZona         String?   @db.NVarChar(15)
+  idPlanta       String?   @db.NVarChar(5)
+  idCencos       String?   @db.NVarChar(5)
+  idModelo       String?   @db.NVarChar(5)
+  idOrdenCompra  String?   @db.NVarChar(50)
+  idOrigen       String?   @db.NVarChar(2)
+  idProveedor    String?   @db.NVarChar(15)
+  idFabricante   String?   @db.NVarChar(50)
+  idProyecto     String?   @db.NVarChar(8)
+  idSituacion    String?   @db.NVarChar(2)
+  idFactura      String?   @db.NVarChar(30)
+  identificacion String?   @db.NVarChar(15)
+  plidPoliza     String?   @db.NVarChar(30)
+  plFecini       DateTime? @db.DateTime
+  plFecfin       DateTime? @db.DateTime
+  plidNaturaleza String?   @db.NVarChar(5)
+  plidPrima      String?   @db.NVarChar(5)
+  plarticulo     String?   @db.NVarChar(50)
+  trFecActivo    DateTime? @db.DateTime
+  tridActivo     String?   @db.NVarChar(15)
+  trFecCencos    DateTime? @db.DateTime
+  tridCencos     String?   @db.NVarChar(5)
+  trFecProyecto  DateTime? @db.DateTime
+  tridProyecto   String?   @db.NVarChar(8)
+  trFecUNegocio  DateTime? @db.DateTime
+  tridUNegocio   String?   @db.NVarChar(5)
+  trFecEmpresa   DateTime? @db.DateTime
+  tridEmpresa    String?   @db.NVarChar(5)
+  marcaSeleccion Boolean?
+  escencial      Boolean?
+  nuevo          Boolean?
+  fecpro         String    @db.NVarChar(6)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, fecpro], map: "PK_cabe04", clustered: false)
+}
+
+model cabe05 {
+  idCodigo       String    @db.NVarChar(6)
+  idSubien       String    @db.NVarChar(3)
+  idSubtra       String    @db.NVarChar(3)
+  idSufijo       String    @db.NVarChar(3)
+  idDescripcion  String?   @db.NVarChar(6)
+  cantidad       Float?    @db.Real
+  descripcion    String?   @db.NText
+  idUnegocio     String?   @db.NVarChar(6)
+  idActivo       String?   @db.NVarChar(15)
+  idZona         String?   @db.NVarChar(15)
+  idPlanta       String?   @db.NVarChar(5)
+  idCencos       String?   @db.NVarChar(5)
+  idModelo       String?   @db.NVarChar(5)
+  idOrdenCompra  String?   @db.NVarChar(50)
+  idOrigen       String?   @db.NVarChar(2)
+  idProveedor    String?   @db.NVarChar(15)
+  idFabricante   String?   @db.NVarChar(50)
+  idProyecto     String?   @db.NVarChar(8)
+  idSituacion    String?   @db.NVarChar(2)
+  idFactura      String?   @db.NVarChar(30)
+  identificacion String?   @db.NVarChar(15)
+  plidPoliza     String?   @db.NVarChar(30)
+  plFecini       DateTime? @db.DateTime
+  plFecfin       DateTime? @db.DateTime
+  plidNaturaleza String?   @db.NVarChar(5)
+  plidPrima      String?   @db.NVarChar(5)
+  plarticulo     String?   @db.NVarChar(50)
+  trFecActivo    DateTime? @db.DateTime
+  tridActivo     String?   @db.NVarChar(15)
+  trFecCencos    DateTime? @db.DateTime
+  tridCencos     String?   @db.NVarChar(5)
+  trFecProyecto  DateTime? @db.DateTime
+  tridProyecto   String?   @db.NVarChar(8)
+  trFecUNegocio  DateTime? @db.DateTime
+  tridUNegocio   String?   @db.NVarChar(5)
+  trFecEmpresa   DateTime? @db.DateTime
+  tridEmpresa    String?   @db.NVarChar(5)
+  marcaSeleccion Boolean?
+  escencial      Boolean?
+  nuevo          Boolean?
+  fecpro         String    @db.NVarChar(6)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, fecpro], map: "PK_cabe05", clustered: false)
+}
+
+model cabe06 {
+  idCodigo       String    @db.NVarChar(6)
+  idSubien       String    @db.NVarChar(3)
+  idSubtra       String    @db.NVarChar(3)
+  idSufijo       String    @db.NVarChar(3)
+  idDescripcion  String?   @db.NVarChar(6)
+  cantidad       Float?    @db.Real
+  descripcion    String?   @db.NText
+  idUnegocio     String?   @db.NVarChar(6)
+  idActivo       String?   @db.NVarChar(15)
+  idZona         String?   @db.NVarChar(15)
+  idPlanta       String?   @db.NVarChar(5)
+  idCencos       String?   @db.NVarChar(5)
+  idModelo       String?   @db.NVarChar(5)
+  idOrdenCompra  String?   @db.NVarChar(50)
+  idOrigen       String?   @db.NVarChar(2)
+  idProveedor    String?   @db.NVarChar(15)
+  idFabricante   String?   @db.NVarChar(50)
+  idProyecto     String?   @db.NVarChar(8)
+  idSituacion    String?   @db.NVarChar(2)
+  idFactura      String?   @db.NVarChar(30)
+  identificacion String?   @db.NVarChar(15)
+  plidPoliza     String?   @db.NVarChar(30)
+  plFecini       DateTime? @db.DateTime
+  plFecfin       DateTime? @db.DateTime
+  plidNaturaleza String?   @db.NVarChar(5)
+  plidPrima      String?   @db.NVarChar(5)
+  plarticulo     String?   @db.NVarChar(50)
+  trFecActivo    DateTime? @db.DateTime
+  tridActivo     String?   @db.NVarChar(15)
+  trFecCencos    DateTime? @db.DateTime
+  tridCencos     String?   @db.NVarChar(5)
+  trFecProyecto  DateTime? @db.DateTime
+  tridProyecto   String?   @db.NVarChar(8)
+  trFecUNegocio  DateTime? @db.DateTime
+  tridUNegocio   String?   @db.NVarChar(5)
+  trFecEmpresa   DateTime? @db.DateTime
+  tridEmpresa    String?   @db.NVarChar(5)
+  marcaSeleccion Boolean?
+  escencial      Boolean?
+  nuevo          Boolean?
+  fecpro         String    @db.NVarChar(6)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, fecpro], map: "PK_cabe06", clustered: false)
+}
+
+model cabe07 {
+  idCodigo       String    @db.NVarChar(6)
+  idSubien       String    @db.NVarChar(3)
+  idSubtra       String    @db.NVarChar(3)
+  idSufijo       String    @db.NVarChar(3)
+  idDescripcion  String?   @db.NVarChar(6)
+  cantidad       Float?    @db.Real
+  descripcion    String?   @db.NText
+  idUnegocio     String?   @db.NVarChar(6)
+  idActivo       String?   @db.NVarChar(15)
+  idZona         String?   @db.NVarChar(15)
+  idPlanta       String?   @db.NVarChar(5)
+  idCencos       String?   @db.NVarChar(5)
+  idModelo       String?   @db.NVarChar(5)
+  idOrdenCompra  String?   @db.NVarChar(50)
+  idOrigen       String?   @db.NVarChar(2)
+  idProveedor    String?   @db.NVarChar(15)
+  idFabricante   String?   @db.NVarChar(50)
+  idProyecto     String?   @db.NVarChar(8)
+  idSituacion    String?   @db.NVarChar(2)
+  idFactura      String?   @db.NVarChar(30)
+  identificacion String?   @db.NVarChar(15)
+  plidPoliza     String?   @db.NVarChar(30)
+  plFecini       DateTime? @db.DateTime
+  plFecfin       DateTime? @db.DateTime
+  plidNaturaleza String?   @db.NVarChar(5)
+  plidPrima      String?   @db.NVarChar(5)
+  plarticulo     String?   @db.NVarChar(50)
+  trFecActivo    DateTime? @db.DateTime
+  tridActivo     String?   @db.NVarChar(15)
+  trFecCencos    DateTime? @db.DateTime
+  tridCencos     String?   @db.NVarChar(5)
+  trFecProyecto  DateTime? @db.DateTime
+  tridProyecto   String?   @db.NVarChar(8)
+  trFecUNegocio  DateTime? @db.DateTime
+  tridUNegocio   String?   @db.NVarChar(5)
+  trFecEmpresa   DateTime? @db.DateTime
+  tridEmpresa    String?   @db.NVarChar(5)
+  marcaSeleccion Boolean?
+  escencial      Boolean?
+  nuevo          Boolean?
+  fecpro         String    @db.NVarChar(6)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, fecpro], map: "PK_cabe07", clustered: false)
+}
+
+model cabe08 {
+  idCodigo       String    @db.NVarChar(6)
+  idSubien       String    @db.NVarChar(3)
+  idSubtra       String    @db.NVarChar(3)
+  idSufijo       String    @db.NVarChar(3)
+  idDescripcion  String?   @db.NVarChar(6)
+  cantidad       Float?    @db.Real
+  descripcion    String?   @db.NText
+  idUnegocio     String?   @db.NVarChar(6)
+  idActivo       String?   @db.NVarChar(15)
+  idZona         String?   @db.NVarChar(15)
+  idPlanta       String?   @db.NVarChar(5)
+  idCencos       String?   @db.NVarChar(5)
+  idModelo       String?   @db.NVarChar(5)
+  idOrdenCompra  String?   @db.NVarChar(50)
+  idOrigen       String?   @db.NVarChar(2)
+  idProveedor    String?   @db.NVarChar(15)
+  idFabricante   String?   @db.NVarChar(50)
+  idProyecto     String?   @db.NVarChar(8)
+  idSituacion    String?   @db.NVarChar(2)
+  idFactura      String?   @db.NVarChar(30)
+  identificacion String?   @db.NVarChar(15)
+  plidPoliza     String?   @db.NVarChar(30)
+  plFecini       DateTime? @db.DateTime
+  plFecfin       DateTime? @db.DateTime
+  plidNaturaleza String?   @db.NVarChar(5)
+  plidPrima      String?   @db.NVarChar(5)
+  plarticulo     String?   @db.NVarChar(50)
+  trFecActivo    DateTime? @db.DateTime
+  tridActivo     String?   @db.NVarChar(15)
+  trFecCencos    DateTime? @db.DateTime
+  tridCencos     String?   @db.NVarChar(5)
+  trFecProyecto  DateTime? @db.DateTime
+  tridProyecto   String?   @db.NVarChar(8)
+  trFecUNegocio  DateTime? @db.DateTime
+  tridUNegocio   String?   @db.NVarChar(5)
+  trFecEmpresa   DateTime? @db.DateTime
+  tridEmpresa    String?   @db.NVarChar(5)
+  marcaSeleccion Boolean?
+  escencial      Boolean?
+  nuevo          Boolean?
+  fecpro         String    @db.NVarChar(6)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, fecpro], map: "PK_cabe08", clustered: false)
+}
+
+model cabe09 {
+  idCodigo       String    @db.NVarChar(6)
+  idSubien       String    @db.NVarChar(3)
+  idSubtra       String    @db.NVarChar(3)
+  idSufijo       String    @db.NVarChar(3)
+  idDescripcion  String?   @db.NVarChar(6)
+  cantidad       Float?    @db.Real
+  descripcion    String?   @db.NText
+  idUnegocio     String?   @db.NVarChar(6)
+  idActivo       String?   @db.NVarChar(15)
+  idZona         String?   @db.NVarChar(15)
+  idPlanta       String?   @db.NVarChar(5)
+  idCencos       String?   @db.NVarChar(5)
+  idModelo       String?   @db.NVarChar(5)
+  idOrdenCompra  String?   @db.NVarChar(50)
+  idOrigen       String?   @db.NVarChar(2)
+  idProveedor    String?   @db.NVarChar(15)
+  idFabricante   String?   @db.NVarChar(50)
+  idProyecto     String?   @db.NVarChar(8)
+  idSituacion    String?   @db.NVarChar(2)
+  idFactura      String?   @db.NVarChar(30)
+  identificacion String?   @db.NVarChar(15)
+  plidPoliza     String?   @db.NVarChar(30)
+  plFecini       DateTime? @db.DateTime
+  plFecfin       DateTime? @db.DateTime
+  plidNaturaleza String?   @db.NVarChar(5)
+  plidPrima      String?   @db.NVarChar(5)
+  plarticulo     String?   @db.NVarChar(50)
+  trFecActivo    DateTime? @db.DateTime
+  tridActivo     String?   @db.NVarChar(15)
+  trFecCencos    DateTime? @db.DateTime
+  tridCencos     String?   @db.NVarChar(5)
+  trFecProyecto  DateTime? @db.DateTime
+  tridProyecto   String?   @db.NVarChar(8)
+  trFecUNegocio  DateTime? @db.DateTime
+  tridUNegocio   String?   @db.NVarChar(5)
+  trFecEmpresa   DateTime? @db.DateTime
+  tridEmpresa    String?   @db.NVarChar(5)
+  marcaSeleccion Boolean?
+  escencial      Boolean?
+  nuevo          Boolean?
+  fecpro         String    @db.NVarChar(6)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, fecpro], map: "PK_cabe09", clustered: false)
+}
+
+model cabe10 {
+  idCodigo       String    @db.NVarChar(6)
+  idSubien       String    @db.NVarChar(3)
+  idSubtra       String    @db.NVarChar(3)
+  idSufijo       String    @db.NVarChar(3)
+  idDescripcion  String?   @db.NVarChar(6)
+  cantidad       Float?    @db.Real
+  descripcion    String?   @db.NText
+  idUnegocio     String?   @db.NVarChar(6)
+  idActivo       String?   @db.NVarChar(15)
+  idZona         String?   @db.NVarChar(15)
+  idPlanta       String?   @db.NVarChar(5)
+  idCencos       String?   @db.NVarChar(5)
+  idModelo       String?   @db.NVarChar(5)
+  idOrdenCompra  String?   @db.NVarChar(50)
+  idOrigen       String?   @db.NVarChar(2)
+  idProveedor    String?   @db.NVarChar(15)
+  idFabricante   String?   @db.NVarChar(50)
+  idProyecto     String?   @db.NVarChar(8)
+  idSituacion    String?   @db.NVarChar(2)
+  idFactura      String?   @db.NVarChar(30)
+  identificacion String?   @db.NVarChar(15)
+  plidPoliza     String?   @db.NVarChar(30)
+  plFecini       DateTime? @db.DateTime
+  plFecfin       DateTime? @db.DateTime
+  plidNaturaleza String?   @db.NVarChar(5)
+  plidPrima      String?   @db.NVarChar(5)
+  plarticulo     String?   @db.NVarChar(50)
+  trFecActivo    DateTime? @db.DateTime
+  tridActivo     String?   @db.NVarChar(15)
+  trFecCencos    DateTime? @db.DateTime
+  tridCencos     String?   @db.NVarChar(5)
+  trFecProyecto  DateTime? @db.DateTime
+  tridProyecto   String?   @db.NVarChar(8)
+  trFecUNegocio  DateTime? @db.DateTime
+  tridUNegocio   String?   @db.NVarChar(5)
+  trFecEmpresa   DateTime? @db.DateTime
+  tridEmpresa    String?   @db.NVarChar(5)
+  marcaSeleccion Boolean?
+  escencial      Boolean?
+  nuevo          Boolean?
+  fecpro         String    @db.NVarChar(6)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, fecpro], map: "PK_cabe10", clustered: false)
+}
+
+model cabe11 {
+  idCodigo       String    @db.NVarChar(6)
+  idSubien       String    @db.NVarChar(3)
+  idSubtra       String    @db.NVarChar(3)
+  idSufijo       String    @db.NVarChar(3)
+  idDescripcion  String?   @db.NVarChar(6)
+  cantidad       Float?    @db.Real
+  descripcion    String?   @db.NText
+  idUnegocio     String?   @db.NVarChar(6)
+  idActivo       String?   @db.NVarChar(15)
+  idZona         String?   @db.NVarChar(15)
+  idPlanta       String?   @db.NVarChar(5)
+  idCencos       String?   @db.NVarChar(5)
+  idModelo       String?   @db.NVarChar(5)
+  idOrdenCompra  String?   @db.NVarChar(50)
+  idOrigen       String?   @db.NVarChar(2)
+  idProveedor    String?   @db.NVarChar(15)
+  idFabricante   String?   @db.NVarChar(50)
+  idProyecto     String?   @db.NVarChar(8)
+  idSituacion    String?   @db.NVarChar(2)
+  idFactura      String?   @db.NVarChar(30)
+  identificacion String?   @db.NVarChar(15)
+  plidPoliza     String?   @db.NVarChar(30)
+  plFecini       DateTime? @db.DateTime
+  plFecfin       DateTime? @db.DateTime
+  plidNaturaleza String?   @db.NVarChar(5)
+  plidPrima      String?   @db.NVarChar(5)
+  plarticulo     String?   @db.NVarChar(50)
+  trFecActivo    DateTime? @db.DateTime
+  tridActivo     String?   @db.NVarChar(15)
+  trFecCencos    DateTime? @db.DateTime
+  tridCencos     String?   @db.NVarChar(5)
+  trFecProyecto  DateTime? @db.DateTime
+  tridProyecto   String?   @db.NVarChar(8)
+  trFecUNegocio  DateTime? @db.DateTime
+  tridUNegocio   String?   @db.NVarChar(5)
+  trFecEmpresa   DateTime? @db.DateTime
+  tridEmpresa    String?   @db.NVarChar(5)
+  marcaSeleccion Boolean?
+  escencial      Boolean?
+  nuevo          Boolean?
+  fecpro         String    @db.NVarChar(6)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, fecpro], map: "PK_cabe11", clustered: false)
+}
+
+model cabe12 {
+  idCodigo       String    @db.NVarChar(6)
+  idSubien       String    @db.NVarChar(3)
+  idSubtra       String    @db.NVarChar(3)
+  idSufijo       String    @db.NVarChar(3)
+  idDescripcion  String?   @db.NVarChar(6)
+  cantidad       Float?    @db.Real
+  descripcion    String?   @db.NText
+  idUnegocio     String?   @db.NVarChar(6)
+  idActivo       String?   @db.NVarChar(15)
+  idZona         String?   @db.NVarChar(15)
+  idPlanta       String?   @db.NVarChar(5)
+  idCencos       String?   @db.NVarChar(5)
+  idModelo       String?   @db.NVarChar(5)
+  idOrdenCompra  String?   @db.NVarChar(50)
+  idOrigen       String?   @db.NVarChar(2)
+  idProveedor    String?   @db.NVarChar(15)
+  idFabricante   String?   @db.NVarChar(50)
+  idProyecto     String?   @db.NVarChar(8)
+  idSituacion    String?   @db.NVarChar(2)
+  idFactura      String?   @db.NVarChar(30)
+  identificacion String?   @db.NVarChar(15)
+  plidPoliza     String?   @db.NVarChar(30)
+  plFecini       DateTime? @db.DateTime
+  plFecfin       DateTime? @db.DateTime
+  plidNaturaleza String?   @db.NVarChar(5)
+  plidPrima      String?   @db.NVarChar(5)
+  plarticulo     String?   @db.NVarChar(50)
+  trFecActivo    DateTime? @db.DateTime
+  tridActivo     String?   @db.NVarChar(15)
+  trFecCencos    DateTime? @db.DateTime
+  tridCencos     String?   @db.NVarChar(5)
+  trFecProyecto  DateTime? @db.DateTime
+  tridProyecto   String?   @db.NVarChar(8)
+  trFecUNegocio  DateTime? @db.DateTime
+  tridUNegocio   String?   @db.NVarChar(5)
+  trFecEmpresa   DateTime? @db.DateTime
+  tridEmpresa    String?   @db.NVarChar(5)
+  marcaSeleccion Boolean?
+  escencial      Boolean?
+  nuevo          Boolean?
+  fecpro         String    @db.NVarChar(6)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, fecpro], map: "PK_cabe12", clustered: false)
+}
+
+model cabecera {
+  idCodigo       String    @db.NVarChar(6)
+  idSubien       String    @db.NVarChar(3)
+  idSubtra       String    @db.NVarChar(3)
+  idSufijo       String    @db.NVarChar(3)
+  idDescripcion  String?   @db.NVarChar(6)
+  cantidad       Float?    @db.Real
+  descripcion    String?   @db.NText
+  idUnegocio     String?   @db.NVarChar(6)
+  idActivo       String?   @db.NVarChar(15)
+  idZona         String?   @db.NVarChar(15)
+  idPlanta       String?   @db.NVarChar(5)
+  idCencos       String?   @db.NVarChar(5)
+  idModelo       String?   @db.NVarChar(5)
+  idOrdenCompra  String?   @db.NVarChar(50)
+  idOrigen       String?   @db.NVarChar(2)
+  idProveedor    String?   @db.NVarChar(15)
+  idFabricante   String?   @db.NVarChar(50)
+  idProyecto     String?   @db.NVarChar(8)
+  idSituacion    String?   @db.NVarChar(2)
+  idFactura      String?   @db.NVarChar(30)
+  identificacion String?   @db.NVarChar(15)
+  plidPoliza     String?   @db.NVarChar(30)
+  plFecini       DateTime? @db.DateTime
+  plFecfin       DateTime? @db.DateTime
+  plidNaturaleza String?   @db.NVarChar(5)
+  plidPrima      String?   @db.NVarChar(5)
+  plarticulo     String?   @db.NVarChar(50)
+  trFecActivo    DateTime? @db.DateTime
+  tridActivo     String?   @db.NVarChar(15)
+  trFecCencos    DateTime? @db.DateTime
+  tridCencos     String?   @db.NVarChar(5)
+  trFecProyecto  DateTime? @db.DateTime
+  tridProyecto   String?   @db.NVarChar(8)
+  trFecUNegocio  DateTime? @db.DateTime
+  tridUNegocio   String?   @db.NVarChar(5)
+  trFecEmpresa   DateTime? @db.DateTime
+  tridEmpresa    String?   @db.NVarChar(5)
+  marcaSeleccion Boolean?
+  escencial      Boolean?
+  nuevo          Boolean?
+  fecpro         String?   @db.NVarChar(6)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo], map: "PK_cabecera", clustered: false)
+}
+
+model CAMPOS {
+  campo    String? @db.NVarChar(25)
+  nombre   String? @db.NVarChar(30)
+  tabnom   String? @db.NVarChar(20)
+  tipodato String? @db.NVarChar(2)
+  sele     String? @db.NVarChar(50)
+  tabdes   String? @db.NVarChar(20)
+  tabcod   String? @db.NVarChar(20)
+  tienetab Boolean
+  mascara  String? @db.NVarChar(30)
+  cortesi  Boolean
+  condisi  Boolean
+  idioma   String? @db.NVarChar(2)
+  orden    String  @id(clustered: false, map: "PK_CAMPOS") @db.NVarChar(2)
+  desizqg  String? @db.NVarChar(20)
+  desizqt  String? @db.NVarChar(25)
+}
+
+model Cargos {
+  IdProyecto    String    @db.NVarChar(15)
+  idOTrabajo    String    @db.NVarChar(15)
+  idCodigo      String    @db.NVarChar(6)
+  idMejora      String    @db.NVarChar(3)
+  cantidad      Float?    @db.Real
+  idumedida     String?   @db.NVarChar(3)
+  Descripcion   String?   @db.NText
+  FecOri        DateTime? @db.DateTime
+  idProveedor   String?   @db.NVarChar(15)
+  idFabricante  String?   @db.NVarChar(15)
+  Factura       String?   @db.NVarChar(15)
+  Requisicion   String?   @db.NVarChar(15)
+  ValorUnitario Float?
+  Valori        Float?
+  IdMoneda      String    @db.NVarChar(2)
+  Indice        Float?
+  Valoriant     Float?
+  Vrepoe        Float?
+  idAfCodigo    String?   @db.NVarChar(6)
+  idAfMejora    String?   @db.NVarChar(3)
+
+  @@id([IdProyecto, idOTrabajo, idCodigo, idMejora], map: "PK_ProyOTCargos", clustered: false)
+}
+
+model CCostos {
+  IdCencos    String  @id(map: "PK_CCostos") @db.NVarChar(15)
+  Descripcion String? @db.NVarChar(60)
+  IdResultado String? @db.NVarChar(15)
+  IdAmajuste  String? @db.NVarChar(15)
+  Productivo  Boolean
+  idZona      String? @db.NVarChar(5)
+  codcia      String? @db.NVarChar(3)
+}
+
+model cierres {
+  idmoextra String    @db.NVarChar(2)
+  fecie     String    @db.NVarChar(6)
+  fecpro    DateTime? @db.DateTime
+  fecini    DateTime? @db.DateTime
+  fecant    DateTime? @db.DateTime
+
+  @@id([idmoextra, fecie], map: "PK_cierres", clustered: false)
+}
+
+model cnfgasientos {
+  asIdcampo String  @id(clustered: false, map: "PK_cnfgasientos") @db.NVarChar(20)
+  asActivo  Boolean
+  asOrden   Int?    @db.SmallInt
+  asDescri  String? @db.NVarChar(20)
+}
+
+model cnfgbuso {
+  buIdcampo String  @id(clustered: false, map: "PK_cnfgbuso") @db.NVarChar(20)
+  buActivo  Boolean
+  buOrden   Int?    @db.SmallInt
+  buDescri  String? @db.NVarChar(20)
+  bufile    String? @db.NVarChar(20)
+}
+
+model CoefImpositivos {
+  fecha       DateTime @id(map: "PK_CoefImpositivos_1") @db.DateTime
+  Coeficiente Float?
+}
+
+model compras {
+  cod_tit    String  @db.NVarChar(15)
+  nro_compra String  @db.NVarChar(15)
+  linea      Int
+  desc_ped2  String? @db.NVarChar(3000)
+  nro_trans  Int?
+
+  @@id([cod_tit, nro_compra, linea], map: "PK_compras")
+}
+
+model ConverField {
+  IdTabla        String  @db.NVarChar(20)
+  IdCampo        String  @db.NVarChar(40)
+  browformat     String? @db.NVarChar(50)
+  BrowNombre     String? @db.NVarChar(50)
+  listShow       Boolean
+  lisordencampos Int?    @db.SmallInt
+  idIdioma       String? @db.NVarChar(5)
+  idusuario      String? @db.NVarChar(30)
+
+  @@id([IdTabla, IdCampo], map: "PK_ConverField", clustered: false)
+}
+
+model Cotextranjera {
+  Fecha      DateTime @db.DateTime
+  cotizacion Float?
+  idMoextra  String   @db.NVarChar(2)
+
+  @@id([Fecha, idMoextra], map: "PK_Cotextranjera", clustered: false)
+}
+
+model ctaVidautil {
+  idMoextra String @db.NVarChar(2)
+  idActivo  String @db.NVarChar(15)
+  idGrupo   String @db.NVarChar(2)
+  vidautil  Float? @db.Real
+
+  @@id([idMoextra, idActivo, idGrupo], map: "PK_ctaVidautil", clustered: false)
+}
+
+model Cuentas {
+  IdActivo      String  @id(clustered: false, map: "PK_Cuentas") @db.NVarChar(25)
+  Descripcion   String? @db.NVarChar(60)
+  IdTipo        String? @db.NVarChar(1)
+  IdCodamo      String? @db.NVarChar(1)
+  CVidautil     Float?  @db.Real
+  IVidautil     Float?  @db.Real
+  Valres        Float?  @db.Real
+  IdAmAcumulada String? @db.NVarChar(30)
+  IdResultado   String? @db.NVarChar(15)
+  IdReserva     String? @db.NVarChar(15)
+  idamajuste    String? @db.NVarChar(15)
+  IdGrupoA      String? @db.NVarChar(2)
+  IdGrupoI      String? @db.NVarChar(2)
+}
+
+model defaults {
+  iddefault String? @db.NVarChar(20)
+  idcampo   String  @id(clustered: false, map: "PK_defaults") @db.NVarChar(50)
+}
+
+model derechos {
+  idUsuario String @db.NVarChar(15)
+  idModulo  String @db.NVarChar(6)
+  idPermiso String @db.NVarChar(6)
+
+  @@id([idUsuario, idModulo, idPermiso], map: "PK_derechos", clustered: false)
+}
+
+model Distribucion {
+  idCodigo   String @db.NVarChar(6)
+  idsubien   String @db.NVarChar(3)
+  idsubtra   String @db.NVarChar(3)
+  idsufijo   String @db.NVarChar(3)
+  idCencos   String @db.NVarChar(5)
+  porcentaje Float? @db.Real
+
+  @@id([idCodigo, idsubien, idsubtra, idsufijo, idCencos], map: "PK_Distribucion", clustered: false)
+}
+
+model Errores {
+  ErrCodigo Int     @id(clustered: false, map: "PK_Errores") @db.SmallInt
+  Errobject String? @db.NVarChar(15)
+  ErrDescri String? @db.NVarChar(100)
+  idIdioma  String? @db.NVarChar(2)
+}
+
+model Grupos {
+  IdGrupo     String  @id(clustered: false, map: "PK_Grupos") @db.NVarChar(2)
+  Descripcion String? @db.NVarChar(60)
+}
+
+model imagenes {
+  id          Int     @id(map: "PK_imagenes_1") @default(autoincrement())
+  idCodigo    String  @db.NVarChar(6)
+  idSubien    String  @db.NVarChar(3)
+  idSubtra    String  @db.NVarChar(3)
+  idSufijo    String  @db.NVarChar(3)
+  foto        String? @db.NText
+  anotaciones String? @db.NText
+  plano       String? @db.NText
+}
+
+model impu01 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime? @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, idActivo], map: "PK_impu01", clustered: false)
+}
+
+model impu02 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime? @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, idActivo], map: "PK_impu02", clustered: false)
+}
+
+model impu03 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime? @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, idActivo], map: "PK_impu03", clustered: false)
+}
+
+model impu04 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime? @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, idActivo], map: "PK_impu04", clustered: false)
+}
+
+model impu05 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime? @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, idActivo], map: "PK_impu05", clustered: false)
+}
+
+model impu06 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime? @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, idActivo], map: "PK_impu06", clustered: false)
+}
+
+model impu07 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime? @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, idActivo], map: "PK_impu07", clustered: false)
+}
+
+model impu08 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String?   @db.NVarChar(6)
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            String?   @db.NChar(10)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, idActivo], map: "PK_impu08", clustered: false)
+}
+
+model impu09 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime? @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, idActivo], map: "PK_impu09", clustered: false)
+}
+
+model impu10 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime? @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, idActivo], map: "PK_impu10", clustered: false)
+}
+
+model impu11 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime? @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, idActivo], map: "PK_impu11", clustered: false)
+}
+
+model impu12 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime? @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, idActivo], map: "PK_impu12", clustered: false)
+}
+
+model impuestos {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String?   @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo], map: "PK_impuestos", clustered: false)
+}
+
+model Interna {
+  IdInterno   String? @db.NVarChar(2)
+  Descripcion String? @db.NVarChar(60)
+  Orden       String  @db.NVarChar(2)
+  Tipo        String  @db.NVarChar(10)
+
+  @@id([Orden, Tipo], map: "PK_Interna", clustered: false)
+}
+
+model listados {
+  grupo         String  @db.NVarChar(2)
+  nombregrupo   String? @db.NVarChar(50)
+  orden         Int     @db.SmallInt
+  listado       String? @db.NVarChar(15)
+  nombrelistado String? @db.NVarChar(60)
+  habilitado    Boolean
+  listador      String? @db.NVarChar(10)
+  nomtab        String? @db.NVarChar(15)
+  idtabla       String? @db.NVarChar(15)
+  idioma        String? @db.NVarChar(2)
+  titulo        String? @db.NVarChar(60)
+  icono         String? @db.NVarChar(20)
+
+  @@id([grupo, orden], map: "PK_listados", clustered: false)
+}
+
+model lstflex {
+  idusuario String  @db.NVarChar(30)
+  idlistado String  @id(map: "PK_lstflex") @db.NVarChar(150)
+  idquery   String? @db.NVarChar(2000)
+  idtitulos String? @db.NVarChar(2000)
+}
+
+model Mayorista {
+  Fecha  DateTime @id(clustered: false, map: "PK_Mayorista") @db.DateTime
+  Indice Float?
+  Otro   Float?
+}
+
+model ME01 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String?   @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo], map: "PK_dolares", clustered: false)
+}
+
+model ME0101 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0101")
+}
+
+model ME0102 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_dola02", clustered: false)
+}
+
+model ME0103 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_dola03", clustered: false)
+}
+
+model ME0104 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_dola04", clustered: false)
+}
+
+model ME0105 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_dola05", clustered: false)
+}
+
+model ME0106 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_dola06", clustered: false)
+}
+
+model ME0107 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, idActivo, FecPro], map: "PK_dola07", clustered: false)
+}
+
+model ME0108 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String    @db.NVarChar(6)
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_dola08", clustered: false)
+}
+
+model ME0109 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0109")
+}
+
+model ME0110 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_dola10", clustered: false)
+}
+
+model ME0111 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0111")
+}
+
+model ME0112 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_dola12", clustered: false)
+}
+
+model ME02 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String?   @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo], map: "PK_me02", clustered: false)
+}
+
+model ME0201 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0201")
+}
+
+model ME0202 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0202")
+}
+
+model ME0203 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0203")
+}
+
+model ME0204 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0204")
+}
+
+model ME0205 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0205")
+}
+
+model ME0206 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0206")
+}
+
+model ME0207 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0207")
+}
+
+model ME0208 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0208")
+}
+
+model ME0209 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0209")
+}
+
+model ME0210 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0210")
+}
+
+model ME0211 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0211")
+}
+
+model ME0212 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0212")
+}
+
+model ME03 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String?   @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo], map: "PK_me03", clustered: false)
+}
+
+model ME0301 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0301")
+}
+
+model ME0302 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0302")
+}
+
+model ME0303 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0303")
+}
+
+model ME0304 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0304")
+}
+
+model ME0305 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0305")
+}
+
+model ME0306 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0306")
+}
+
+model ME0307 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0307")
+}
+
+model ME0308 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0308")
+}
+
+model ME0309 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0309")
+}
+
+model ME0310 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0310")
+}
+
+model ME0311 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0311")
+}
+
+model ME0312 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String    @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.SmallDateTime
+  FecDep               DateTime? @db.SmallDateTime
+  Fecfin               DateTime? @db.SmallDateTime
+  FecBase              DateTime? @db.SmallDateTime
+  FecBaj               DateTime? @db.SmallDateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               DateTime  @db.SmallDateTime
+  FecIni               DateTime? @db.SmallDateTime
+  FecDiaProceso        DateTime? @db.SmallDateTime
+  CambioEjercicio      DateTime? @db.SmallDateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_ME0312")
+}
+
+model mensajes {
+  idMensaje   Float   @id(clustered: false, map: "PK_mensajes") @db.Real
+  descripcion String? @db.NVarChar(100)
+  idIdioma    String? @db.NVarChar(2)
+}
+
+model modulos {
+  idModulo    String  @id(clustered: false, map: "PK_modulos") @db.NVarChar(6)
+  descripcion String? @db.NVarChar(50)
+}
+
+model moextra {
+  idMoextra   String   @id(clustered: false, map: "PK_moextra") @db.NVarChar(2)
+  Descripcion String?  @db.NVarChar(60)
+  clave       String   @db.NVarChar(20)
+  simula      Boolean?
+}
+
+model MOLO01 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String    @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_MOLO01")
+}
+
+model MOLO02 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String    @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_MOLO02")
+}
+
+model MOLO03 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String    @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_MOLO03")
+}
+
+model MOLO04 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String    @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_MOLO04")
+}
+
+model MOLO05 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String    @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_MOLO05")
+}
+
+model MOLO06 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String    @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_MOLO06")
+}
+
+model MOLO07 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String    @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_MOLO07")
+}
+
+model MOLO08 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String    @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_MOLO08")
+}
+
+model MOLO09 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String    @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_MOLO09")
+}
+
+model MOLO10 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String    @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_MOLO10")
+}
+
+model MOLO11 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String    @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_MOLO11")
+}
+
+model MOLO12 {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String    @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo, FecPro], map: "PK_MOLO12")
+}
+
+model MONEDALOCAL {
+  idCodigo             String    @db.NVarChar(6)
+  idSubien             String    @db.NVarChar(3)
+  idSubtra             String    @db.NVarChar(3)
+  idSufijo             String    @db.NVarChar(3)
+  idActivo             String?   @db.NVarChar(15)
+  idTipoAmortizacion   String?   @db.NVarChar(2)
+  idIndact             String?   @db.NVarChar(1)
+  idTipoProceso        String?   @db.NVarChar(3)
+  idCodamo             String?   @db.NVarChar(1)
+  Estcon               String?   @db.NVarChar(1)
+  idMoneda             String?   @db.NVarChar(2)
+  FecOri               DateTime? @db.DateTime
+  FecDep               DateTime? @db.DateTime
+  Fecfin               DateTime? @db.DateTime
+  FecBase              DateTime? @db.DateTime
+  FecBaj               DateTime? @db.DateTime
+  TipoBaja             String?   @db.NVarChar(1)
+  precioVenta          Float?
+  vidaUtil             Float?    @db.Real
+  vidaTranscurrida     Float?    @db.Real
+  vidaRestante         Float?    @db.Real
+  valorResidual        Float?    @db.Real
+  indice               Float?
+  FecPro               String?   @db.NVarChar(6)
+  FecIni               DateTime? @db.DateTime
+  FecDiaProceso        DateTime? @db.DateTime
+  CambioEjercicio      DateTime? @db.DateTime
+  Valori               Float?
+  VrepoeReferencial    Float?
+  AmafieReferencial    Float?
+  AmefieReferencial    Float?
+  AmpefeReferencial    Float?
+  VrepoeAnterior       Float?
+  AmafieAnterior       Float?
+  AmefieAnterior       Float?
+  AmpefeAnterior       Float?
+  VrepoeActual         Float?
+  AmafieActual         Float?
+  AmefieActual         Float?
+  AmpefeActual         Float?
+  VrepoeCierreAnterior Float?
+  AmafieCierreAnterior Float?
+  AmefieCierreAnterior Float?
+  AmpefeCierreAnterior Float?
+  valgra21             Float?
+  valgra105            Float?
+  valnogra             Float?
+  valiva21             Float?
+  valiva105            Float?
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo], map: "PK_MONEDALOCAL")
+}
+
+model Monedas {
+  IdMoneda        String  @id(clustered: false, map: "PK_Monedas") @db.NVarChar(2)
+  Descripcion     String? @db.NVarChar(60)
+  DivisorPesos    Float?
+  DivisorImpuesto Float?
+}
+
+model OrdenesTrabajo {
+  IDPROYECTO  String  @db.VarChar(8)
+  IDOTRABAJO  String  @db.VarChar(15)
+  DESCRIPCION String? @db.VarChar(60)
+  IDCENCOS    String? @db.VarChar(5)
+
+  @@id([IDPROYECTO, IDOTRABAJO], map: "QSYS_FXAMPROT_00001")
+}
+
+model Origenes {
+  IdOrigen    String  @id(clustered: false, map: "PK_Origenes") @db.NVarChar(2)
+  Descripcion String? @db.NVarChar(60)
+}
+
+model OTrabajo {
+  IdProyecto      String    @db.NVarChar(15)
+  IdOTrabajo      String    @db.NVarChar(15)
+  Descripcion     String?   @db.NVarChar(60)
+  idcencos        String?   @db.NVarChar(5)
+  PedInver        String?   @db.NVarChar(15)
+  Responsable     String?   @db.NVarChar(50)
+  IdPlanta        String?   @db.NVarChar(5)
+  TipoOT          String    @db.NVarChar(1)
+  itemPresupuesto String?   @db.NVarChar(15)
+  FecAprobacion   DateTime? @db.DateTime
+  Fecinicio       DateTime? @db.DateTime
+  Fecfinal        DateTime? @db.DateTime
+  Horascant       Int?
+  Horaspesos      Float?
+  Materiales      Float?
+  Varios          Float?
+  ImporteDolar    Float?
+  FecTransFisica  DateTime? @db.DateTime
+  FecTransCble    DateTime? @db.DateTime
+
+  @@id([IdProyecto, IdOTrabajo], map: "PK_ProyOTrabajo", clustered: false)
+}
+
+model Parametros {
+  idmoextra          String    @id(clustered: false, map: "PK_Parametros") @db.NVarChar(2)
+  fecini             DateTime? @db.DateTime
+  fecpro             DateTime? @db.DateTime
+  fecant             DateTime? @db.DateTime
+  fecrev             DateTime? @db.DateTime
+  procesa            Boolean
+  IdTipoAmortizacion String?   @db.NVarChar(1)
+  alterna            Boolean
+}
+
+model permisos {
+  idPermiso   String  @id(clustered: false, map: "PK_permisos") @db.NVarChar(6)
+  descripcion String? @db.NVarChar(50)
+}
+
+model Plantas {
+  IdPlanta    String  @id(clustered: false, map: "PK_Plantas") @db.NVarChar(5)
+  Descripcion String? @db.NVarChar(60)
+}
+
+model pltecnica {
+  idModelo     String  @db.NVarChar(3)
+  idJerarquia  String  @db.NVarChar(3)
+  Descrimodelo String? @db.NVarChar(20)
+  Descripcion  String? @db.NVarChar(30)
+  titulo       String? @db.NVarChar(50)
+  Longitud     Int?    @db.SmallInt
+  Mascara      String? @db.NVarChar(50)
+  idCodvalid   String? @db.NVarChar(3)
+  Obligatorio  Boolean
+  abm          Boolean
+
+  @@id([idModelo, idJerarquia], map: "PK_pltecnica", clustered: false)
+}
+
+model pltvalid {
+  idmodelo    String  @db.NVarChar(3)
+  idcodvalid  String  @db.NVarChar(3)
+  Codigo      String  @db.NVarChar(5)
+  Descripcion String? @db.NVarChar(50)
+
+  @@id([idmodelo, idcodvalid, Codigo], map: "PK_pltvalid", clustered: false)
+}
+
+model prnflex {
+  imprime   Boolean
+  tabla     String  @db.NVarChar(15)
+  tabladesc String? @db.NVarChar(50)
+  campo     String? @db.NVarChar(20)
+  campodesc String? @db.NVarChar(50)
+  sqlstring String? @db.NVarChar(50)
+  orden     Int     @db.SmallInt
+
+  @@id([tabla, orden], map: "PK_prnflex", clustered: false)
+}
+
+model Produccion {
+  idModelo                  String  @id(clustered: false, map: "PK_Produccion") @db.NVarChar(25)
+  descripcion               String? @db.NVarChar(50)
+  indamor                   Boolean
+  produccionTotal           Float?
+  produccionInicioEjercicio Float?
+  produccionEjercicio       Float?
+  produccionPeriodo         Float?
+  prodamefieant             Float?
+}
+
+model Proyectos {
+  IdProyecto   String  @id(clustered: false, map: "PK_Proyectos") @db.NVarChar(15)
+  Descripcion  String? @db.NVarChar(60)
+  OrdenTrabajo Boolean
+}
+
+model seteos {
+  Id       Int     @id(clustered: false, map: "PK_seteos")
+  idcodigo String? @db.NVarChar(6)
+  usnombre String? @db.NVarChar(80)
+  modulo   String? @db.NVarChar(30)
+  sonido   Boolean
+}
+
+model situacion {
+  idsituacion String  @id(clustered: false, map: "PK_situacion") @db.NVarChar(5)
+  descripcion String? @db.NVarChar(50)
+}
+
+model tblasientos {
+  idTipoAsiento String  @db.NVarChar(15)
+  idasiento     String  @db.NVarChar(15)
+  descripcion   String? @db.NVarChar(100)
+
+  @@id([idTipoAsiento, idasiento], map: "PK_tblasientos", clustered: false)
+}
+
+model tecnica {
+  idcodigo     String  @db.NVarChar(6)
+  idsubien     String  @db.NVarChar(3)
+  idsubtra     String  @db.NVarChar(3)
+  idsufijo     String  @db.NVarChar(3)
+  idModelo     String? @db.NVarChar(3)
+  idJerarquia  String  @db.NVarChar(3)
+  Descrimodelo String? @db.NVarChar(20)
+  Descripcion  String? @db.NVarChar(30)
+  valor        String? @db.NVarChar(255)
+  Longitud     Int?    @db.SmallInt
+  Mascara      String? @db.NVarChar(50)
+  idCodvalid   String? @db.NVarChar(3)
+  Obligatorio  Boolean
+
+  @@id([idcodigo, idsubien, idsubtra, idsufijo, idJerarquia], map: "PK_tecnica", clustered: false)
+}
+
+model tipifis {
+  idDescripcion String  @id(clustered: false, map: "PK_tipifis") @db.NVarChar(6)
+  descripcion   String? @db.NVarChar(60)
+}
+
+model umedida {
+  IDUMEDIDA   String  @id(clustered: false, map: "PK_umedida") @db.NVarChar(3)
+  DESCRIPCION String? @db.NVarChar(60)
+}
+
+model UNegocio {
+  IdUNegocio  String  @id(clustered: false, map: "PK_UNegocio") @db.NVarChar(6)
+  Descripcion String? @db.NVarChar(60)
+  porcentaje  Float?  @db.Real
+}
+
+model usSeteos {
+  Id                     Int      @id(clustered: false, map: "PK_usSeteos")
+  altamejoras            Boolean
+  datosDefault           Boolean
+  zonacencos             Boolean
+  altaValori             Boolean
+  trvidautil             Boolean
+  trvidautilregulariza   Boolean
+  dbgDelay               Int?     @db.SmallInt
+  dbgRefresco            Int?     @db.SmallInt
+  asientosAltas          Boolean
+  asientosBajasVenta     Boolean
+  asientosBajaScrap      Boolean
+  asientosBajaSeguro     Boolean
+  asientosReservaTecnica Boolean
+  asientosReservaTporCta Boolean
+  asientosTrCuenta       Boolean
+  asientosTrCencos       Boolean
+  asientostrproyecto     Boolean
+  asientosTrUnegocio     Boolean
+  posicionlistview       String?  @db.NVarChar(1)
+  amorModelo             Boolean
+  tipificacion           Boolean
+  rutaexcel              String?  @db.NVarChar(100)
+  valdesa                Boolean?
+}
+
+model usuarios {
+  idUsuario  String    @id(clustered: false, map: "PK_usuarios") @db.NVarChar(15)
+  nombre     String?   @db.NVarChar(50)
+  clave      String?   @db.NVarChar(6)
+  fechavto   DateTime? @db.DateTime
+  vtosino    Boolean
+  supervisor Boolean?
+}
+
+model Zonas {
+  idZona      String  @id(map: "PK_Zonas") @db.NVarChar(15)
+  descripcion String? @db.NVarChar(60)
+  CAMPO2      String? @db.NChar(30)
 }

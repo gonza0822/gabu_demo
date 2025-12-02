@@ -1,0 +1,55 @@
+[
+    {
+        "client": "Admagro",
+        "menu": [
+          {
+            "menuTitle": "Tablas",
+            "icon": "AccountIcon",
+            "submenu": [
+              { "submenuTitle": "Cuentas", "path": "/tables/accounts", "isOpen": false, "active": false },
+              { "submenuTitle": "Centro de costo", "path": "/tables/costCenter", "isOpen": true, "active": false },
+              { "submenuTitle": "Plantas", "path": "", "isOpen": true, "active": false },
+              { "submenuTitle": "Grupos", "path": "", "isOpen": true, "active": false },
+              { "submenuTitle": "Ubicacion geografica", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Procedencias", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Cotizacion M.E", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Usuarios", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Unidades de negocio", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Catalogo", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Indice actualizacion", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Coeficientes impositivos", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Unidades de medida", "path": "", "isOpen": false, "active": false }
+            ]
+          },
+          {
+            "menuTitle": "Datos Maestros",
+            "icon": "MasterDataIcon",
+            "submenu": [
+              { "submenuTitle": "Administrar", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Cambios masivos", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Manejo de parametros", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Emision de reportes", "path": "", "isOpen": false, "active": false }
+            ]
+          },
+          {
+            "menuTitle": "Procesos",
+            "icon": "ProcessesIcon",
+            "submenu": [
+              { "submenuTitle": "Calculo de amort", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Generacion de asientos", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Cierre de ejercicio", "path": "", "isOpen": false, "active": false }
+            ]
+          },
+          {
+            "menuTitle": "Inversiones",
+            "icon": "InvestmentsIcon",
+            "submenu": [
+              { "submenuTitle": "Proyectos", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Ordenes de trabajo", "path": "", "isOpen": false, "active": false },
+              { "submenuTitle": "Cargos", "path": "", "isOpen": false, "active": false }
+            ]
+          }
+        ]
+    }
+] 
+    

@@ -6,7 +6,7 @@ import Button from "../ui/Button";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
 import { Dispatch } from "@reduxjs/toolkit";
-import { authorizationActions } from "@/store/authorization-slice";
+import { authorizationActions } from "@/store/authorizationSlice";
 import { useRouter } from "next/navigation";
 
 export default function LoginForm({ children, onLoginError, loginError } : { children : React.ReactNode, onLoginError: (message: string | null, isError: boolean) => void, loginError: { message: string | null, isError: boolean } }) : ReactElement {
@@ -59,7 +59,6 @@ export default function LoginForm({ children, onLoginError, loginError } : { chi
                 user: data.user,
                 token: data.token,
             }));
-            await new Promise(resolve => setTimeout(resolve, 300));
             router.push('/home');
         } else {
             onLoginError(data.message, true);

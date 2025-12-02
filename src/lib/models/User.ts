@@ -1,24 +1,4 @@
-const users : {
-    client: string,
-    userName: string,
-    password: string
-}[] = [
-    {
-        client: 'Ypf',
-        userName: 'Gonza',
-        password: 'gonza22'
-    },
-    {
-        client: 'Shell',
-        userName: 'Daniel',
-        password: 'daniel27'
-    },
-    {
-        client: 'Axion',
-        userName: 'Rodrigo',
-        password: 'Rodri22'
-    }
-]
+import { getPrisma } from '@/lib/prisma/prisma';
 
 class User {
     userName: string;
@@ -31,10 +11,12 @@ class User {
         this.client = client;
     }
 
-    login() : { result : boolean, token : string} {
+    async login() : Promise<{ result : boolean, token : string}> {
+        const prisma = getPrisma();
+        const listUsers = await prisma.usuarios.findMany();
         let token : string = '';
-        users.forEach(user => {
-            if(this.userName === user.userName && this.password === user.password && this.client === user.client){
+        listUsers.forEach(user => {
+            if(this.userName.trim() === user.idUsuario && this.password.trim() === user.clave){
                 token = Math.random().toString(36).substring(2)
             }
         })

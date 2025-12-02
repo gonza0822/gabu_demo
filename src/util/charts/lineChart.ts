@@ -1,6 +1,6 @@
-import { ChartData, ChartOptions, LinearScale, TimeScale, PointElement, LineElement, Filler, Chart, CategoryScale } from "chart.js";
+import { ChartData, ChartOptions, LinearScale, TimeScale, PointElement, LineElement, Filler, Chart, CategoryScale, ArcElement } from "chart.js";
 
-Chart.register(LinearScale, TimeScale, PointElement, LineElement, Filler, CategoryScale);
+Chart.register(LinearScale, TimeScale, PointElement, LineElement, Filler, CategoryScale, ArcElement);
 
 type OptionsData = {
     grid: boolean;

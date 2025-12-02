@@ -1,0 +1,11 @@
+[
+    {
+        "client": "Admagro",
+        "dbHost": "localhost",
+        "dbPort": 1433,
+        "dbName": "PGI_ADMAGRO",
+        "dbUser": "gabu",
+        "dbPassword": "visual2000",
+        "connectionString": "sqlserver://localhost:1433;database=PGI_ADMAGRO;user=gabu;password=visual2000;encrypt=true;trustServerCertificate=true"
+    }
+]

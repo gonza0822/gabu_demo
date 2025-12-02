@@ -1,4 +1,5 @@
 import User from '@/lib/models/User';
+import Client from '@/lib/models/Client';
 import { NextResponse } from 'next/server';
 
 type UserPostRequest = {
@@ -27,7 +28,7 @@ export async function POST(request: Request) : Promise<NextResponse<UserPostResp
         } else {
             const user : User = new User(userName, password, client);
 
-            const loginRes : { result : boolean, token : string} = user.login();
+            const loginRes : { result : boolean, token : string} = await user.login();
 
             if(loginRes.result){
                 return  NextResponse.json({
@@ -51,5 +52,36 @@ export async function POST(request: Request) : Promise<NextResponse<UserPostResp
             status: 500
         });
     }
+}
+
+export async function GET(request: Request) : Promise<NextResponse<boolean | ErrorResponse>> {
+    try {
+        const params = new URL(request.url)
+        const clientName = params.searchParams.get("client");
+        
+        if(clientName){
+            const client = new Client(clientName);
+
+            client.connect();
+            
+            return NextResponse.json(true);
+        } else {
+            throw new Error("No se eligio un cliente");
+        }
+
+    } catch(err) {
+        if(err instanceof Error){
+            return NextResponse.json({
+                message: err.message,
+                status: 500
+            })
+        }
+
+        return NextResponse.json({
+            message: 'Error desconocido en el servidor.',
+            status: 500
+        });
+    }
+
 }
 

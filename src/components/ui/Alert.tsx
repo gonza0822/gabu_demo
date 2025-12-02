@@ -54,7 +54,7 @@ export default function Alert({
             {showAlert && (
                 <motion.div className={`absolute top-0 w-full h-[6%] p-4 border text-${color} bg-${color} flex items-center justify-center`} key="login-error-message" initial={{y: -20, opacity: 0}} animate={{y: 0, opacity: 1}} exit={{y: -20, opacity: 0}} transition={{duration: 0.3, ease: "easeInOut"}}>
                     <p className="text-gabu-100 text-xl ">{message}</p>
-                    <Cross size={24} color="text-gabu-100" onClick={onClose}/>
+                    <Cross onClick={onClose} style="h-[24px] w-[24px] fill-current text-gabu-100 absolute right-10 cursor-pointer"/>
                 </motion.div>
             )}
         </AnimatePresence>

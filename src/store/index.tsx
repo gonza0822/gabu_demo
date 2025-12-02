@@ -1,9 +1,11 @@
 import { configureStore } from "@reduxjs/toolkit";
-import authorizationReducer from "./authorization-slice";
+import authorizationReducer from "./authorizationSlice";
+import navReducer from './navSlice';
 
 const store = configureStore({
     reducer: {
-        authorization: authorizationReducer
+        authorization: authorizationReducer,
+        nav: navReducer
     }
 });
 

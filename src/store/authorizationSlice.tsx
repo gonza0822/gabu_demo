@@ -14,7 +14,7 @@ const initialAuthorizationState : AuthorizationState = {
     connected: false,
     token: '',
     user: null,
-    client: '',
+    client: 'Admagro',
     isLogging: false
 }
 

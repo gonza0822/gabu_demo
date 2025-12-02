@@ -2,16 +2,20 @@
 
 import { RootState } from "@/store";
 import { ReactElement, ReactNode, useEffect, useState } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import Loader from "../ui/Loader";
 import Select from '@/components/ui/Select'
 import SelectPointerLogin from '@/components/svg/SelectPointerLogin';
 import LoginForm from '@/components/login/LoginForm';
 import { motion, AnimatePresence } from "motion/react";
 import Alert from "@/components/ui/Alert";
+import { getClients } from "@/store/authorizationActions";
+import { authorizationActions } from "@/store/authorizationSlice";
 
 export default function LoginContainer() : ReactElement {
     const isLogging : boolean = useSelector((state : RootState) => state.authorization.isLogging);
+    const client : string = useSelector((state : RootState) => state.authorization.client);
+    const dispatch = useDispatch();
 
     const [loginError, setLoginError] = useState<{
         message: string | null,
@@ -28,7 +32,31 @@ export default function LoginContainer() : ReactElement {
         });
     }
 
-    const options = ['Ypf', 'Shell', 'Axion'];
+    async function chooseOptionHandler(e: React.MouseEvent<HTMLLIElement>, ref: React.RefObject<HTMLSpanElement | null>) {
+        const target = e.target as HTMLSpanElement;
+
+        if(ref.current){
+            ref.current.textContent = target.textContent;
+            
+            const res = await fetch(`/api/user?client=${ref.current.textContent}`);
+
+            const data = await res.json();
+
+            if(!res.ok){
+                setLoginError({
+                    message: data.message,
+                    isError: true
+                });
+            } else {
+                dispatch(authorizationActions.clientConnect({
+                    client: target.textContent || ''
+                }));
+            }
+        }
+
+    }
+
+    const options : {key: string, value: string}[] = getClients().map(option => ({key: option.dbName, value: option.client}));
 
     return (
         <AnimatePresence mode="wait">
@@ -43,7 +71,7 @@ export default function LoginContainer() : ReactElement {
                     </section>
                     <section className="bg-gabu-100 h-full w-[50%] flex justify-center items-center">
                         <LoginForm onLoginError={handleLoginError} loginError={loginError}>
-                            <Select label='Seleccione una empresa' options={options} isLogin={true} SelectPointer={SelectPointerLogin}/>
+                            <Select label='Seleccione una empresa' options={options} isLogin={true} SelectPointer={SelectPointerLogin} defaultValue={client} chooseOptionHandler={chooseOptionHandler}/>
                         </LoginForm>
                     </section>
                 </motion.div>

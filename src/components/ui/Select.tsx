@@ -4,24 +4,27 @@ import React, { ReactElement, useEffect, useState, useRef } from "react";
 import { motion } from "motion/react";
 import { useDispatch, useSelector } from "react-redux";
 import { Dispatch } from "@reduxjs/toolkit";
-import { authorizationActions } from "@/store/authorization-slice";
+import { authorizationActions } from "@/store/authorizationSlice";
 import { RootState } from "@/store";
 
 export default function Select({
   SelectPointer,
   label,
   options,
-  isLogin
+  defaultValue,
+  isLogin,
+  chooseOptionHandler
 }: {
   SelectPointer: React.FC<{active: boolean}>;
   label: string,
-  options: string[],
-  isLogin: boolean
+  options: {key: string, value: string}[],
+  defaultValue?: string,
+  isLogin: boolean,
+  chooseOptionHandler: (e: React.MouseEvent<HTMLLIElement>, ref: React.RefObject<HTMLSpanElement | null>) => void
 }) : ReactElement {
-    const optionStyle : string = `${isLogin ? 'text-md border-l-10 border-gabu-900 py-2 pl-3 pr-2' : 'px-2'} hover:bg-gabu-300 transition-all duration-300 bg-gabu-100 w-full`;
+    const optionStyle : string = `${isLogin ? 'text-base border-l-10 border-gabu-900 py-2 pl-3 pr-2' : 'px-2'} hover:bg-gabu-300 transition-all duration-300 bg-gabu-100 w-full`;
     const selectStyle : string = `border-2 ${isLogin && 'border-l-10'}  border-gabu-900 py-2 pl-3 pr-2 w-full flex justify-between cursor-pointer filter`;
     const optionListStyle : string = 'w-full border-r-2 border-b-2 rounded-b-md border-gabu-900';
-    const client : string = useSelector((state : RootState) => state.authorization.client);
 
     const dispatch : Dispatch = useDispatch();
 
@@ -35,7 +38,7 @@ export default function Select({
         setIsOptionListVisible(!isOptionListVisible);
     }
 
-    function chooseOptionHandler(e: React.MouseEvent<HTMLLIElement>) {
+    /* function chooseOptionHandler(e: React.MouseEvent<HTMLLIElement>) {
         const target = e.target as HTMLSpanElement;
         
         valueSelectedRef.current!.textContent = target.textContent;
@@ -45,7 +48,7 @@ export default function Select({
                 client: target.textContent || ''
             }));
         }
-    }
+    } */
 
     useEffect(() => {
         function handleClickOutside(e: MouseEvent) {
@@ -67,12 +70,12 @@ export default function Select({
             <label className="text-gabu-900 text-lg">{label}</label>
             <div className="relative">
             <motion.div className={selectStyle} onClick={selectOptionHandler} ref={selectRef} initial={false} animate={{borderRadius: isOptionListVisible ? "6px 6px 0px 0px" : "6px"}} transition={{borderRadius: {duration: 0.1, ease: "easeInOut"}}}>
-                <span className="text-md text-gabu-900" id="select-value" ref={valueSelectedRef}>{client}</span>
+                <span className="text-base text-gabu-900" id="select-value" ref={valueSelectedRef}>{defaultValue}</span>
                 <SelectPointer active={isOptionListVisible}/>
             </motion.div>
             <motion.div className="absolute overflow-hidden w-full z-10" initial={false} animate={{height: isOptionListVisible ? "auto" : 0}} transition={{duration: 0.1, ease: "easeInOut"}}>
                 <ul className={optionListStyle} ref={optionListRef}>
-                    { options.map(option => <li key={option} className={optionStyle} onClick={chooseOptionHandler}>{option}</li>)}
+                    { options.map(option => <li key={option.key} className={optionStyle} onClick={(e) => chooseOptionHandler(e, valueSelectedRef)}>{option.value}</li>)}
                 </ul>
             </motion.div>
             </div>
