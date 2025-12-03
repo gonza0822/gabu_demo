@@ -42,7 +42,7 @@ export default function LoginContainer() : ReactElement {
 
             const data = await res.json();
 
-            if(!res.ok){
+            if(!res.ok || (data.status && data.status === 500)){
                 setLoginError({
                     message: data.message,
                     isError: true

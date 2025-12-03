@@ -20,10 +20,14 @@ export default function Alert({
     }
 
     useEffect(() => {
+        setShowAlert(show);
+    }, [show])
+
+    useEffect(() => {
         const timer = setTimeout(() => {
+            console.log("estoy");
             setShowAlert(false);
         }, 10000);
-
         return () => clearTimeout(timer);
     }, []);
 
@@ -46,8 +50,6 @@ export default function Alert({
             color = "gabu-error";
             break;
     }
-
-    console.log(color);
 
     return (
         <AnimatePresence mode="wait">

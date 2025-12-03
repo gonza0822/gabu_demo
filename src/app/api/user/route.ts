@@ -62,7 +62,7 @@ export async function GET(request: Request) : Promise<NextResponse<boolean | Err
         if(clientName){
             const client = new Client(clientName);
 
-            client.connect();
+            await client.connect();
             
             return NextResponse.json(true);
         } else {

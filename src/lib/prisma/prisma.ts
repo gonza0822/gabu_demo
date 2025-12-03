@@ -21,8 +21,12 @@ let sqlConfig:{
 
 export function getPrisma() {
   if(!prisma){
-    const adapter = new PrismaMssql(sqlConfig)
-    prisma = new PrismaClient({ adapter });
+    try {
+      const adapter = new PrismaMssql(sqlConfig)
+      prisma = new PrismaClient({ adapter });
+    } catch(err){
+      throw new Error("Error al conecetarse a la base de datos")
+    }
   }
   return prisma;
 }
