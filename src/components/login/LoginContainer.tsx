@@ -12,7 +12,7 @@ import Alert from "@/components/ui/Alert";
 import { getClients } from "@/store/authorizationActions";
 import { authorizationActions } from "@/store/authorizationSlice";
 
-export default function LoginContainer() : ReactElement {
+export default function LoginContainer({ alertMessage } : { alertMessage: string | null }) : ReactElement {
     const isLogging : boolean = useSelector((state : RootState) => state.authorization.isLogging);
     const client : string = useSelector((state : RootState) => state.authorization.client);
     const dispatch = useDispatch();
@@ -31,6 +31,15 @@ export default function LoginContainer() : ReactElement {
             isError: isError
         });
     }
+
+    useEffect(() => {
+        if(alertMessage){
+            setLoginError({
+                message: alertMessage,
+                isError: true
+            });
+        }
+    }, [alertMessage]);
 
     async function chooseOptionHandler(e: React.MouseEvent<HTMLLIElement>, ref: React.RefObject<HTMLSpanElement | null>) {
         const target = e.target as HTMLSpanElement;
@@ -60,7 +69,7 @@ export default function LoginContainer() : ReactElement {
 
     return (
         <AnimatePresence mode="wait">
-            <Alert message={loginError.message} type="error" show={loginError.isError && !isLogging}/>
+            <Alert message={loginError.message} type="error" show={loginError.isError && !isLogging} key="alert"/>
             {!isLogging && (
                 <motion.div className="w-[90%] h-[85%] rounded-3xl flex overflow-hidden" key="login-container" initial={{opacity: 1}} animate={{opacity: 1}} exit={{opacity: 0}} transition={{duration: 0.5, ease: "easeInOut"}}>
                     <section className="h-full w-[50%] bg-gradient-to-b from-gabu-100 to-gabu-900 rounded-s-3xl p-[4rem] xl:p-[5rem] 2xl:p-[6rem]">
@@ -71,15 +80,13 @@ export default function LoginContainer() : ReactElement {
                     </section>
                     <section className="bg-gabu-100 h-full w-[50%] flex justify-center items-center">
                         <LoginForm onLoginError={handleLoginError} loginError={loginError}>
-                            <Select label='Seleccione una empresa' options={options} isLogin={true} SelectPointer={SelectPointerLogin} defaultValue={client} chooseOptionHandler={chooseOptionHandler}/>
+                            <Select label='Seleccione una empresa' options={options} isLogin={true} defaultValue={client} chooseOptionHandler={chooseOptionHandler}/>
                         </LoginForm>
                     </section>
                 </motion.div>
             )}
             {isLogging && (
-                <motion.div className="fixed inset-0 flex items-center justify-center" key="loader" initial={{opacity: 0, y:200}} animate={{opacity: 1, y:0}} exit={{opacity: 0, y:200, transition: { type: "tween", duration: 0.6, ease:"easeInOut"}}} transition={{type: "spring", bounce: 0.7, duration: 0.6, ease: "easeInOut"}}>
-                    <Loader/>
-                </motion.div>
+                <Loader msg="Validando usuario..." key="loader"/>
             )}
         </AnimatePresence>
     );

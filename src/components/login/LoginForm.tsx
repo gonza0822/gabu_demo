@@ -54,10 +54,9 @@ export default function LoginForm({ children, onLoginError, loginError } : { chi
 
         const data = await res.json();
 
-        if(res.ok && data.token){
+        if(res.ok && data.user){
             dispatch(authorizationActions.login({
                 user: data.user,
-                token: data.token,
             }));
             router.push('/home');
         } else {
@@ -86,7 +85,7 @@ export default function LoginForm({ children, onLoginError, loginError } : { chi
             {children}
             <Input label='Usuario' isLogin={true} disabled={!isConnected} type="text" ref={usernameRef} isError={inputErrors.usernameError} errorMessage={inputErrors.usernameError ? 'The username is required' : null} handleInput={handleUsernameInput}/>
             <Input label='Contraseña' isLogin={true} disabled={!isConnected} type="password" ref={passwordRef} isError={inputErrors.passwordError} errorMessage={inputErrors.passwordError ? 'The password is required' : null} handleInput={handlePasswordInput}/>
-            <Button text='Ingresar' isLogin={true} disabled={!isConnected} type="submit" handleClick={handleLogin}/>
+            <Button text='Ingresar' disabled={!isConnected} type="submit" handleClick={handleLogin} style="btn-register w-full bg-gabu-900 text-gabu-100 rounded-md p-2 text-lg mt-7 hover:bg-gabu-700 transition-all duration-150 cursor-pointer"/>
         </form>
     );
 }

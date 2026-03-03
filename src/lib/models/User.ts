@@ -1,3 +1,4 @@
+import { usuariosModel } from '@/generated/prisma/models';
 import { getPrisma } from '@/lib/prisma/prisma';
 
 class User {
@@ -13,7 +14,7 @@ class User {
 
     async login() : Promise<{ result : boolean, token : string}> {
         const prisma = getPrisma();
-        const listUsers = await prisma.usuarios.findMany();
+        const listUsers : usuariosModel[] = await prisma.usuarios.findMany();
         let token : string = '';
         listUsers.forEach(user => {
             if(this.userName.trim() === user.idUsuario && this.password.trim() === user.clave){

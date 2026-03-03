@@ -1,11 +1,13 @@
 import { configureStore } from "@reduxjs/toolkit";
 import authorizationReducer from "./authorizationSlice";
 import navReducer from './navSlice';
+import openPagesReducer from './openPagesSlice';
 
 const store = configureStore({
     reducer: {
         authorization: authorizationReducer,
-        nav: navReducer
+        nav: navReducer,
+        openPages: openPagesReducer
     }
 });
 

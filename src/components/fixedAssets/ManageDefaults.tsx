@@ -1,0 +1,226 @@
+"use client";
+
+import React, { useCallback, useEffect, useState } from "react";
+import { useSelector } from "react-redux";
+import { RootState } from "@/store";
+import Select from "@/components/ui/Select";
+import Button from "@/components/ui/Button";
+import Skeleton from "react-loading-skeleton";
+import "react-loading-skeleton/dist/skeleton.css";
+
+type DefaultRow = { idcampo: string; iddefault: string | null };
+
+export default function ManageDefaults(): React.ReactElement {
+    const client = useSelector((state: RootState) => state.authorization.client);
+    const [rows, setRows] = useState<DefaultRow[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [savingAll, setSavingAll] = useState(false);
+    const [revertKey, setRevertKey] = useState(0);
+    const [optionsByCampo, setOptionsByCampo] = useState<Record<string, { key: string; value: string }[]>>({});
+    const [headerLabels, setHeaderLabels] = useState<Record<string, string>>({});
+
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await fetch("/api/fixedAssets/defaults", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ petition: "Get", client, data: {} }),
+            });
+            const data = await res.json();
+            if (Array.isArray(data)) {
+                setRows(
+                    data.map((r: DefaultRow) => ({
+                        idcampo: r.idcampo,
+                        iddefault: r.iddefault ?? null,
+                    }))
+                );
+            }
+        } finally {
+            setLoading(false);
+        }
+    }, [client]);
+
+    const fetchOptionsForCampo = useCallback(
+        async (idcampo: string) => {
+            if (!client || !idcampo) return;
+            const res = await fetch("/api/fixedAssets/defaults", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ petition: "GetOptions", client, data: { idcampo } }),
+            });
+            const data = await res.json();
+            if (Array.isArray(data)) {
+                setOptionsByCampo((prev) => ({ ...prev, [idcampo]: data }));
+            }
+        },
+        [client]
+    );
+
+    const fetchDefaultsFields = useCallback(async () => {
+        if (!client) return;
+        const res = await fetch("/api/fixedAssets/defaults", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ petition: "GetDefaultsFields", client, data: {} }),
+        });
+        const data = await res.json();
+        if (Array.isArray(data)) {
+            const labels: Record<string, string> = {};
+            for (const f of data as { IdCampo: string; BrowNombre: string | null }[]) {
+                const key = f.IdCampo.toLowerCase();
+                labels[key] = f.BrowNombre ?? f.IdCampo;
+            }
+            setHeaderLabels(labels);
+        }
+    }, [client]);
+
+    useEffect(() => {
+        if (client) fetchData();
+    }, [client, fetchData]);
+
+    useEffect(() => {
+        if (client) fetchDefaultsFields();
+    }, [client, fetchDefaultsFields]);
+
+    useEffect(() => {
+        if (!client || rows.length === 0) return;
+        const distinct = [...new Set(rows.map((r) => r.idcampo))];
+        distinct.forEach((idcampo) => {
+            if (!optionsByCampo[idcampo]) {
+                fetchOptionsForCampo(idcampo);
+            }
+        });
+    }, [client, rows, optionsByCampo, fetchOptionsForCampo]);
+
+    const handleIddefaultChange = useCallback((rowIndex: number) => {
+        return (e: React.MouseEvent<HTMLLIElement>, _ref: React.RefObject<HTMLSpanElement | null>) => {
+            const key = (e.currentTarget as HTMLElement).dataset.key ?? "";
+            setRows((prev) =>
+                prev.map((r, i) => (i === rowIndex ? { ...r, iddefault: key || null } : r))
+            );
+        };
+    }, []);
+
+    const handleSaveAll = useCallback(async () => {
+        setSavingAll(true);
+        try {
+            for (const row of rows) {
+                const res = await fetch("/api/fixedAssets/defaults", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        petition: "Update",
+                        client,
+                        data: { idcampo: row.idcampo, iddefault: row.iddefault },
+                    }),
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    alert(err?.message ?? "Error al guardar");
+                    return;
+                }
+            }
+            await fetchData();
+        } finally {
+            setSavingAll(false);
+        }
+    }, [client, rows, fetchData]);
+
+    const handleRevert = useCallback(() => {
+        fetchData();
+        setRevertKey((k) => k + 1);
+    }, [fetchData]);
+
+    if (loading) {
+        return (
+            <div className="flex flex-col w-full h-full">
+                <div className="p-5 pt-2 m-4 bg-gabu-500 flex flex-1 flex-col rounded-md border border-gabu-900 overflow-hidden">
+                    <div className="flex w-full justify-center mb-2">
+                        <p className="text-gabu-100">Valores por defecto</p>
+                    </div>
+                    <div className="bg-gabu-100 flex-1 min-h-0 border border-gabu-900 p-3 overflow-auto">
+                        <div className="min-w-full">
+                            <Skeleton
+                                count={10}
+                                height={20}
+                                highlightColor="var(--color-gabu-700)"
+                                baseColor="var(--color-gabu-300)"
+                                className="mb-1"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    const buttonStyle =
+        "font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300";
+
+    return (
+        <div className="flex flex-col w-full h-full">
+            <div className="p-5 pt-2 m-4 bg-gabu-500 flex flex-1 flex-col rounded-md border border-gabu-900 overflow-hidden">
+                <div className="flex w-full justify-center mb-2">
+                    <p className="text-gabu-100">Valores por defecto</p>
+                </div>
+                <div className="bg-gabu-100 flex-1 min-h-0 border border-gabu-900 p-3 overflow-auto">
+                    <table className="border-collapse divide-y-2 divide-gabu-900/25 w-full">
+                        <thead>
+                            <tr>
+                                <th className="text-start py-2 px-2 text-gabu-900 whitespace-nowrap overflow-x-hidden">
+                                    <p className="text-sm">{headerLabels["idcampo"] ?? "Id campo"}</p>
+                                </th>
+                                <th className="text-start py-2 px-2 text-gabu-900 whitespace-nowrap overflow-x-hidden">
+                                    <p className="text-sm">{headerLabels["iddefault"] ?? "Valor por defecto"}</p>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y-2 divide-gabu-900/25 relative">
+                            {rows.map((row, i) => (
+                                <tr key={`${row.idcampo}-${revertKey}`}>
+                                    <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">
+                                        <span>{row.idcampo}</span>
+                                    </td>
+                                    <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">
+                                        <Select
+                                            label=""
+                                            hasLabel={false}
+                                            isLogin={false}
+                                            options={(() => {
+                                                const opts = optionsByCampo[row.idcampo] ?? [];
+                                                const current = row.iddefault?.trim();
+                                                if (current && !opts.some((o) => o.key === current)) {
+                                                    return [...opts, { key: current, value: current }];
+                                                }
+                                                return opts;
+                                            })()}
+                                            defaultValue={row.iddefault ?? ""}
+                                            chooseOptionHandler={handleIddefaultChange(i)}
+                                        />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div className="sticky w-full h-15 bg-gabu-500 flex justify-end gap-5 p-3">
+                <Button
+                    text="Revertir"
+                    type="button"
+                    disabled={savingAll}
+                    handleClick={handleRevert}
+                    style={buttonStyle}
+                />
+                <Button
+                    text={savingAll ? "Guardando…" : "Guardar"}
+                    type="button"
+                    disabled={savingAll}
+                    handleClick={handleSaveAll}
+                    style={buttonStyle}
+                />
+            </div>
+        </div>
+    );
+}

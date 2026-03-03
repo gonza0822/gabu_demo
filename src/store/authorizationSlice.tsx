@@ -4,7 +4,6 @@ type AuthorizationState = {
     logged: boolean,
     connected: boolean,
     isLogging: boolean,
-    token: string,
     user: string | null,
     client: string
 }
@@ -12,7 +11,6 @@ type AuthorizationState = {
 const initialAuthorizationState : AuthorizationState = {
     logged: false,
     connected: false,
-    token: '',
     user: null,
     client: 'Admagro',
     isLogging: false
@@ -22,9 +20,8 @@ const authorizationSlice = createSlice({
     name: 'authSlice',
     initialState: initialAuthorizationState,
     reducers: {
-        login(state: AuthorizationState, action: PayloadAction<{user: string, token: string}>){
-            state.logged = true
-            state.token = action.payload.token;
+        login(state: AuthorizationState, action: PayloadAction<{user: string}>){
+            state.logged = true;
             state.user = action.payload.user;
             state.isLogging = false;
         },
@@ -36,9 +33,11 @@ const authorizationSlice = createSlice({
             state.connected = true;
         },
         logout(state: AuthorizationState) {
-            state.logged = true
-            state.token = '';
+            state.logged = true;
             state.user = null;
+        },
+        setLogin(state: AuthorizationState, action: PayloadAction<{auth: AuthorizationState}>){
+            return action.payload.auth;
         }
     }
 });

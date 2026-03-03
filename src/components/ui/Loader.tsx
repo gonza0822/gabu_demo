@@ -1,22 +1,24 @@
+import { motion } from 'motion/react';
 import React from 'react';
 import styled from 'styled-components';
 
-export default function Loader() : React.ReactElement {
+export default function Loader({msg} : {msg: string}) : React.ReactElement {
   return (
-    <div className='flex flex-col items-center'>
-        <StyledWrapper>
-        <div className="newtons-cradle">
-            <div className="newtons-cradle__dot" />
-            <div className="newtons-cradle__dot" />
-            <div className="newtons-cradle__dot" />
-            <div className="newtons-cradle__dot" />
-        </div>
-        </StyledWrapper>
-        <div className='flex justify-center align-middle'>
-            <p className='text-gabu-100 font-semibold'>Validando usuario...</p>
-        </div>
-    </div>
-
+    <motion.div className="fixed inset-0 flex items-center justify-center" key="loader" initial={{opacity: 0, y:200}} animate={{opacity: 1, y:0}} exit={{opacity: 0, y:200, transition: { type: "tween", duration: 0.6, ease:"easeInOut"}}} transition={{type: "spring", bounce: 0.7, duration: 0.6, ease: "easeInOut"}}>
+      <div className='flex flex-col items-center'>
+          <StyledWrapper>
+          <div className="newtons-cradle">
+              <div className="newtons-cradle__dot" />
+              <div className="newtons-cradle__dot" />
+              <div className="newtons-cradle__dot" />
+              <div className="newtons-cradle__dot" />
+          </div>
+          </StyledWrapper>
+          <div className='flex justify-center align-middle'>
+              <p className='text-gabu-100 font-semibold'>{msg}</p>
+          </div>
+      </div>
+    </motion.div>
   );
 }
 

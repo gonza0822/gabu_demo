@@ -1,8 +1,11 @@
+"use client";
+
 import React from "react";
 import MasterDataIcon from "@/components/svg/menu/MasterDataIcon";
 import ProcessesIcon from "@/components/svg/menu/ProcessesIcon";
 import InvestmentsIcon from "@/components/svg/menu/InvestmentsIcon";
-import AccountIcon from '@/components/svg/menu/AccountIcon';
+import AccountIcon from '@/components/svg/menu/AccountIcon';import { Menu } from "@/store/navSlice";
+import menuConfig from '@/config/menu.json'
 
 const iconMap = {
   AccountIcon,

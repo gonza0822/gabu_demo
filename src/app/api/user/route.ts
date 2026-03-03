@@ -1,6 +1,7 @@
 import User from '@/lib/models/User';
 import Client from '@/lib/models/Client';
 import { NextResponse } from 'next/server';
+import { deleteSessionStore, setSessionStore } from '@/lib/session/sessionStore';
 
 type UserPostRequest = {
     userName: string,
@@ -9,7 +10,6 @@ type UserPostRequest = {
 }
 
 type UserPostResponse = {
-    token: string,
     user: string
 }
 
@@ -31,8 +31,9 @@ export async function POST(request: Request) : Promise<NextResponse<UserPostResp
             const loginRes : { result : boolean, token : string} = await user.login();
 
             if(loginRes.result){
+                await setSessionStore('token', loginRes.token, 60 * 60 * 24);
+
                 return  NextResponse.json({
-                    token: loginRes.token,
                     user: userName
                 })
             } else {
@@ -65,10 +66,14 @@ export async function GET(request: Request) : Promise<NextResponse<boolean | Err
             await client.connect();
             
             return NextResponse.json(true);
-        } else {
-            throw new Error("No se eligio un cliente");
         }
-
+        
+        if(params.searchParams.get("closeSession")){
+            await deleteSessionStore('token');
+            return NextResponse.json(true);
+        }
+        
+        throw new Error("No se eligio un cliente");
     } catch(err) {
         if(err instanceof Error){
             return NextResponse.json({

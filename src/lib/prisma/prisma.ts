@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PrismaMssql } from '@prisma/adapter-mssql';
 import { PrismaClient } from '@/generated/prisma/client';
+import clients from "@/config/clients.json";
 
 let prisma: PrismaClient | null = null;
 let sqlConfig:{
@@ -19,7 +20,13 @@ let sqlConfig:{
     };
 }
 
-export function getPrisma() {
+export function getPrisma(client?: string) : PrismaClient {
+  for (const clie of clients){
+      if(clie.client === client){ 
+          configPrisma(clie.dbUser, clie.dbPassword, clie.dbName, clie.dbHost);
+      }
+  }
+
   if(!prisma){
     try {
       const adapter = new PrismaMssql(sqlConfig)
@@ -31,7 +38,7 @@ export function getPrisma() {
   return prisma;
 }
 
-export function configPrisma(dbUser : string, dbPassword : string, dbName : string, server : string) {
+function configPrisma(dbUser : string, dbPassword : string, dbName : string, server : string) {
   sqlConfig = {
     user: dbUser,
     password: dbPassword,

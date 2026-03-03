@@ -10,8 +10,6 @@ import { getIcon } from "@/store/navActions";
 export default function MenuItem({menuItem, active, onClick, menuId} : {menuItem : MenuObj, active: boolean, onClick: () => void, menuId: number}) : ReactElement {
     const Icon : React.ComponentType = getIcon(menuItem.icon);
 
-    const maxSubmenuId = menuItem.submenu.length - 1;
-
     return (
         <li className="flex flex-col cursor-pointer select-none" onClick={onClick}>
             <div className="tabla-item flex justify-between px-2 2xl:px-4 py-2 items-center border-y-1 group hover:border-gabu-100 transition-all duration-150 border-gabu-300" key={menuId}>
@@ -22,8 +20,15 @@ export default function MenuItem({menuItem, active, onClick, menuId} : {menuItem
                 <Icon/>
             </div>
             <motion.div className="overflow-hidden ease-linear" initial={false} animate={{height: active ? "auto" : 0}} transition={{duration: 0.3, ease: "easeInOut"}} onClick={(e : React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}>
-                <ul className="ml-[6%] xl:ml-[10%] overflow-x-auto max-h-[12rem] xl:max-h-[20rem] 2xl:max-h-[28rem]">
-                    {menuItem.submenu.map((menu, index) => <SubmenuItem key={index} submenuId={index} menuId={menuId} submenuItem={menu} isTheLast={maxSubmenuId === index}/>)}
+                <ul className="ml-[6%] xl:ml-[10%] overflow-x-auto max-h-[10rem] xl:max-h-[18rem] 2xl:max-h-[26rem]">
+                    {(() => {
+                    const visibleSubmenus = menuItem.submenu.filter(s => !s.hiddenFromSidebar);
+                    return visibleSubmenus.map((menu, index) => {
+                        const submenuIndex = menuItem.submenu.indexOf(menu);
+                        const isLastVisible = index === visibleSubmenus.length - 1;
+                        return <SubmenuItem key={submenuIndex} submenuId={submenuIndex} menuId={menuId} submenuItem={menu} isTheLast={isLastVisible}/>;
+                    });
+                })()}
                 </ul>
             </motion.div>
         </li>

@@ -8,7 +8,7 @@ export default function Header() : ReactElement {
     return (
         <header className="w-full bg-gabu-500 flex justify-end items-center flex-grow-0 h-[6vh]">
             <div className="flex items-center bg-gabu-100 rounded-4xl p-1 2xl:p-2 h-[70%] 2xl:h-[60%] w-[40%] mr-[20%]">
-                <Search style="mr-5 ml-1 cursor-pointer 2xl:h-[17px] 2xl:w-[17px] h-[14px] w-[14px]"/>
+                <Search style="mr-5 ml-1 cursor-pointer 2xl:h-[17px] 2xl:w-[17px] h-[14px] w-[14px] stroke-gabu-500"/>
                 <input type="text" placeholder="Buscar..." className="focus:outline-none text-gabu-900 w-full"/>
             </div>
             <div className="flex h-full">
