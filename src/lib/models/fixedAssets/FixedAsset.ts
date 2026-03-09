@@ -10,6 +10,14 @@ export type FixedAssetsData = {
     fieldsManage: ConverFieldModel[];
     /** Fecha inicio ejercicio desde parametros (idmoextra '01') para filtro bajas ejercicio actual */
     feciniEjercicio: string | null;
+    /** Opciones de tipo de baja desde Interna donde Tipo = 'BAJA' */
+    tipoBajaOptions: { key: string; value: string }[];
+    /** Fecha proceso (MM/YYYY) desde parametros idmoextra='ml' para default de fecha de baja */
+    fecproBajaDefault: string;
+    /** Cuentas destino para transferencia (IdTipo != '0') */
+    cuentasDestinoOptions: { key: string; value: string }[];
+    /** Fecha proceso default para transferencia (mismo que baja) */
+    fecproTransferenciaDefault: string;
 };
 
 export type AbmDatosGeneralesData = {
@@ -73,6 +81,8 @@ export type AbmLibrosData = {
     vidautil:   { idMoextra: string; idActivo: string; meses: number }[];
     /** Defaults per idMoextra (e.g. '01', '02') */
     defaultsByMoneda: Record<string, LibroDefaults>;
+    /** Cotización por idMoextra desde Cotextranjera (fecha más cercana a hoy). En el frontend, MONEDALOCAL e impuestos usan 1. */
+    cotizacionesByMoneda: Record<string, number>;
 };
 
 class FixedAsset {
@@ -83,30 +93,50 @@ class FixedAsset {
         }
 
         async getAll() : Promise<FixedAssetsData> {
-            const fieldsManage : ConverFieldModel[] = await this.prisma.converField.findMany({
-                where: {
-                    IdTabla: 'actifijo',
-                },
-                orderBy: {
-                    lisordencampos: 'asc'
-                }
-            });
-            const fixedAssets = await this.prisma.$queryRaw<{ [key: string]: unknown}[]>`SELECT * FROM dbo.actifijo`;
-            const parametros01 = await this.prisma.parametros.findUnique({
-                where: { idmoextra: '01' },
-                select: { fecini: true },
-            });
+            const [fieldsManage, fixedAssets, parametros01, parametrosMl, internaBajaRows, cuentasDestino] = await Promise.all([
+                this.prisma.converField.findMany({
+                    where: { IdTabla: 'actifijo' },
+                    orderBy: { lisordencampos: 'asc' },
+                }),
+                this.prisma.$queryRaw<{ [key: string]: unknown}[]>`SELECT * FROM dbo.actifijo`,
+                this.prisma.parametros.findUnique({
+                    where: { idmoextra: '01' },
+                    select: { fecini: true },
+                }),
+                this.prisma.parametros.findUnique({
+                    where: { idmoextra: 'ml' },
+                    select: { fecpro: true },
+                }),
+                this.prisma.interna.findMany({
+                    where: { Tipo: 'BAJA' },
+                    select: { IdInterno: true, Descripcion: true },
+                    orderBy: { Orden: 'asc' },
+                }),
+                this.prisma.cuentas.findMany({
+                    where: { OR: [{ IdTipo: { not: '0' } }, { IdTipo: null }] },
+                    select: { IdActivo: true, Descripcion: true },
+                }),
+            ]);
             const feciniEjercicio = parametros01?.fecini ? parametros01.fecini.toISOString() : null;
-            const serializedFieldsManage = fieldsManage.map(field => {{
-                return {
-                    ...field,
-                    IdCampo: field.IdCampo.toLowerCase(),
-                };
-            }});
+            const fecproBajaDefault = parametrosMl?.fecpro
+                ? `${String((parametrosMl.fecpro as Date).getMonth() + 1).padStart(2, '0')}/${(parametrosMl.fecpro as Date).getFullYear()}`
+                : '';
+            const serializedFieldsManage = fieldsManage.map(field => ({
+                ...field,
+                IdCampo: field.IdCampo.toLowerCase(),
+            }));
+            const tipoBajaOptions = internaBajaRows.map((r) => ({
+                key: r.IdInterno ?? '',
+                value: r.Descripcion ?? r.IdInterno ?? '',
+            }));
             return {
                 fixedAssets,
                 fieldsManage: serializedFieldsManage,
                 feciniEjercicio,
+                tipoBajaOptions,
+                fecproBajaDefault,
+                cuentasDestinoOptions: cuentasDestino.map((r) => ({ key: r.IdActivo, value: r.Descripcion ?? r.IdActivo })),
+                fecproTransferenciaDefault: fecproBajaDefault,
             };
         }
 
@@ -211,7 +241,7 @@ class FixedAsset {
             return variants.map((v) => ({ IdCampo: { endsWith: `.${v}` } }));
         });
 
-        const [converFields, moextraRows, cuentas, internaRows, monedas, parametrosRows, ctaVidautilRows] = await Promise.all([
+        const [converFields, moextraRows, cuentas, internaRows, monedas, parametrosRows, ctaVidautilRows, cotextranjeraRows] = await Promise.all([
             this.prisma.converField.findMany({
                 where: {
                     IdTabla: 'actifijo',
@@ -230,7 +260,27 @@ class FixedAsset {
             this.prisma.monedas.findMany({ select: { IdMoneda: true, Descripcion: true } }),
             this.prisma.parametros.findMany({ select: { idmoextra: true, IdTipoAmortizacion: true, fecpro: true } }),
             this.prisma.ctaVidautil.findMany({ select: { idMoextra: true, idActivo: true, vidautil: true } }),
+            this.prisma.cotextranjera.findMany({ select: { Fecha: true, idMoextra: true, cotizacion: true } }),
         ]);
+
+        // Cotización por idMoextra: fecha más cercana a hoy. Se usa para todos los idMoextra (incl. 01=Dolares HB2).
+        // Solo MONEDALOCAL e impuestos usan cotización 1 (pesos históricos) - se aplica en el frontend.
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const cotizacionesByMoneda: Record<string, number> = {};
+        const byMoextra = new Map<string, typeof cotextranjeraRows>();
+        for (const row of cotextranjeraRows) {
+            if (!byMoextra.has(row.idMoextra)) byMoextra.set(row.idMoextra, []);
+            byMoextra.get(row.idMoextra)!.push(row);
+        }
+        for (const [idMo, rows] of byMoextra.entries()) {
+            const closest = rows.reduce((best, r) => {
+                const diff = Math.abs((r.Fecha as Date).getTime() - today.getTime());
+                if (!best || diff < best.diff) return { row: r, diff };
+                return best;
+            }, null as { row: (typeof rows)[0]; diff: number } | null);
+            cotizacionesByMoneda[idMo] = closest?.row?.cotizacion ?? 1;
+        }
 
         // Group ConverField by prefix
         const prefixMap = new Map<string, LibroFieldMeta[]>();
@@ -323,6 +373,7 @@ class FixedAsset {
                 meses:     Math.round(r.vidautil ?? 0),
             })),
             defaultsByMoneda,
+            cotizacionesByMoneda,
         };
     }
 
@@ -368,6 +419,714 @@ class FixedAsset {
             key: r.IdCencos,
             value: (r.Descripcion ?? r.IdCencos) ?? "",
         }));
+    }
+
+    /** Obtiene el próximo idCodigo desde seteos, suma 1, pad 6 chars. idSubien=000, idSubtra=0, idSufijo=0 */
+    async getNextIdCodigo(): Promise<{ idCodigo: string; idSubien: string; idSubtra: string; idSufijo: string }> {
+        const seteo = await this.prisma.seteos.findFirst({ select: { idcodigo: true } });
+        const current = seteo?.idcodigo ? parseInt(seteo.idcodigo, 10) : 0;
+        const next = isNaN(current) ? 1 : current + 1;
+        const idCodigo = String(next).padStart(6, '0');
+        return { idCodigo, idSubien: '000', idSubtra: '0', idSufijo: '0' };
+    }
+
+    /** Guarda bien: cabecera + distribucion + libros, actualiza seteos (salvo alta agregado) */
+    async addBien(data: {
+        datosGenerales: { descripcion: string; idPlanta?: string; idZona?: string; idCencos?: string };
+        distribucion: { idCencos: string; porcentaje: number }[];
+        cabecera: Record<string, string | number | boolean | null | undefined>;
+        libros?: Record<string, Record<string, string>>;
+        /** Para alta agregado: id del bien origen (idCodigo-idSubien-idSubtra-idSufijo). Se mantiene idCodigo, idSubien = max+1 */
+        altaAgregadoBienId?: string;
+    }): Promise<{ idCodigo: string; idSubien: string }> {
+        return this.prisma.$transaction(async (tx) => {
+            let idCodigo: string;
+            let idSubien: string;
+            const idSubtra = '0';
+            const idSufijo = '0';
+
+            if (data.altaAgregadoBienId) {
+                const parts = data.altaAgregadoBienId.split('-');
+                if (parts.length < 2) throw new Error('altaAgregadoBienId inválido');
+                idCodigo = parts[0];
+                const existing = await tx.cabecera.findMany({
+                    where: { idCodigo },
+                    select: { idSubien: true },
+                });
+                const maxSubien = existing.length
+                    ? Math.max(...existing.map((r) => parseInt(r.idSubien ?? '0', 10) || 0))
+                    : 0;
+                idSubien = String(maxSubien + 1).padStart(3, '0');
+            } else {
+                const seteo = await tx.seteos.findFirst({ select: { idcodigo: true, Id: true } });
+                const current = seteo?.idcodigo ? parseInt(seteo.idcodigo, 10) : 0;
+                const next = isNaN(current) ? 1 : current + 1;
+                idCodigo = String(next).padStart(6, '0');
+                idSubien = '000';
+            }
+
+            const dg = data.datosGenerales;
+            const cab = data.cabecera;
+
+            const trim = (s: string | null | undefined, max: number): string | null => {
+                if (s == null || s === '') return null;
+                const t = String(s).trim();
+                return t ? t.slice(0, max) : null;
+            };
+
+            const parseMmYyyy = (s: string): Date | null => {
+                const m = String(s || '').match(/^(\d{1,2})[\/\-](\d{4})$/);
+                if (!m) return null;
+                return new Date(Number(m[2]), Number(m[1]) - 1, 1);
+            };
+
+            await tx.cabecera.create({
+                data: {
+                    idCodigo,
+                    idSubien,
+                    idSubtra,
+                    idSufijo,
+                    descripcion: dg.descripcion || null,
+                    idPlanta: trim(dg.idPlanta, 5),
+                    idZona: trim(dg.idZona, 15),
+                    idCencos: trim(dg.idCencos, 5),
+                    idDescripcion: trim(cab.idDescripcion as string, 6),
+                    cantidad: cab.cantidad != null ? Number(cab.cantidad) : null,
+                    idSituacion: trim(cab.idSituacion as string, 2),
+                    idFactura: trim(cab.idFactura as string, 30),
+                    idUnegocio: trim(cab.idUnegocio as string, 6),
+                    identificacion: trim(cab.identificacion as string, 15),
+                    idActivo: trim(cab.idActivo as string, 15),
+                    trFecActivo: parseMmYyyy(String(cab.trFecActivo ?? '')) ?? null,
+                    idModelo: trim(cab.idModelo as string, 5),
+                    tridActivo: trim(cab.tridActivo as string, 15),
+                    idOrdenCompra: trim(cab.idOrdenCompra as string, 50),
+                    trFecProyecto: parseMmYyyy(String(cab.trFecProyecto ?? '')) ?? null,
+                    idOrigen: trim(cab.idOrigen as string, 2),
+                    idProveedor: trim(cab.idProveedor as string, 15),
+                    escencial: cab.escencial === true || cab.escencial === 'true',
+                    idFabricante: trim(cab.idFabricante as string, 50),
+                    nuevo: cab.nuevo === true || cab.nuevo === 'true',
+                    idProyecto: trim(cab.idProyecto as string, 8),
+                    tridProyecto: trim(cab.tridProyecto as string, 8),
+                    trFecUNegocio: parseMmYyyy(String(cab.trFecUNegocio ?? '')) ?? null,
+                    tridUNegocio: trim(cab.tridUNegocio as string, 5),
+                },
+            });
+
+            const distByCencos = new Map<string, number>();
+            for (const d of data.distribucion) {
+                const idCencos = trim(d.idCencos, 5);
+                if (!idCencos) continue;
+                const pct = parseFloat(String(d.porcentaje)) || 0;
+                distByCencos.set(idCencos, (distByCencos.get(idCencos) ?? 0) + pct);
+            }
+            for (const [idCencos, porcentaje] of distByCencos) {
+                await tx.distribucion.create({
+                    data: {
+                        idCodigo,
+                        idsubien: idSubien,
+                        idsubtra: idSubtra,
+                        idsufijo: idSufijo,
+                        idCencos,
+                        porcentaje,
+                    },
+                });
+            }
+
+            const parseMmYyyyLibro = (s: string): Date | null => {
+                const m = String(s || '').match(/^(\d{1,2})[\/\-](\d{4})$/);
+                if (!m) return null;
+                return new Date(Number(m[2]), Number(m[1]) - 1, 1);
+            };
+
+            const getIdMoneda = (prefijo: string): string => {
+                const up = prefijo.toUpperCase();
+                if (up === 'MONEDALOCAL' || prefijo.toLowerCase() === 'impuestos') return '01';
+                const me = up.match(/^ME(\d+)$/);
+                return me ? me[1].padStart(2, '0') : '01';
+            };
+
+            const valNum = (s: string | undefined): number | null => {
+                const n = parseFloat(String(s ?? '').replace(',', '.'));
+                return isNaN(n) ? null : n;
+            };
+            const subCol = (fields: Record<string, string>, key: string, fallback: number): number =>
+                valNum(fields[key] ?? fields[key.toUpperCase()]) ?? fallback;
+            const libros = data.libros ?? {};
+            for (const [prefijo, fields] of Object.entries(libros)) {
+                if (!fields || Object.keys(fields).length === 0) continue;
+                const idActivo = trim(cab.idActivo ?? fields['IDACTIVO'], 15);
+                const idMoneda = (trim(fields['IDMONEDA'], 2) ?? getIdMoneda(prefijo)).slice(0, 2);
+                const valori = valNum(fields['VALORI']) ?? 0;
+                const row: Record<string, unknown> = {
+                    idCodigo,
+                    idSubien,
+                    idSubtra,
+                    idSufijo,
+                    idActivo: idActivo || null,
+                    idMoneda,
+                    idTipoAmortizacion: trim(fields['IDTIPOAMORTIZACION'], 2),
+                    idIndact: trim(fields['IDINDACT'], 1),
+                    idCodamo: trim(fields['IDCODAMO'], 1),
+                    idTipoProceso: (() => {
+                        const v = String(fields['IDTIPOPROCESO'] ?? '').toLowerCase();
+                        return (v === '1' || v === 'true' || v === 'si') ? '1' : '0';
+                    })(),
+                    Estcon: trim(fields['ESTCON'], 1),
+                    FecOri: parseMmYyyyLibro(fields['FECORI'] ?? '') ?? null,
+                    FecDep: parseMmYyyyLibro(fields['FECDEP'] ?? '') ?? null,
+                    Fecfin: parseMmYyyyLibro(fields['FECFIN'] ?? '') ?? null,
+                    vidaUtil: parseFloat(String(fields['VIDAUTIL'] ?? '').replace(',', '.')) || null,
+                    Valori: valNum(fields['VALORI']) ?? null,
+                    VrepoeReferencial: subCol(fields, 'VrepoeReferencial', valori),
+                    AmafieReferencial: subCol(fields, 'AmafieReferencial', 0),
+                    AmefieReferencial: subCol(fields, 'AmefieReferencial', 0),
+                    AmpefeReferencial: subCol(fields, 'AmpefeReferencial', 0),
+                    VrepoeAnterior: subCol(fields, 'VrepoeAnterior', valori),
+                    AmafieAnterior: subCol(fields, 'AmafieAnterior', 0),
+                    AmefieAnterior: subCol(fields, 'AmefieAnterior', 0),
+                    AmpefeAnterior: subCol(fields, 'AmpefeAnterior', 0),
+                    VrepoeActual: subCol(fields, 'VrepoeActual', valori),
+                    AmafieActual: subCol(fields, 'AmafieActual', 0),
+                    AmefieActual: subCol(fields, 'AmefieActual', 0),
+                    AmpefeActual: subCol(fields, 'AmpefeActual', 0),
+                    VrepoeCierreAnterior: subCol(fields, 'VrepoeCierreAnterior', 0),
+                    AmafieCierreAnterior: subCol(fields, 'AmafieCierreAnterior', 0),
+                    AmefieCierreAnterior: subCol(fields, 'AmefieCierreAnterior', 0),
+                    AmpefeCierreAnterior: subCol(fields, 'AmpefeCierreAnterior', 0),
+                };
+                const model = (tx as Record<string, { create: (arg: { data: Record<string, unknown> }) => Promise<unknown> }>)[prefijo];
+                if (model?.create) await model.create({ data: row });
+            }
+
+            if (!data.altaAgregadoBienId) {
+                const seteo = await tx.seteos.findFirst({ select: { Id: true } });
+                if (seteo?.Id != null) {
+                    await tx.seteos.update({
+                        where: { Id: seteo.Id },
+                        data: { idcodigo: idCodigo },
+                    });
+                } else {
+                    await tx.seteos.create({
+                        data: { Id: 1, idcodigo: idCodigo, sonido: false },
+                    });
+                }
+            }
+
+            return { idCodigo, idSubien };
+        }, { timeout: 30000 });
+    }
+
+    /** Resuelve el modelo desde tx/prisma usando la clave que Prisma genera (camelCase: ME01→mE01, MONEDALOCAL→mONEDALOCAL) */
+    private getModelFromRecord<T>(record: Record<string, T>, modelName: string): T | undefined {
+        const prismaKey = modelName.charAt(0).toLowerCase() + modelName.slice(1);
+        return record[modelName] ?? record[modelName.toLowerCase()] ?? record[prismaKey];
+    }
+
+    /** Prefijo ConverField -> nombre modelo Prisma (para libros) */
+    private prefijoToModel(prefijo: string): string {
+        const p = prefijo.toLowerCase();
+        if (p === 'monedalocal') return 'MONEDALOCAL';
+        if (p === 'impuestos') return 'impuestos';
+        const impu = p.match(/^impu(\d+)$/);
+        if (impu) return `impu${impu[1]}`;
+        const me = p.match(/^me(\d+)$/);
+        if (me) return `ME${me[1]}`; // Preservar "01","02" etc (no usar parseInt: "01"→1→"ME1" no existe)
+        const mol = p.match(/^mol(\d+)$/);
+        if (mol) return `MOLO${mol[1].padStart(2, '0')}`;
+        return prefijo;
+    }
+
+    /** Convierte un registro a objeto plano; fechas a ISO string */
+    private toPlainRow(row: Record<string, unknown>): Record<string, unknown> {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(row)) {
+            out[k] = v instanceof Date ? v.toISOString() : v;
+        }
+        return out;
+    }
+
+    /** Obtiene un bien por id desde cabecera, distribucion y tablas de libros */
+    async getBienById(bienId: string): Promise<{ [key: string]: unknown } | null> {
+        const parts = bienId.split('-');
+        if (parts.length < 4) return null;
+        const [idCodigo, idSubien = '000', idSubtra = '0', idSufijo = '0'] = parts;
+        const sidSubien = idSubien.padStart(3, '0');
+        const whereCab = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
+
+        const cabecera = await this.prisma.cabecera.findUnique({
+            where: { idCodigo_idSubien_idSubtra_idSufijo: whereCab },
+        });
+        if (!cabecera) return null;
+
+        const out: Record<string, unknown> = this.toPlainRow(cabecera as unknown as Record<string, unknown>);
+
+        const distribucion = await this.prisma.distribucion.findMany({
+            where: { idCodigo, idsubien: sidSubien, idsubtra: idSubtra, idsufijo: idSufijo },
+            select: { idCencos: true, porcentaje: true },
+        });
+        out._distribucion = distribucion;
+
+        const converFields = await this.prisma.converField.findMany({
+            where: { IdTabla: 'actifijo', NOT: { IdCampo: { startsWith: 'cabecera.' } } },
+            select: { IdCampo: true },
+        });
+        const prefixes = [...new Set(converFields.map((f) => {
+            const idx = f.IdCampo.indexOf('.');
+            return idx >= 0 ? f.IdCampo.substring(0, idx) : null;
+        }).filter(Boolean))] as string[];
+
+        const idActivo = cabecera.idActivo ?? null;
+        for (const prefijo of prefixes) {
+            const modelName = this.prefijoToModel(prefijo);
+            const model = this.getModelFromRecord(this.prisma as unknown as Record<string, { findMany: (arg: { where: object }) => Promise<unknown[]> }>, modelName);
+            if (!model?.findMany) continue;
+            const hasIdActivo = /^impu|^me\d/i.test(prefijo);
+            const where: Record<string, unknown> = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
+            if (hasIdActivo && idActivo) (where as Record<string, unknown>).idActivo = idActivo;
+            const rows = await model.findMany({ where });
+            const row = rows[0] as Record<string, unknown> | undefined;
+            if (row) {
+                const plain = this.toPlainRow(row);
+                for (const [k, v] of Object.entries(plain)) {
+                    if (k === 'idCodigo' || k === 'idSubien' || k === 'idSubtra' || k === 'idSufijo') continue;
+                    out[`${prefijo}.${k}`] = v;
+                    out[`${prefijo.toLowerCase()}.${k}`] = v;
+                }
+            }
+        }
+
+        return out;
+    }
+
+    /** Actualiza un bien existente (cabecera, distribucion, libros) */
+    async updateBien(
+        bienId: string,
+        data: {
+            datosGenerales: { descripcion: string; idPlanta?: string; idZona?: string; idCencos?: string };
+            distribucion: { idCencos: string; porcentaje: number }[];
+            cabecera: Record<string, string | number | boolean | null | undefined>;
+            libros?: Record<string, Record<string, string>>;
+        }
+    ): Promise<{ ok: boolean }> {
+        const parts = bienId.split('-');
+        if (parts.length < 4) throw new Error('bienId inválido');
+        const [idCodigo, idSubien = '000', idSubtra = '0', idSufijo = '0'] = parts;
+        const sidSubien = idSubien.padStart(3, '0');
+
+        return this.prisma.$transaction(async (tx) => {
+            const trim = (s: string | null | undefined, max: number): string | null => {
+                if (s == null || s === '') return null;
+                const t = String(s).trim();
+                return t ? t.slice(0, max) : null;
+            };
+            const parseMmYyyy = (s: string): Date | null => {
+                const m = String(s || '').match(/^(\d{1,2})[\/\-](\d{4})$/);
+                if (!m) return null;
+                return new Date(Number(m[2]), Number(m[1]) - 1, 1);
+            };
+
+            const dg = data.datosGenerales;
+            const cab = data.cabecera;
+
+            await tx.cabecera.update({
+                where: {
+                    idCodigo_idSubien_idSubtra_idSufijo: { idCodigo, idSubien: sidSubien, idSubtra, idSufijo },
+                },
+                data: {
+                    descripcion: dg.descripcion || null,
+                    idPlanta: trim(dg.idPlanta, 5),
+                    idZona: trim(dg.idZona, 15),
+                    idCencos: trim(dg.idCencos, 5),
+                    idDescripcion: trim(cab.idDescripcion as string, 6),
+                    cantidad: cab.cantidad != null ? Number(cab.cantidad) : null,
+                    idSituacion: trim(cab.idSituacion as string, 2),
+                    idFactura: trim(cab.idFactura as string, 30),
+                    idUnegocio: trim(cab.idUnegocio as string, 6),
+                    identificacion: trim(cab.identificacion as string, 15),
+                    idActivo: trim(cab.idActivo as string, 15),
+                    trFecActivo: parseMmYyyy(String(cab.trFecActivo ?? '')) ?? null,
+                    idModelo: trim(cab.idModelo as string, 5),
+                    tridActivo: trim(cab.tridActivo as string, 15),
+                    idOrdenCompra: trim(cab.idOrdenCompra as string, 50),
+                    trFecProyecto: parseMmYyyy(String(cab.trFecProyecto ?? '')) ?? null,
+                    idOrigen: trim(cab.idOrigen as string, 2),
+                    idProveedor: trim(cab.idProveedor as string, 15),
+                    escencial: cab.escencial === true || cab.escencial === 'true',
+                    idFabricante: trim(cab.idFabricante as string, 50),
+                    nuevo: cab.nuevo === true || cab.nuevo === 'true',
+                    idProyecto: trim(cab.idProyecto as string, 8),
+                    tridProyecto: trim(cab.tridProyecto as string, 8),
+                    trFecUNegocio: parseMmYyyy(String(cab.trFecUNegocio ?? '')) ?? null,
+                    tridUNegocio: trim(cab.tridUNegocio as string, 5),
+                },
+            });
+
+            await tx.distribucion.deleteMany({
+                where: { idCodigo, idsubien: sidSubien, idsubtra: idSubtra, idsufijo: idSufijo },
+            });
+            for (const d of data.distribucion) {
+                const idCencos = trim(d.idCencos, 5);
+                if (!idCencos) continue;
+                await tx.distribucion.create({
+                    data: {
+                        idCodigo,
+                        idsubien: sidSubien,
+                        idsubtra: idSubtra,
+                        idsufijo: idSufijo,
+                        idCencos,
+                        porcentaje: parseFloat(String(d.porcentaje)) || 0,
+                    },
+                });
+            }
+
+            const parseMmYyyyLibro = (s: string): Date | null => {
+                const m = String(s || '').match(/^(\d{1,2})[\/\-](\d{4})$/);
+                if (!m) return null;
+                return new Date(Number(m[2]), Number(m[1]) - 1, 1);
+            };
+            const getIdMoneda = (prefijo: string): string => {
+                const up = prefijo.toUpperCase();
+                if (up === 'MONEDALOCAL' || prefijo.toLowerCase() === 'impuestos') return '01';
+                const me = up.match(/^ME(\d+)$/);
+                return me ? me[1].padStart(2, '0') : '01';
+            };
+
+            const valNumUpdate = (s: string | undefined): number | null => {
+                const n = parseFloat(String(s ?? '').replace(',', '.'));
+                return isNaN(n) ? null : n;
+            };
+            const subColUpdate = (fields: Record<string, string>, key: string, fallback: number): number =>
+                valNumUpdate(fields[key] ?? fields[key.toUpperCase()]) ?? fallback;
+            const libros = data.libros ?? {};
+            for (const [prefijo, fields] of Object.entries(libros)) {
+                if (!fields || Object.keys(fields).length === 0) continue;
+                const idActivo = trim(cab.idActivo ?? fields['IDACTIVO'], 15);
+                const idMoneda = (trim(fields['IDMONEDA'], 2) ?? getIdMoneda(prefijo)).slice(0, 2);
+                const valori = valNumUpdate(fields['VALORI']) ?? 0;
+                const subAccordionCols = {
+                    VrepoeReferencial: subColUpdate(fields, 'VrepoeReferencial', valori),
+                    AmafieReferencial: subColUpdate(fields, 'AmafieReferencial', 0),
+                    AmefieReferencial: subColUpdate(fields, 'AmefieReferencial', 0),
+                    AmpefeReferencial: subColUpdate(fields, 'AmpefeReferencial', 0),
+                    VrepoeAnterior: subColUpdate(fields, 'VrepoeAnterior', valori),
+                    AmafieAnterior: subColUpdate(fields, 'AmafieAnterior', 0),
+                    AmefieAnterior: subColUpdate(fields, 'AmefieAnterior', 0),
+                    AmpefeAnterior: subColUpdate(fields, 'AmpefeAnterior', 0),
+                    VrepoeActual: subColUpdate(fields, 'VrepoeActual', valori),
+                    AmafieActual: subColUpdate(fields, 'AmafieActual', 0),
+                    AmefieActual: subColUpdate(fields, 'AmefieActual', 0),
+                    AmpefeActual: subColUpdate(fields, 'AmpefeActual', 0),
+                    VrepoeCierreAnterior: subColUpdate(fields, 'VrepoeCierreAnterior', 0),
+                    AmafieCierreAnterior: subColUpdate(fields, 'AmafieCierreAnterior', 0),
+                    AmefieCierreAnterior: subColUpdate(fields, 'AmefieCierreAnterior', 0),
+                    AmpefeCierreAnterior: subColUpdate(fields, 'AmpefeCierreAnterior', 0),
+                };
+                const rowData: Record<string, unknown> = {
+                    idCodigo,
+                    idSubien: sidSubien,
+                    idSubtra,
+                    idSufijo,
+                    idActivo: idActivo || null,
+                    idMoneda,
+                    idTipoAmortizacion: trim(fields['IDTIPOAMORTIZACION'], 2),
+                    idIndact: trim(fields['IDINDACT'], 1),
+                    idCodamo: trim(fields['IDCODAMO'], 1),
+                    idTipoProceso: (() => {
+                        const v = String(fields['IDTIPOPROCESO'] ?? '').toLowerCase();
+                        return (v === '1' || v === 'true' || v === 'si') ? '1' : '0';
+                    })(),
+                    Estcon: trim(fields['ESTCON'], 1),
+                    FecOri: parseMmYyyyLibro(fields['FECORI'] ?? '') ?? null,
+                    FecDep: parseMmYyyyLibro(fields['FECDEP'] ?? '') ?? null,
+                    Fecfin: parseMmYyyyLibro(fields['FECFIN'] ?? '') ?? null,
+                    vidaUtil: parseFloat(String(fields['VIDAUTIL'] ?? '').replace(',', '.')) || null,
+                    Valori: valNumUpdate(fields['VALORI']) ?? null,
+                    ...subAccordionCols,
+                };
+                const model = (tx as Record<string, { updateMany: (arg: { where: object; data: object }) => Promise<unknown>; create: (arg: { data: object }) => Promise<unknown> }>)[prefijo];
+                if (!model) continue;
+                const hasIdActivoInPk = /^impu|^me\d/i.test(prefijo);
+                const where: Record<string, unknown> = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
+                if (hasIdActivoInPk && idActivo) (where as Record<string, unknown>).idActivo = idActivo;
+                const updateData = { ...rowData };
+                delete (updateData as Record<string, unknown>).idCodigo;
+                delete (updateData as Record<string, unknown>).idSubien;
+                delete (updateData as Record<string, unknown>).idSubtra;
+                delete (updateData as Record<string, unknown>).idSufijo;
+                if (hasIdActivoInPk) delete (updateData as Record<string, unknown>).idActivo;
+                const result = await model.updateMany({ where, data: updateData });
+                if (result.count === 0 && model.create) {
+                    await model.create({ data: rowData });
+                }
+            }
+
+            return { ok: true };
+        }, { timeout: 30000 });
+    }
+
+    /** Campos de valor de libros a los que se aplica el porcentaje (60% / 40%). Solo valores contables, no vidaUtil, etc. */
+    private static LIBRO_VALUE_FIELDS = [
+        'Valori',
+        'VrepoeReferencial', 'AmafieReferencial', 'AmefieReferencial', 'AmpefeReferencial',
+        'VrepoeAnterior', 'AmafieAnterior', 'AmefieAnterior', 'AmpefeAnterior',
+        'VrepoeActual', 'AmafieActual', 'AmefieActual', 'AmpefeActual',
+        'VrepoeCierreAnterior', 'AmafieCierreAnterior', 'AmefieCierreAnterior', 'AmpefeCierreAnterior',
+    ] as const;
+
+    /** Baja bienes: retira total o parcialmente los bienes seleccionados */
+    async bajaBienes(params: {
+        selectedAssets: FixedAssets[];
+        fechaBaja: string;
+        tipoBaja: string;
+        precioVenta: string;
+        porcentajeBaja: string;
+    }): Promise<{ ok: boolean }> {
+        const { selectedAssets, fechaBaja, tipoBaja, precioVenta, porcentajeBaja } = params;
+        if (!selectedAssets || selectedAssets.length === 0) {
+            throw new Error('No hay bienes seleccionados');
+        }
+        const pct = parseFloat(porcentajeBaja.replace(',', '.')) || 100;
+        const precioNum = parseFloat(precioVenta.replace(',', '.')) || 0;
+
+        const parseMmYyyy = (s: string): Date | null => {
+            const m = String(s || '').match(/^(\d{1,2})[\/\-](\d{4})$/);
+            if (!m) return null;
+            return new Date(Number(m[2]), Number(m[1]) - 1, 1);
+        };
+        const fecBajDate = parseMmYyyy(fechaBaja);
+        if (!fecBajDate) throw new Error('Fecha de baja inválida. Use formato MM/YYYY.');
+        const tipoBajaVal = tipoBaja.trim() || null;
+
+        const getBienId = (row: FixedAssets): string => {
+            const r = row as Record<string, unknown>;
+            const getVal = (key: string) => {
+                let v = r[key] ?? r[key.toLowerCase()];
+                if (v == null || v === '') v = r[`cabecera.${key}`] ?? r[`cabecera.${key.toLowerCase()}`];
+                return String(v ?? '').trim();
+            };
+            const parts = ['idCodigo', 'idSubien', 'idSubtra', 'idSufijo'].map(getVal);
+            return parts.join('-');
+        };
+
+        const hasFecBaj = (row: FixedAssets): boolean => {
+            const r = row as Record<string, unknown>;
+            const keys = ['monedalocal.FecBaj', 'me01.FecBaj', 'me01.fecbaj', 'impuestos.FecBaj', 'FecBaj', 'fecbaj'];
+            for (const k of keys) {
+                const v = r[k];
+                if (v != null && v !== '') return true;
+            }
+            const fecbajKey = Object.keys(r).find((k) => k.toLowerCase().includes('fecbaj'));
+            if (fecbajKey != null) {
+                const v = r[fecbajKey];
+                if (v != null && v !== '') return true;
+            }
+            return false;
+        };
+
+        return this.prisma.$transaction(async (tx) => {
+            const converFields = await tx.converField.findMany({
+                where: { IdTabla: 'actifijo', NOT: { IdCampo: { startsWith: 'cabecera.' } } },
+                select: { IdCampo: true },
+            });
+            const prefixesFromConver = [...new Set(converFields.map((f) => {
+                const idx = f.IdCampo.indexOf('.');
+                return idx >= 0 ? f.IdCampo.substring(0, idx) : null;
+            }).filter(Boolean))] as string[];
+            const prefixes = [...new Set([...prefixesFromConver, 'ME01', 'ME02'])];
+
+            for (const asset of selectedAssets) {
+                if (hasFecBaj(asset)) continue;
+                const bienId = getBienId(asset);
+                const parts = bienId.split('-');
+                if (parts.length < 4) continue;
+                const [idCodigo, idSubien = '000', idSubtra = '0', idSufijo = '0'] = parts;
+                const sidSubien = idSubien.padStart(3, '0');
+
+                if (pct >= 100) {
+                    const updateData = { FecBaj: fecBajDate, TipoBaja: tipoBajaVal, precioVenta: precioNum };
+                    const where = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
+                    for (const prefijo of prefixes) {
+                        const modelName = this.prefijoToModel(prefijo);
+                        const txRecord = tx as unknown as Record<string, { updateMany?: (arg: { where: object; data: object }) => Promise<{ count: number }> }>;
+                        const model = this.getModelFromRecord(txRecord, modelName);
+                        if (!model?.updateMany) continue;
+                        await model.updateMany({ where, data: updateData });
+                    }
+                } else {
+                    const factorBaja = pct / 100;
+                    const factorResto = 1 - factorBaja;
+
+                    /** Guardar filas ORIGINALES por prefijo antes de modificar (para el 40% del bien nuevo) */
+                    const originalRowsByPrefix = new Map<string, Record<string, unknown>[]>();
+
+                    for (const prefijo of prefixes) {
+                        const modelName = this.prefijoToModel(prefijo);
+                        const model = this.getModelFromRecord(tx as unknown as Record<string, {
+                            findMany: (arg: { where: object }) => Promise<unknown[]>;
+                            updateMany: (arg: { where: object; data: object }) => Promise<{ count: number }>;
+                            create: (arg: { data: object }) => Promise<unknown>;
+                        }>, modelName);
+                        if (!model?.findMany || !model?.updateMany) continue;
+                        const where: Record<string, unknown> = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
+                        const rows = await model.findMany({ where }) as Record<string, unknown>[];
+                        if (rows.length === 0) continue;
+
+                        originalRowsByPrefix.set(prefijo, rows);
+
+                        const updateData: Record<string, unknown> = {
+                            FecBaj: fecBajDate,
+                            TipoBaja: tipoBajaVal,
+                            precioVenta: precioNum,
+                        };
+                        for (const f of FixedAsset.LIBRO_VALUE_FIELDS) {
+                            const v = rows[0][f] ?? rows[0][f.toLowerCase()];
+                            if (typeof v === 'number' && !isNaN(v)) {
+                                updateData[f] = Math.round(v * factorBaja * 1e6) / 1e6;
+                            }
+                        }
+                        await model.updateMany({ where, data: updateData });
+                    }
+
+                    const cabecera = await tx.cabecera.findUnique({
+                        where: { idCodigo_idSubien_idSubtra_idSufijo: { idCodigo, idSubien: sidSubien, idSubtra, idSufijo } },
+                    });
+                    if (!cabecera) continue;
+
+                    const maxSufijo = await tx.cabecera.findMany({
+                        where: { idCodigo, idSubien: sidSubien, idSubtra },
+                        select: { idSufijo: true },
+                    });
+                    const maxVal = maxSufijo.reduce((m, r) => Math.max(m, parseInt(String(r.idSufijo ?? '0'), 10) || 0), 0);
+                    const newSufijo = String(maxVal + 1);
+
+                    const cabData = cabecera as unknown as Record<string, unknown>;
+                    const { idCodigo: _, idSubien: __, idSubtra: ___, idSufijo: ____, ...cabRest } = cabData;
+                    await tx.cabecera.create({
+                        data: { ...cabRest, idCodigo, idSubien: sidSubien, idSubtra, idSufijo: newSufijo } as Parameters<typeof tx.cabecera.create>[0]['data'],
+                    });
+
+                    const distribucion = await tx.distribucion.findMany({
+                        where: { idCodigo, idsubien: sidSubien, idsubtra: idSubtra, idsufijo: idSufijo },
+                    });
+                    for (const d of distribucion) {
+                        await tx.distribucion.create({
+                            data: {
+                                idCodigo,
+                                idsubien: sidSubien,
+                                idsubtra: idSubtra,
+                                idsufijo: newSufijo,
+                                idCencos: d.idCencos,
+                                porcentaje: d.porcentaje,
+                            },
+                        });
+                    }
+
+                    for (const prefijo of prefixes) {
+                        const modelName = this.prefijoToModel(prefijo);
+                        const model = this.getModelFromRecord(tx as unknown as Record<string, {
+                            findMany: (arg: { where: object }) => Promise<unknown[]>;
+                            create: (arg: { data: object }) => Promise<unknown>;
+                        }>, modelName);
+                        if (!model?.create) continue;
+                        const rows = originalRowsByPrefix.get(prefijo);
+                        if (!rows || rows.length === 0) continue;
+                        for (const row of rows) {
+                            const newRow: Record<string, unknown> = {};
+                            for (const [k, v] of Object.entries(row)) {
+                                if (['idCodigo', 'idSubien', 'idSubtra', 'idSufijo'].includes(k)) continue;
+                                if (k === 'idSufijo') {
+                                    newRow.idSufijo = newSufijo;
+                                    continue;
+                                }
+                                if (k === 'FecBaj' || k === 'TipoBaja' || k === 'precioVenta') {
+                                    newRow[k] = null;
+                                    continue;
+                                }
+                                if (FixedAsset.LIBRO_VALUE_FIELDS.includes(k as typeof FixedAsset.LIBRO_VALUE_FIELDS[number])) {
+                                    const num = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
+                                    newRow[k] = isNaN(num) ? v : Math.round(num * factorResto * 1e6) / 1e6;
+                                } else {
+                                    newRow[k] = v;
+                                }
+                            }
+                            newRow.idCodigo = idCodigo;
+                            newRow.idSubien = sidSubien;
+                            newRow.idSubtra = idSubtra;
+                            newRow.idSufijo = newSufijo;
+                            await model.create({ data: newRow });
+                        }
+                    }
+                }
+            }
+            return { ok: true };
+        }, { timeout: 60000 });
+    }
+
+    /** Transferencia de bienes: actualiza idActivo (cuenta destino) en cabecera y libros */
+    async transferBienes(params: {
+        selectedAssets: FixedAssets[];
+        fechaTransferencia: string;
+        cuentaDestino: string;
+        porcentajeTransferencia: string;
+    }): Promise<{ ok: boolean }> {
+        const { selectedAssets, cuentaDestino, porcentajeTransferencia } = params;
+        if (!selectedAssets || selectedAssets.length === 0) {
+            throw new Error('No hay bienes seleccionados');
+        }
+        const cuentaDestinoVal = String(cuentaDestino ?? '').trim();
+        if (!cuentaDestinoVal) throw new Error('Cuenta destino requerida');
+        const pct = parseFloat(porcentajeTransferencia.replace(',', '.')) || 100;
+
+        const getBienId = (row: FixedAssets): string => {
+            const r = row as Record<string, unknown>;
+            const getVal = (key: string) => {
+                let v = r[key] ?? r[key.toLowerCase()];
+                if (v == null || v === '') v = r[`cabecera.${key}`] ?? r[`cabecera.${key.toLowerCase()}`];
+                return String(v ?? '').trim();
+            };
+            const parts = ['idCodigo', 'idSubien', 'idSubtra', 'idSufijo'].map(getVal);
+            return parts.join('-');
+        };
+
+        return this.prisma.$transaction(async (tx) => {
+            const converFields = await tx.converField.findMany({
+                where: { IdTabla: 'actifijo', NOT: { IdCampo: { startsWith: 'cabecera.' } } },
+                select: { IdCampo: true },
+            });
+            const prefixesFromConver = [...new Set(converFields.map((f) => {
+                const idx = f.IdCampo.indexOf('.');
+                return idx >= 0 ? f.IdCampo.substring(0, idx) : null;
+            }).filter(Boolean))] as string[];
+            const prefixes = [...new Set([...prefixesFromConver, 'ME01', 'ME02'])];
+
+            for (const asset of selectedAssets) {
+                const bienId = getBienId(asset);
+                const parts = bienId.split('-');
+                if (parts.length < 4) continue;
+                const [idCodigo, idSubien = '000', idSubtra = '0', idSufijo = '0'] = parts;
+                const sidSubien = idSubien.padStart(3, '0');
+                const where = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
+
+                await tx.cabecera.updateMany({
+                    where,
+                    data: { idActivo: cuentaDestinoVal },
+                });
+
+                if (pct >= 100) {
+                    const updateData = { idActivo: cuentaDestinoVal };
+                    for (const prefijo of prefixes) {
+                        const modelName = this.prefijoToModel(prefijo);
+                        const txRecord = tx as unknown as Record<string, { updateMany?: (arg: { where: object; data: object }) => Promise<{ count: number }> }>;
+                        const model = this.getModelFromRecord(txRecord, modelName);
+                        if (!model?.updateMany) continue;
+                        await model.updateMany({ where, data: updateData });
+                    }
+                }
+            }
+            return { ok: true };
+        }, { timeout: 60000 });
     }
 }
 

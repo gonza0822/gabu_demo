@@ -16,7 +16,8 @@ export default function Select({
   chooseOptionHandler,
   cellId,
   variant = 'default',
-  onListOpenChange
+  onListOpenChange,
+  controlClassName,
 }: {
   label: string,
   options: {key: string, value: string}[],
@@ -26,7 +27,8 @@ export default function Select({
   chooseOptionHandler: (e: React.MouseEvent<HTMLLIElement>, ref: React.RefObject<HTMLSpanElement | null>) => void,
   cellId?: string,
   variant?: 'default' | 'entriesPerPage' | 'filterModal' | 'abm',
-  onListOpenChange?: (open: boolean) => void
+  onListOpenChange?: (open: boolean) => void,
+  controlClassName?: string,
 }) : ReactElement {
     const isEntriesPerPage = variant === 'entriesPerPage';
     const isFilterModal = variant === 'filterModal';
@@ -104,7 +106,7 @@ export default function Select({
     const valueSpanClass = isEntriesPerPage
         ? 'text-base text-gabu-100'
         : isFilterModal || isAbm
-        ? 'text-sm text-gabu-700'
+        ? 'text-sm text-gabu-700 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap'
         : `${isLogin ? 'text-base' : 'text-xs'} text-gabu-900`;
     const arrowColor = isEntriesPerPage ? 'text-gabu-100' : (isFilterModal || isAbm) ? 'text-gabu-900' : 'text-gabu-900';
     const borderRadius = isFilterModal ? (isOptionListVisible ? "8px 8px 0 0" : "8px") : isAbm ? (isOptionListVisible ? "6px 6px 0 0" : "6px") : (isOptionListVisible ? "6px 6px 0px 0px" : "6px");
@@ -113,7 +115,7 @@ export default function Select({
         <div className="flex flex-col gap-1 cursor-pointer">
             {hasLabel && <label className={labelClass}>{label}</label>}
             <div className="relative">
-                <motion.div className={selectStyle} onClick={selectOptionHandler} ref={selectRef} initial={false} animate={{ borderRadius }} transition={{ borderRadius: { duration: 0.1, ease: "easeInOut" } }}>
+                <motion.div className={`${selectStyle} ${controlClassName ?? ''}`.trim()} onClick={selectOptionHandler} ref={selectRef} initial={false} animate={{ borderRadius }} transition={{ borderRadius: { duration: 0.1, ease: "easeInOut" } }}>
                     <span className={valueSpanClass} id="select-value" ref={valueSelectedRef} data-key={defaultSelectedOption?.key || ''} data-cellid={cellId}>{defaultSelectedOption?.value || ''}</span>
                     {isLogin ? <SelectPointerLogin active={isOptionListVisible}/> : <Arrow active={isOptionListVisible} defaultRotation="-rotate-90" activeRotation="rotate-90" height={9} width={9} color={arrowColor}/>}
                 </motion.div>

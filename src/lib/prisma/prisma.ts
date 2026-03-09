@@ -32,7 +32,9 @@ export function getPrisma(client?: string) : PrismaClient {
       const adapter = new PrismaMssql(sqlConfig)
       prisma = new PrismaClient({ adapter });
     } catch(err){
-      throw new Error("Error al conecetarse a la base de datos")
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("Error Prisma:", err);
+      throw new Error(`Error al conectarse a la base de datos`)
     }
   }
   return prisma;

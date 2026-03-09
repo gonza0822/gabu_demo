@@ -15,7 +15,9 @@ class Client {
                     const prisma = getPrisma(this.client)
                     const usuarios = await prisma.usuarios.findMany()
                 } catch (err){
-                    throw new Error("Ocurrio un error al conectarse a la base de datos")
+                    const message = err instanceof Error ? err.message : String(err);
+                    console.error("Error de conexión:", err);
+                    throw new Error(`Ocurrió un error al conectarse a la base de datos`)
                 }
             }
         }

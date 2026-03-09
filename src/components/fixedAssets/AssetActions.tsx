@@ -10,9 +10,11 @@ const POPUP_HEIGHT_PX = 224;
 const GAP_PX = -15;
 const ARROW_OFFSET_TOP_PX = 15;
 
-export type ActionId = 'clonar' | 'alta-agregado' | 'baja' | 'baja-fisica' | 'apertura-bienes' | 'transferencia';
+export type ActionId = 'modificar' | 'consultar' | 'clonar' | 'alta-agregado' | 'baja' | 'baja-fisica' | 'apertura-bienes' | 'transferencia';
 
 const ACTIONS: { id: ActionId; label: string }[] = [
+  { id: 'modificar', label: 'Modificar' },
+  { id: 'consultar', label: 'Consultar' },
   { id: 'clonar', label: 'Clonar' },
   { id: 'alta-agregado', label: 'Alta agregado' },
   { id: 'baja', label: 'Baja' },

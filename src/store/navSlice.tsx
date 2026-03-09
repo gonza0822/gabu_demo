@@ -109,7 +109,30 @@ const navSlice = createSlice({
                     return m;
                 }
             });
-        }
+        },
+        addDynamicSubmenu(state: Menu[], action: PayloadAction<{client: string; path: string; submenuTitle: string; table: string; hiddenFromSidebar?: boolean}>) {
+            const { client, path, submenuTitle, table, hiddenFromSidebar } = action.payload;
+            const menuObj = state.find(m => m.client === client);
+            if (!menuObj) return;
+            const allSubmenus = menuObj.menu.flatMap(m => m.submenu);
+            if (allSubmenus.some(s => s.path === path)) return;
+            const addMenuIdx = menuObj.menu.findIndex(m => m.submenu.some(s => s.path === '/fixedAssets/add'));
+            if (addMenuIdx < 0) return;
+            menuObj.menu.forEach(item => {
+                item.submenu.forEach(subItem => { subItem.active = false; });
+            });
+            const newSubmenu: Submenu = {
+                path,
+                submenuTitle,
+                table,
+                isOpen: true,
+                active: true,
+                order: menuObj.maxOrder + 1,
+                ...(hiddenFromSidebar !== undefined && { hiddenFromSidebar }),
+            };
+            menuObj.menu[addMenuIdx].submenu.push(newSubmenu);
+            menuObj.maxOrder += 1;
+        },
     }
 });
 

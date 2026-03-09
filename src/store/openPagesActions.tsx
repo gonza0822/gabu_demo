@@ -15,7 +15,7 @@ import MeasurementUnitsTable from "@/app/(main-layout)/(main-nav)/tables/measure
 import ManageFixedAssets from "@/app/(main-layout)/(main-nav)/fixedAssets/manage/page";
 import ManageParametersTable from "@/app/(main-layout)/(main-nav)/fixedAssets/parameters/page";
 import ManageDefaultsTable from "@/app/(main-layout)/(main-nav)/fixedAssets/defaults/page";
-import AbmFixedAsset from "@/app/(main-layout)/(main-nav)/fixedAssets/add/page";
+import AbmFixedAsset from "@/components/fixedAssets/AbmFixedAsset";
 
 const pagesMap = {
     AccountsTable,
@@ -37,5 +37,21 @@ const pagesMap = {
 };
 
 export function getPage(page : string) : React.ComponentType {
+    if (page.startsWith("AbmFixedAssetModify-")) {
+        const id = page.replace("AbmFixedAssetModify-", "");
+        return () => <AbmFixedAsset bienId={id} />;
+    }
+    if (page.startsWith("AbmFixedAssetConsult-")) {
+        const id = page.replace("AbmFixedAssetConsult-", "");
+        return () => <AbmFixedAsset bienId={id} consultMode />;
+    }
+    if (page.startsWith("AbmFixedAssetClone-")) {
+        const id = page.replace("AbmFixedAssetClone-", "");
+        return () => <AbmFixedAsset bienId={id} cloneMode />;
+    }
+    if (page.startsWith("AbmFixedAssetAltaAgregado-")) {
+        const id = page.replace("AbmFixedAssetAltaAgregado-", "");
+        return () => <AbmFixedAsset bienId={id} altaAgregadoMode />;
+    }
     return pagesMap[page as keyof typeof pagesMap];
 }

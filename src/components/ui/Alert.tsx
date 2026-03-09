@@ -6,17 +6,20 @@ import { useState, useEffect } from "react";
 export default function Alert({
     message,
     type,
-    show
+    show,
+    onClose: onCloseProp
 }: {
     message: string | null;
     type: "error" | "success" | "info" | "warning";
     show: boolean;
+    onClose?: () => void;
 }) : ReactElement {
 
     const [showAlert, setShowAlert] = useState<boolean>(show);
 
     function onClose() {
         setShowAlert(false);
+        onCloseProp?.();
     }
 
     useEffect(() => {
@@ -24,11 +27,13 @@ export default function Alert({
     }, [show])
 
     useEffect(() => {
+        if (!show) return;
         const timer = setTimeout(() => {
             setShowAlert(false);
+            onCloseProp?.();
         }, 10000);
         return () => clearTimeout(timer);
-    }, []);
+    }, [show, onCloseProp]);
 
     let style : string;
 

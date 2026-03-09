@@ -58,7 +58,7 @@ export default function HorizontalSelect<TData>({label, options, defaultValue, c
                     <input type="hidden" name={fieldId} value={valueSelectedRef.current?.dataset.key || ''} ref={hiddenInputRef}/>
                     <Arrow active={isOptionListVisible} defaultRotation="-rotate-90" activeRotation="rotate-90" height={9} width={9} color="text-gabu-900"/>
                 </motion.div>
-                <motion.div className="absolute w-full overflow-hidden h-21 z-100" initial={false} animate={{height: isOptionListVisible ? "auto" : 0}} transition={{duration: 0.1, ease: "easeInOut"}}>
+                <motion.div className="absolute w-full overflow-hidden h-21 z-[10001]" initial={false} animate={{height: isOptionListVisible ? "auto" : 0}} transition={{duration: 0.1, ease: "easeInOut"}}>
                     <ul className="w-full h-full rounded-b-md font-normal cursor-pointer box-border border-t-2 border-t-gabu-300 border-x border-b border-gabu-700 bg-gabu-100 max-h-25 overflow-y-auto options-list" ref={optionListRef}>
                         {options.map((option) => (
                             <li key={option.key} className="text-sm xl:text-xs hover:bg-gabu-300 transition-all duration-300 option px-3 text-gabu-700" data-key={option.key} onClick={(e) => { chooseOptionHandler(e, valueSelectedRef); onValueChange?.(option.key, option.value); }}>{option.value}</li>

@@ -1,15 +1,18 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from "react";
-import { useSelector } from "react-redux";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
-import Input from "@/components/ui/Input";
+import { navActions } from "@/store/navSlice";
+import { openPagesActions } from "@/store/openPagesSlice";
 import Select from "@/components/ui/Select";
 import Excel from "@/components/svg/Excel";
 import HorizontalInput from "@/components/ui/HorizontalInput";
 import HorizontalSelect from "@/components/ui/HorizontalSelect";
+import Alert from "@/components/ui/Alert";
 import type { AbmCabeceraData, AbmLibrosData } from "@/lib/models/fixedAssets/FixedAsset";
 import Percentage from "@/components/svg/Percentage";
+import Cross from "@/components/svg/Cross";
 
 type AbmDatosGeneralesData = {
     plants: { key: string; value: string }[];
@@ -77,13 +80,19 @@ const selectOptionHandler = (e: React.MouseEvent<HTMLLIElement>, ref: React.RefO
     }
 };
 
-export default function AbmFixedAsset() : React.ReactElement {
+type AbmFixedAssetProps = { bienId?: string; consultMode?: boolean; cloneMode?: boolean; altaAgregadoMode?: boolean };
+
+export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgregadoMode }: AbmFixedAssetProps) : React.ReactElement {
+    const dispatch = useDispatch();
     const client = useSelector((state: RootState) => state.authorization.client);
     const [datosGenerales, setDatosGenerales] = useState<AbmDatosGeneralesData | null>(null);
     const [datosGeneralesLoading, setDatosGeneralesLoading] = useState(true);
     const [cabeceraData, setCabeceraData] = useState<AbmCabeceraData | null>(null);
     const [cabeceraLoading, setCabeceraLoading] = useState(true);
     const [librosData, setLibrosData] = useState<AbmLibrosData | null>(null);
+    const [bienData, setBienData] = useState<{ [key: string]: unknown } | null>(null);
+    const [bienDataLoading, setBienDataLoading] = useState(false);
+    const [cabeceraInitialValues, setCabeceraInitialValues] = useState<Record<string, string>>({});
     const [librosLoading, setLibrosLoading] = useState(true);
 
     const fetchCabeceraData = useCallback(async () => {
@@ -129,6 +138,47 @@ export default function AbmFixedAsset() : React.ReactElement {
     useEffect(() => {
         fetchLibrosData();
     }, [fetchLibrosData]);
+
+    const getRowVal = useCallback((row: { [key: string]: unknown }, key: string): unknown => {
+        const r = row;
+        const tries = [
+            key,
+            key.toLowerCase(),
+            key.charAt(0).toUpperCase() + key.slice(1).toLowerCase(),
+            `cabecera.${key}`,
+            `cabecera.${key.toLowerCase()}`,
+        ];
+        for (const k of tries) {
+            if (r[k] !== undefined) return r[k];
+        }
+        const lower = key.toLowerCase();
+        const matched = Object.keys(r).find((k) =>
+            k.toLowerCase() === lower || k.toLowerCase().endsWith('.' + lower) || k.toLowerCase().endsWith('.' + key)
+        );
+        return matched != null ? r[matched] : undefined;
+    }, []);
+
+    const fetchBienData = useCallback(async () => {
+        if (!client || !bienId) return;
+        setBienDataLoading(true);
+        try {
+            const res = await fetch("/api/fixedAssets/add", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ petition: "GetBienData", client, data: { bienId } }),
+            });
+            const data = await res.json();
+            if (data && typeof data === 'object' && !('status' in data)) {
+                setBienData(data);
+            }
+        } finally {
+            setBienDataLoading(false);
+        }
+    }, [client, bienId]);
+
+    useEffect(() => {
+        if (bienId) fetchBienData();
+    }, [bienId, fetchBienData]);
 
     const fetchDatosGenerales = useCallback(async () => {
         if (!client) return;
@@ -187,16 +237,179 @@ export default function AbmFixedAsset() : React.ReactElement {
         fetchDatosGenerales();
     }, [fetchDatosGenerales]);
 
+    useEffect(() => {
+        if (datosGenerales && !bienId) {
+            setDatosPlanta((p) => p || (datosGenerales.defaultPlanta ?? ''));
+            setDatosZona((z) => z || (datosGenerales.defaultZona ?? ''));
+            setDatosCencos((c) => c || (datosGenerales.defaultCencos ?? ''));
+        }
+    }, [datosGenerales, bienId]);
+
+    useEffect(() => {
+        if (!bienData || !cabeceraData || !librosData) return;
+        const r = bienData;
+        const gv = (key: string) => {
+            const v = getRowVal(r, key);
+            return v != null ? String(v) : '';
+        };
+        const formatDate = (val: unknown): string => {
+            if (val == null || val === '') return '';
+            if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)) {
+                const d = new Date(val);
+                if (!isNaN(d.getTime())) {
+                    return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                }
+            }
+            return String(val);
+        };
+        setDescripcion(altaAgregadoMode ? `Adicional ${gv('descripcion')}`.trim() : gv('descripcion'));
+        setDatosPlanta(gv('idPlanta'));
+        setDatosZona(gv('idZona'));
+        setDatosCencos(gv('idCencos'));
+        const activo = gv('idActivo');
+        if (activo) setCabeceraCuenta(activo);
+        const initial: Record<string, string> = {
+            IDDESCRIPCION: gv('idDescripcion'),
+            IDSITUACION: gv('idSituacion'),
+            CANTIDAD: gv('cantidad') || '1',
+            IDFACTURA: gv('idFactura'),
+            IDUNEGOCIO: gv('idUnegocio'),
+            IDENTIFICACION: gv('identificacion'),
+            IDACTIVO: activo,
+            TRFECACTIVO: formatDate(getRowVal(r, 'trFecActivo')),
+            IDMODELO: gv('idModelo'),
+            TRIDACTIVO: gv('tridActivo'),
+            IDORDENCOMPRA: gv('idOrdenCompra'),
+            TRFECPROYECTO: formatDate(getRowVal(r, 'trFecProyecto')),
+            IDORIGEN: gv('idOrigen'),
+            TRFECUNEGOCIO: formatDate(getRowVal(r, 'trFecUNegocio')),
+            IDPROVEEDOR: gv('idProveedor'),
+            ESENCIAL: (getRowVal(r, 'escencial') === true || getRowVal(r, 'escencial') === 'true') ? '1' : '0',
+            IDFABRICANTE: gv('idFabricante'),
+            NUEVO: (getRowVal(r, 'nuevo') === true || getRowVal(r, 'nuevo') === 'true') ? '1' : '0',
+            IDPROYECTO: gv('idProyecto'),
+        };
+        cabeceraValuesRef.current = initial;
+        setCabeceraInitialValues(initial);
+        const dist = (r._distribucion as { idCencos: string; porcentaje: number }[]) ?? [];
+        if (dist.length > 0) {
+            setDistribucionRows(dist.map((d, i) => ({
+                id: Date.now() + i,
+                cencos: d.idCencos ?? '',
+                porcentaje: String(d.porcentaje ?? 0),
+            })));
+        }
+        const rawVal = altaAgregadoMode ? 0 : parseFloat(String(getRowVal(r, 'Valori') ?? getRowVal(r, 'valori') ?? 0).replace(',', '.'));
+        setValorOrigenGral(isNaN(rawVal) ? '0' : String(rawVal));
+        const fecoriMap: Record<string, string> = {};
+        const tipoAmorMap: Record<string, string> = {};
+        const vidautilMap: Record<string, string> = {};
+        const valoriMap: Record<string, string> = {};
+        const tryLibroVal = (prefijo: string, campo: string): unknown => {
+            for (const k of [`${prefijo}.${campo}`, `${prefijo.toLowerCase()}.${campo}`, `me01.${campo}`, campo]) {
+                const v = getRowVal(r, k);
+                if (v != null && v !== '') return v;
+            }
+            return undefined;
+        };
+        const getIdMonedaForPrefijo = (prefijo: string): string => {
+            if (prefijo.toUpperCase() === 'MONEDALOCAL' || prefijo.toLowerCase() === 'impuestos') return '01';
+            const m = prefijo.match(/^ME(\d+)$/i);
+            return m ? m[1].padStart(2, '0') : '01';
+        };
+        librosData.acordeones.forEach((ac) => {
+            const vFec = tryLibroVal(ac.prefijo, 'FecOri');
+            const vTipo = tryLibroVal(ac.prefijo, 'idTipoAmortizacion');
+            const vVu = tryLibroVal(ac.prefijo, 'vidaUtil');
+            const vVal = tryLibroVal(ac.prefijo, 'Valori');
+            if (cloneMode || altaAgregadoMode) {
+                const fecPro = librosData.defaultsByMoneda[getIdMonedaForPrefijo(ac.prefijo)]?.FECORI ?? '';
+                if (fecPro) fecoriMap[ac.prefijo] = fecPro;
+            } else if (vFec != null && vFec !== '') {
+                fecoriMap[ac.prefijo] = formatDate(vFec);
+            }
+            if (vTipo != null && vTipo !== '') tipoAmorMap[ac.prefijo] = String(vTipo);
+            if (vVu != null && vVu !== '') vidautilMap[ac.prefijo] = String(vVu);
+            if (altaAgregadoMode) {
+                valoriMap[ac.prefijo] = '0';
+            } else if (vVal != null && vVal !== '') {
+                const num = parseFloat(String(vVal).replace(',', '.'));
+                valoriMap[ac.prefijo] = isNaN(num) ? '0' : String(num);
+            }
+        });
+        setLibrosFecori((prev) => ({ ...prev, ...fecoriMap }));
+        setLibrosTipoAmor((prev) => ({ ...prev, ...tipoAmorMap }));
+        setLibrosVidautil((prev) => ({ ...prev, ...vidautilMap }));
+        setLibrosValori((prev) => ({ ...prev, ...valoriMap }));
+        setFormKey((k) => k + 1);
+    }, [bienData, cabeceraData, librosData, getRowVal, cloneMode, altaAgregadoMode]);
+
     // Per-accordion reactive state for calculated fields
     const [librosFecori, setLibrosFecori] = useState<Record<string, string>>({});
     const [librosTipoAmor, setLibrosTipoAmor] = useState<Record<string, string>>({});
     const [librosVidautil, setLibrosVidautil] = useState<Record<string, string>>({});
+    const [librosValori, setLibrosValori] = useState<Record<string, string>>({});
 
     const [librosOpenPrefijo, setLibrosOpenPrefijo] = useState<string | null>(null);
     const cabeceraOpen = librosOpenPrefijo === 'cabecera';
+    const [cabeceraCuenta, setCabeceraCuenta] = useState<string>('');
     const [librosHorizontalTab, setLibrosHorizontalTab] = useState<Record<string, string>>({});
     const [valorOrigenGral, setValorOrigenGral] = useState('0');
     const [formKey, setFormKey] = useState(0);
+
+    const [descripcion, setDescripcion] = useState('');
+    const [datosPlanta, setDatosPlanta] = useState('');
+    const [datosZona, setDatosZona] = useState('');
+    const [datosCencos, setDatosCencos] = useState('');
+
+    const formRef = useRef<HTMLFormElement>(null);
+    const cabeceraValuesRef = useRef<Record<string, string>>({});
+
+    const [accordionErrors, setAccordionErrors] = useState<Record<string, string[]>>({});
+    const [saveError, setSaveError] = useState<string | null>(null);
+
+    const getCabeceraFieldError = useCallback((fieldId: string) => {
+        const errs = accordionErrors['cabecera'] ?? [];
+        const m = errs.find((e) => e.includes(`en ${fieldId} `) || e.includes(`en ${fieldId} (`));
+        return m ? 'Formato MM/YYYY' : null;
+    }, [accordionErrors]);
+
+    const getLibroFieldError = useCallback((prefijo: string, idCampo: string) => {
+        const errs = accordionErrors[prefijo] ?? [];
+        const up = idCampo.toUpperCase();
+        const m = errs.find((e) => e.startsWith(`${up}:`) || e.startsWith(`${up} `));
+        if (!m) return null;
+        const idx = m.indexOf(':');
+        return idx >= 0 ? m.slice(idx + 1).trim() : m;
+    }, [accordionErrors]);
+
+    const clearCabeceraFieldError = useCallback((fieldId: string) => {
+        setAccordionErrors((prev) => {
+            const list = (prev['cabecera'] ?? []).filter((e) => !e.includes(`en ${fieldId} `) && !e.includes(`en ${fieldId} (`));
+            if (list.length === 0) {
+                const next = { ...prev };
+                delete next['cabecera'];
+                return next;
+            }
+            return { ...prev, cabecera: list };
+        });
+    }, []);
+
+    const clearLibroFieldError = useCallback((prefijo: string, idCampo: string) => {
+        const up = idCampo.toUpperCase();
+        setAccordionErrors((prev) => {
+            const list = (prev[prefijo] ?? []).filter((e) => !e.startsWith(`${up}:`) && !e.startsWith(`${up} `));
+            if (list.length === 0) {
+                const next = { ...prev };
+                delete next[prefijo];
+                return next;
+            }
+            return { ...prev, [prefijo]: list };
+        });
+    }, []);
+    const [saving, setSaving] = useState(false);
+
+    const MM_YYYY_REGEX = /^(0?[1-9]|1[0-2])[\/\-](\d{4})$/;
 
     type DistribucionRow = { id: number; cencos: string; porcentaje: string };
     const [distribucionRows, setDistribucionRows] = useState<DistribucionRow[]>([]);
@@ -219,21 +432,53 @@ export default function AbmFixedAsset() : React.ReactElement {
 
     const [distribucionOpenId, setDistribucionOpenId] = useState<number | null>(null);
 
-    const addDistribucionRow = () =>
-        setDistribucionRows((prev) => [...prev, { id: Date.now(), cencos: ccostosOptions[0]?.key ?? '', porcentaje: '0' }]);
+    const addDistribucionRow = () => {
+        setDistribucionRows((prev) => {
+            if (prev.length >= 4) return prev;
+            return [...prev, { id: Date.now(), cencos: ccostosOptions[0]?.key ?? '', porcentaje: '0' }];
+        });
+    };
 
-    const handleRevert = () => {
+    const removeDistribucionRow = (id: number) => {
+        setDistribucionRows((prev) => prev.filter((r) => r.id !== id));
+    };
+
+    const updateDistribucionPorcentaje = (id: number, newVal: string) => {
+        setDistribucionRows((prev) => {
+            const num = parseFloat(String(newVal).replace(',', '.')) || 0;
+            const capped = Math.min(100, Math.max(0, num));
+            return prev.map((r) => r.id === id ? { ...r, porcentaje: String(capped) } : r);
+        });
+    };
+
+    const distribucionSum = distribucionRows.reduce((s, r) => s + (parseFloat(r.porcentaje) || 0), 0);
+    const distribucionInvalid = distribucionRows.length > 0 && Math.abs(distribucionSum - 100) > 0.01;
+    const cencosKeys = distribucionRows.map((r) => r.cencos).filter(Boolean);
+    const distribucionDuplicateCencos = cencosKeys.length !== new Set(cencosKeys).size;
+
+    const setCabeceraValue = (fieldId: string, key: string) => {
+        cabeceraValuesRef.current[fieldId] = key;
+    };
+
+    const handleRevert = useCallback(() => {
         setValorOrigenGral('0');
         setDistribucionRows([]);
         setDistribucionOpenId(null);
-        // Re-initialize calculated fields from loaded data
+        setLibrosValori({});
+        const defaultActivo = cabeceraData?.defaultActivo ?? librosData?.cuentas[0]?.key ?? '';
+        setCabeceraCuenta(defaultActivo);
         if (librosData) {
+            const getIdMoneda = (p: string) => {
+                const up = p.toUpperCase();
+                if (up === 'MONEDALOCAL' || p.toLowerCase() === 'impuestos') return '01';
+                const m = p.match(/^ME(\d+)$/i);
+                return m ? m[1].padStart(2, '0') : '01';
+            };
             const fecoriMap: Record<string, string> = {};
             const tipoAmorMap: Record<string, string> = {};
             const vidautilMap: Record<string, string> = {};
-            const defaultActivo = cabeceraData?.defaultActivo ?? librosData.cuentas[0]?.key ?? '';
             librosData.acordeones.forEach((ac) => {
-                const idMoneda = getLibroIdMoneda(ac.prefijo);
+                const idMoneda = getIdMoneda(ac.prefijo);
                 const def = librosData.defaultsByMoneda[idMoneda];
                 fecoriMap[ac.prefijo]   = def?.FECORI ?? '';
                 tipoAmorMap[ac.prefijo] = def?.IDTIPOAMORTIZACION ?? '';
@@ -247,7 +492,177 @@ export default function AbmFixedAsset() : React.ReactElement {
             setLibrosVidautil(vidautilMap);
         }
         setFormKey((k) => k + 1);
-    };
+    }, [cabeceraData?.defaultActivo, librosData]);
+
+    const handleGuardar = useCallback(async () => {
+        if (!client) return;
+        const errors: Record<string, string[]> = {};
+        const dgDesc = descripcion.trim();
+        if (!dgDesc) {
+            errors['datosGenerales'] = ['La descripción no puede estar vacía'];
+        }
+        const dateFields = ['TRFECACTIVO', 'TRFECPROYECTO', 'TRFECUNEGOCIO'];
+        const cabeceraEls = formRef.current?.querySelectorAll<HTMLInputElement>(
+            '[name="IDDESCRIPCION"], [name="CANTIDAD"], [name="IDFACTURA"], [name="IDENTIFICACION"], [name="TRFECACTIVO"], [name="TRIDACTIVO"], [name="IDORDENCOMPRA"], [name="TRFECPROYECTO"], [name="TRFECUNEGOCIO"], [name="IDPROVEEDOR"], [name="IDFABRICANTE"], [name="IDSITUACION"], [name="IDUNEGOCIO"], [name="IDACTIVO"], [name="IDMODELO"], [name="IDORIGEN"], [name="ESENCIAL"], [name="NUEVO"], [name="IDPROYECTO"]'
+        );
+        const cabErrors: string[] = [];
+        cabeceraEls?.forEach((el) => {
+            const name = el.getAttribute('name') || '';
+            if (dateFields.includes(name)) {
+                const v = (el.value || '').trim();
+                if (v && !MM_YYYY_REGEX.test(v)) cabErrors.push(`Fecha inválida en ${name} (use MM/YYYY)`);
+            }
+        });
+        if (cabErrors.length) errors['cabecera'] = cabErrors;
+
+        const libroDateFields = ['FECORI', 'FECDEP', 'FECFIN'];
+        librosData?.acordeones.forEach((ac) => {
+            const libErrors: string[] = [];
+            ac.fields.forEach((f) => {
+                const campoUp = f.idCampo.toUpperCase();
+                const fieldId = `${ac.prefijo}.${f.idCampo}`;
+                const inp = formRef.current?.querySelector<HTMLInputElement>(`[name="${fieldId}"]`);
+                if (inp) {
+                    const v = (inp.value || '').trim();
+                    if (libroDateFields.includes(campoUp) && v && !MM_YYYY_REGEX.test(v)) {
+                        libErrors.push(`${campoUp}: formato MM/YYYY`);
+                    }
+                }
+            });
+            if (libErrors.length) errors[ac.prefijo] = libErrors;
+        });
+
+        const distSum = distribucionRows.reduce((s, r) => s + (parseFloat(r.porcentaje) || 0), 0);
+        if (distribucionRows.length > 0 && Math.abs(distSum - 100) > 0.01) {
+            setSaveError('El conjunto de la distribución tiene que ser un 100%');
+            setAccordionErrors(errors);
+            return;
+        }
+        const cencosKeys = distribucionRows.map((r) => r.cencos).filter(Boolean);
+        const cencosSet = new Set(cencosKeys);
+        if (cencosKeys.length !== cencosSet.size) {
+            setSaveError('Hay un centro de costo que se repite en la distribución');
+            setAccordionErrors(errors);
+            return;
+        }
+
+        setAccordionErrors(errors);
+        setSaveError(null);
+        if (Object.keys(errors).length > 0) return;
+
+        setSaving(true);
+        try {
+            const cabMap: Record<string, string> = {
+                IDDESCRIPCION: 'idDescripcion', IDSITUACION: 'idSituacion', CANTIDAD: 'cantidad', IDFACTURA: 'idFactura',
+                IDUNEGOCIO: 'idUnegocio', IDENTIFICACION: 'identificacion', IDACTIVO: 'idActivo', TRFECACTIVO: 'trFecActivo',
+                IDMODELO: 'idModelo', TRIDACTIVO: 'tridActivo', IDORDENCOMPRA: 'idOrdenCompra', TRFECPROYECTO: 'trFecProyecto',
+                IDORIGEN: 'idOrigen', TRFECUNEGOCIO: 'trFecUNegocio', IDPROVEEDOR: 'idProveedor', ESENCIAL: 'escencial',
+                IDFABRICANTE: 'idFabricante', NUEVO: 'nuevo', IDPROYECTO: 'idProyecto', TRIDPROYECTO: 'tridProyecto',
+                TRIDUNEGOCIO: 'tridUNegocio',
+            };
+            const toCabKey = (n: string) => cabMap[n] ?? n.charAt(0).toLowerCase() + n.slice(1);
+            const cab: Record<string, string | number | boolean | null> = {};
+            cabeceraEls?.forEach((el) => {
+                const n = el.getAttribute('name') || '';
+                cab[toCabKey(n)] = el.value ?? '';
+            });
+            Object.entries(cabeceraValuesRef.current).forEach(([k, v]) => { cab[toCabKey(k)] = v; });
+            cab.idActivo = cabeceraCuenta || (cab.idActivo as string) || '';
+
+            const subAccordionBases = ['Vrepoe', 'Amafie', 'Amefie', 'Ampefe'] as const;
+            const subAccordionSuffixes = ['Referencial', 'Anterior', 'Actual', 'CierreAnterior'] as const;
+            const libros: Record<string, Record<string, string>> = {};
+            librosData?.acordeones.forEach((ac) => {
+                const row: Record<string, string> = {};
+                ac.fields.forEach((f) => {
+                    const fieldId = `${ac.prefijo}.${f.idCampo}`;
+                    const inp = formRef.current?.querySelector<HTMLInputElement>(`[name="${fieldId}"]`);
+                    if (inp) row[f.idCampo.toUpperCase()] = (inp.value ?? '').trim();
+                });
+                const rawVal = librosValori[ac.prefijo];
+                if (rawVal !== undefined && rawVal !== '') {
+                    const cot = getCotizacion(ac.prefijo);
+                    const rawNum = parseFloat(String(rawVal).replace(',', '.')) || 0;
+                    const valInLibroCurrency = cot !== 0 ? rawNum / cot : rawNum;
+                    row['VALORI'] = (Math.round(valInLibroCurrency * 100) / 100).toFixed(2);
+                }
+                for (const base of subAccordionBases) {
+                    for (const suffix of subAccordionSuffixes) {
+                        const fieldId = `${ac.prefijo}.${base}${suffix}`;
+                        const inp = formRef.current?.querySelector<HTMLInputElement>(`[name="${fieldId}"]`);
+                        if (inp) {
+                            const v = (inp.value ?? '').trim();
+                            row[`${base}${suffix}`] = v;
+                        }
+                    }
+                }
+                libros[ac.prefijo] = row;
+            });
+
+            const payload = {
+                datosGenerales: {
+                    descripcion: dgDesc,
+                    idPlanta: datosPlanta || undefined,
+                    idZona: datosZona || undefined,
+                    idCencos: datosCencos || undefined,
+                },
+                distribucion: distribucionRows.map((r) => ({
+                    idCencos: r.cencos || '',
+                    porcentaje: parseFloat(r.porcentaje) || 0,
+                })),
+                cabecera: cab,
+                libros,
+            };
+            const petition = (bienId && !cloneMode && !altaAgregadoMode) ? 'Update' : 'Add';
+            const res = await fetch('/api/fixedAssets/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    petition,
+                    client,
+                    data: (bienId && !cloneMode && !altaAgregadoMode)
+                        ? { bienId, ...payload }
+                        : altaAgregadoMode && bienId
+                        ? { ...payload, altaAgregadoBienId: bienId }
+                        : payload,
+                }),
+            });
+            const data = await res.json();
+            if (data?.ok) {
+                setSaveError(null);
+                setAccordionErrors({});
+                if (!bienId || cloneMode || altaAgregadoMode) {
+                    setDescripcion('');
+                    setDatosPlanta(datosGenerales?.defaultPlanta ?? '');
+                    setDatosZona(datosGenerales?.defaultZona ?? '');
+                    setDatosCencos(datosGenerales?.defaultCencos ?? '');
+                    handleRevert();
+                    const newBienId = data?.bienId as string | undefined;
+                    if (client && newBienId) {
+                        const tableName = `AbmFixedAssetConsult-${newBienId}`;
+                        const path = `/fixedAssets/consult/${newBienId}`;
+                        dispatch(navActions.addDynamicSubmenu({
+                            client,
+                            path,
+                            submenuTitle: `Consultar bien ${newBienId}`,
+                            table: tableName,
+                            hiddenFromSidebar: true,
+                        }));
+                        dispatch(openPagesActions.addOpenPage({ page: tableName }));
+                        window.history.pushState(null, '', path);
+                    }
+                }
+            } else {
+                const rawMsg = data?.message || 'Error al guardar';
+                const friendlyMsg = res.status >= 500 || /Invalid|invocation|Transaction|timeout|ETIMEOUT/i.test(String(rawMsg))
+                    ? 'Error al guardar. Por favor intente nuevamente.'
+                    : rawMsg;
+                setSaveError(friendlyMsg);
+            }
+        } finally {
+            setSaving(false);
+        }
+    }, [client, descripcion, datosPlanta, datosZona, datosCencos, distribucionRows, cabeceraCuenta, datosGenerales, librosData, librosValori, handleRevert, bienId, cloneMode, altaAgregadoMode, dispatch]);
     const [horizontalTabCabecera, setHorizontalTabCabecera] = useState<'distribucion' | 'notas' | 'fotos' | 'documentos' | 'tecnica'>('distribucion');
 
     const horizontalTabsCabecera = [
@@ -273,13 +688,27 @@ export default function AbmFixedAsset() : React.ReactElement {
         setLibrosHorizontalTab((prev) => ({ ...prev, [prefijo]: tab }));
 
     const ESTCON_OPTIONS = [{ key: '0', value: 'NUEVO' }, { key: '1', value: 'USADO' }];
-    const TIPOPROCESO_OPTIONS = [{ key: 'true', value: 'SI' }, { key: 'false', value: 'NO' }];
+    const TIPOPROCESO_OPTIONS = [{ key: '1', value: 'SI' }, { key: '0', value: 'NO' }];
 
     const getLibroIdMoneda = (prefijo: string): string => {
         // MONEDALOCAL → '01', impuestos → '01', ME01 → '01', ME02 → '02', etc.
         if (prefijo.toUpperCase() === 'MONEDALOCAL' || prefijo.toLowerCase() === 'impuestos') return '01';
         const m = prefijo.match(/^ME(\d+)$/i);
         return m ? m[1].padStart(2, '0') : '01';
+    };
+
+    /** Cotización para un prefijo: MONEDALOCAL/impuestos = 1 (pesos históricos), resto = Cotextranjera */
+    const getCotizacion = (prefijo: string): number => {
+        const up = prefijo.toUpperCase();
+        if (up === 'MONEDALOCAL' || prefijo.toLowerCase() === 'impuestos') return 1;
+        return librosData?.cotizacionesByMoneda?.[getLibroIdMoneda(prefijo)] ?? 1;
+    };
+
+    /** Muestra valor / cotizacion. MONEDALOCAL/impuestos cot=1; ME01/ME02... dividen por cot de Cotextranjera */
+    const valorConCotizacion = (valor: string, prefijo: string): string => {
+        const num = parseFloat(String(valor).replace(',', '.')) || 0;
+        const cot = getCotizacion(prefijo);
+        return cot !== 0 ? (num / cot).toFixed(2) : num.toFixed(2);
     };
 
     const getLibroDefault = (prefijo: string, idCampo: string): string | undefined => {
@@ -292,14 +721,18 @@ export default function AbmFixedAsset() : React.ReactElement {
         const tipoAmor = librosTipoAmor[prefijo]  ?? defaults?.IDTIPOAMORTIZACION ?? '';
         const vidautil = librosVidautil[prefijo]  ?? '';
         const fecdep   = fecori && tipoAmor ? calcFecdep(fecori, tipoAmor) : '';
-        const fecfin   = fecdep && vidautil ? calcFecfin(fecdep, vidautil) : '';
+        const fecfin   = fecdep && vidautil && String(vidautil).trim() !== '0' ? calcFecfin(fecdep, vidautil) : '';
 
+        const rawValori = librosValori[prefijo];
+        const rawValoriNum = rawValori !== undefined && rawValori !== ''
+            ? parseFloat(String(rawValori).replace(',', '.')) || 0
+            : parseFloat(String(valorOrigenGral || '0').replace(',', '.')) || 0; // raw = valor en pesos
         switch (campoUp) {
-            case 'VALORI':              return '0';
-            case 'IDACTIVO':            return cabeceraData?.defaultActivo ?? undefined;
+            case 'VALORI':              return valorConCotizacion(String(rawValoriNum), prefijo);
+            case 'IDACTIVO':            return cabeceraCuenta || (cabeceraData?.defaultActivo ?? undefined);
             case 'IDTIPOAMORTIZACION':  return defaults?.IDTIPOAMORTIZACION ?? undefined;
             case 'IDINDACT':            return defaults?.IDINDACT ?? undefined;
-            case 'IDTIPOPROCESO':       return 'true';
+            case 'IDTIPOPROCESO':       return '1';
             case 'IDCODAMO':            return defaults?.IDCODAMO ?? undefined;
             case 'ESTCON':              return '0';
             case 'IDMONEDA':            return idMoneda;
@@ -316,29 +749,39 @@ export default function AbmFixedAsset() : React.ReactElement {
         }
     };
 
-    // Initialize reactive fields when librosData loads
+    // Initialize cabeceraCuenta when data loads (only on first load when empty)
     useEffect(() => {
-        if (!librosData) return;
+        const def = cabeceraData?.defaultActivo ?? librosData?.cuentas?.[0]?.key ?? '';
+        if (def && cabeceraCuenta === '') setCabeceraCuenta(def);
+    }, [cabeceraData?.defaultActivo, librosData?.cuentas, cabeceraCuenta]);
+
+    // Initialize reactive fields when librosData loads; update vida util when cabeceraCuenta changes
+    // Skip when bienData exists - the bienData effect populates libros from API; this would overwrite
+    useEffect(() => {
+        if (!librosData || bienData) return;
         const fecoriMap: Record<string, string> = {};
         const tipoAmorMap: Record<string, string> = {};
         const vidautilMap: Record<string, string> = {};
-        const defaultActivo = cabeceraData?.defaultActivo ?? librosData.cuentas[0]?.key ?? '';
+        const valoriMap: Record<string, string> = {};
+        const activoToUse = cabeceraCuenta || cabeceraData?.defaultActivo ?? librosData.cuentas[0]?.key ?? '';
         librosData.acordeones.forEach((ac) => {
             const idMoneda = getLibroIdMoneda(ac.prefijo);
             const def = librosData.defaultsByMoneda[idMoneda];
             fecoriMap[ac.prefijo]   = def?.FECORI ?? '';
             tipoAmorMap[ac.prefijo] = def?.IDTIPOAMORTIZACION ?? '';
-            // Find vidautil for this moneda + default activo from cabecera
             const vuRow = librosData.vidautil.find(
-                (v) => v.idMoextra === idMoneda && v.idActivo === defaultActivo
+                (v) => v.idMoextra === idMoneda && v.idActivo === activoToUse
             );
             vidautilMap[ac.prefijo] = vuRow ? String(vuRow.meses) : '';
+            const valGral = parseFloat(String(valorOrigenGral || '0').replace(',', '.')) || 0;
+            valoriMap[ac.prefijo] = String(valGral); // raw = valor en pesos (moneda de referencia)
         });
         setLibrosFecori(fecoriMap);
         setLibrosTipoAmor(tipoAmorMap);
         setLibrosVidautil(vidautilMap);
+        setLibrosValori(valoriMap);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [librosData, cabeceraData]);
+    }, [librosData, cabeceraData, cabeceraCuenta, valorOrigenGral, bienData]);
 
     /** Parse MM/YYYY string into a Date (day=1) or null */
     const parseFecMMYYYY = (val: string): Date | null => {
@@ -369,12 +812,12 @@ export default function AbmFixedAsset() : React.ReactElement {
         }
     };
 
-    /** Calculate FECFIN = FECDEP + vidautil months */
+    /** FECFIN = FECDEP + (vidautil - 1) meses (el mes de inicio se cuenta dentro de vida útil) */
     const calcFecfin = (fecdep: string, vidautil: string): string => {
         const base = parseFecMMYYYY(fecdep);
         const meses = parseInt(vidautil, 10);
         if (!base || isNaN(meses)) return '';
-        return formatFecMMYYYY(new Date(base.getFullYear(), base.getMonth() + meses, 1));
+        return formatFecMMYYYY(new Date(base.getFullYear(), base.getMonth() + meses - 1, 1));
     };
 
     const getLibroFieldOptions = (idCampo: string): { key: string; value: string }[] | null => {
@@ -395,26 +838,55 @@ export default function AbmFixedAsset() : React.ReactElement {
     const LIBRO_DISABLED_FIELDS = new Set(['FECBASE', 'FECBAJ', 'TIPOBAJA', 'PRECIOVENTA', 'VIDATRANSCURRIDA', 'VIDARESTANTE', 'VALORRESIDUAL', 'INDICE', 'FECPRO', 'CAMBIOEJERCICIO', 'FECDIAPROCESO']);
 
     return (
-        <div className="flex flex-col w-full h-full">
+        <form ref={formRef} onSubmit={(e) => { e.preventDefault(); if (!consultMode) handleGuardar(); }} className="flex flex-col w-full h-full">
             <div key={formKey} className="flex flex-col w-full h-full pl-10 pr-5 overflow-y-auto main-content">
                 <div className="flex flex-col w-full rounded-xl bg-gabu-700 pb-5 pt-3 my-5">
                     <div className="flex w-full justify-center relative">
                         <p className="text-xl text-gabu-100">Datos generales</p>
                         <Excel style="absolute -right-5 mr-10 cursor-pointer h-6 w-6 fill-current text-gabu-300" onClick={() => {}} />
                     </div>
-                    <div className="flex flex-col gap-1 w-full px-5 mb-5">
-                        <Input
-                            label="Descripcion"
-                            hasLabel={true}
-                            isLogin={false}
-                            disabled={false}
-                            type="text"
-                            isError={false}
-                            errorMessage={null}
-                            variant="abm"
+                    <div className="flex flex-col gap-1 w-full px-5 mb-5 relative">
+                        <label className="text-gabu-100 text-xs font-normal">Descripcion</label>
+                        <textarea
+                            rows={1}
+                            readOnly={consultMode}
+                            className={`desc-textarea bg-gabu-100 rounded-md font-normal px-1.5 py-0.5 text-gabu-700 w-full outline-none focus:outline-none focus:ring-0 resize-none overflow-y-auto max-h-[7.5rem] ${consultMode ? 'bg-gabu-300' : ''} ${accordionErrors['datosGenerales']?.length ? 'border-2 border-gabu-error' : ''}`}
+                            placeholder=""
+                            autoComplete="off"
+                            value={descripcion}
+                            onChange={(e) => {
+                                setDescripcion(e.target.value);
+                                if (accordionErrors['datosGenerales']?.length) setAccordionErrors((prev) => ({ ...prev, datosGenerales: [] }));
+                            }}
+                            ref={(el) => {
+                                if (!el) return;
+                                el.style.height = 'auto';
+                                const h = el.scrollHeight;
+                                el.style.height = `${Math.min(Math.max(h, 24), 120)}px`;
+                            }}
+                            onInput={(e) => {
+                                const ta = e.currentTarget;
+                                ta.style.height = 'auto';
+                                const h = ta.scrollHeight;
+                                ta.style.height = `${Math.min(Math.max(h, 24), 120)}px`;
+                            }}
+                            onPaste={(e) => requestAnimationFrame(() => {
+                                const ta = e.currentTarget;
+                                ta.style.height = 'auto';
+                                const h = ta.scrollHeight;
+                                ta.style.height = `${Math.min(Math.max(h, 24), 120)}px`;
+                            })}
                         />
+                        {accordionErrors['datosGenerales']?.length ? (
+                            <div className="absolute left-5 right-5 top-[calc(100%+6px)] flex z-30">
+                                <div className="relative bg-gabu-error rounded-lg px-3 py-2 shadow-sm">
+                                    <span className="absolute left-3 -top-1.5 w-0 h-0" style={{ borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderBottom: '6px solid var(--color-gabu-error)' }} aria-hidden />
+                                    <p className="text-gabu-100 text-sm">{accordionErrors['datosGenerales'][0]}</p>
+                                </div>
+                            </div>
+                        ) : null}
                     </div>
-                    <div className="flex px-5 justify-between gap-4">
+                    <div className={`flex px-5 justify-between gap-4 ${consultMode ? 'pointer-events-none opacity-90' : ''}`}>
                         <div className="flex flex-shrink-0 flex-col gap-1 w-[25%]">
                             {datosGeneralesLoading ? (
                                 <div className="h-10 bg-gabu-300 rounded-md animate-pulse" />
@@ -425,8 +897,11 @@ export default function AbmFixedAsset() : React.ReactElement {
                                     isLogin={false}
                                     variant="abm"
                                     options={datosGenerales?.plants ?? []}
-                                    defaultValue={datosGenerales?.defaultPlanta ?? ""}
-                                    chooseOptionHandler={selectOptionHandler}
+                                    defaultValue={datosPlanta || (datosGenerales?.defaultPlanta ?? "")}
+                                    chooseOptionHandler={(e, ref) => {
+                                        selectOptionHandler(e, ref);
+                                        setDatosPlanta((e.currentTarget as HTMLLIElement).dataset.key ?? '');
+                                    }}
                                 />
                             )}
                         </div>
@@ -440,8 +915,11 @@ export default function AbmFixedAsset() : React.ReactElement {
                                     isLogin={false}
                                     variant="abm"
                                     options={datosGenerales?.zonas ?? []}
-                                    defaultValue={datosGenerales?.defaultZona ?? ""}
-                                    chooseOptionHandler={selectOptionHandler}
+                                    defaultValue={datosZona || (datosGenerales?.defaultZona ?? "")}
+                                    chooseOptionHandler={(e, ref) => {
+                                        selectOptionHandler(e, ref);
+                                        setDatosZona((e.currentTarget as HTMLLIElement).dataset.key ?? '');
+                                    }}
                                 />
                             )}
                         </div>
@@ -455,8 +933,11 @@ export default function AbmFixedAsset() : React.ReactElement {
                                     isLogin={false}
                                     variant="abm"
                                     options={datosGenerales?.costCenters ?? []}
-                                    defaultValue={datosGenerales?.defaultCencos ?? ""}
-                                    chooseOptionHandler={selectOptionHandler}
+                                    defaultValue={datosCencos || (datosGenerales?.defaultCencos ?? "")}
+                                    chooseOptionHandler={(e, ref) => {
+                                        selectOptionHandler(e, ref);
+                                        setDatosCencos((e.currentTarget as HTMLLIElement).dataset.key ?? '');
+                                    }}
                                 />
                             )}
                         </div>
@@ -467,14 +948,14 @@ export default function AbmFixedAsset() : React.ReactElement {
                 <div className="flex flex-col w-full">
                     <div className="flex flex-col w-full select-none bg-gabu-700 rounded-t-xl">
                         <div
-                            className={`flex justify-center items-center transition-all duration-150 py-1.5 border-b-2 border-b-gabu-100 cursor-pointer sticky top-0 z-[10000] ${cabeceraOpen ? 'bg-gabu-700' : ''}`}
+                            className={`flex justify-center items-center transition-all duration-150 py-1.5 border-b-2 border-b-gabu-100 cursor-pointer sticky top-0 z-[10000] rounded-t-xl ${cabeceraOpen ? 'bg-gabu-700' : ''} ${accordionErrors['cabecera']?.length ? 'border-2 border-gabu-error' : ''}`}
                             onClick={() => setLibrosOpenPrefijo((prev) => prev === 'cabecera' ? null : 'cabecera')}
                         >
                             <ArrowSvg open={cabeceraOpen} />
                             <p className="text-gabu-100 text-lg">Cabecera</p>
                         </div>
                         <div className={`grid transition-all duration-200 ease-linear bg-gabu-300 ${cabeceraOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-                        <div className="overflow-hidden">
+                        <div className={cabeceraOpen ? 'overflow-visible' : 'overflow-hidden'}>
                             {(cabeceraLoading || !cabeceraData) ? (
                                 <div className="grid grid-cols-2 gap-x-5 gap-y-3 w-full py-7 px-10">
                                     {Array.from({ length: 10 }).map((_, i) => (
@@ -488,17 +969,19 @@ export default function AbmFixedAsset() : React.ReactElement {
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'iddescripcion')?.browNombre ?? 'Descripcion normalizada'}
                                     fieldId="IDDESCRIPCION"
                                     hasToBeProportional={false}
-                                    defaultValue=""
+                                    defaultValue={cabeceraInitialValues.IDDESCRIPCION ?? ""}
                                     isError={false}
                                     errorMessage={null}
                                     setErrors={() => {}}
+                                    disabled={consultMode}
                                 />
                                 <HorizontalSelect
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'idsituacion')?.browNombre ?? 'Situacion'}
                                     fieldId="IDSITUACION"
                                     options={cabeceraData.situaciones}
-                                    defaultValue={cabeceraData.defaultSituacion ?? '00'}
+                                    defaultValue={cabeceraInitialValues.IDSITUACION ?? cabeceraData.defaultSituacion ?? '00'}
                                     hasToBeProportional={false}
+                                    disabled={consultMode}
                                     chooseOptionHandler={(e, ref) => {
                                         const li = e.currentTarget as HTMLLIElement;
                                         if (ref?.current) {
@@ -506,31 +989,36 @@ export default function AbmFixedAsset() : React.ReactElement {
                                             ref.current.dataset.key = li.dataset.key || "";
                                         }
                                     }}
+                                    onValueChange={(key) => setCabeceraValue('IDSITUACION', key)}
                                 />
                                 <HorizontalInput
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'cantidad')?.browNombre ?? 'Cantidad'}
                                     fieldId="CANTIDAD"
                                     hasToBeProportional={false}
-                                    defaultValue="1"
+                                    defaultValue={cabeceraInitialValues.CANTIDAD ?? "1"}
                                     isError={false}
                                     errorMessage={null}
                                     setErrors={() => {}}
+                                    disabled={consultMode}
                                 />
                                 <HorizontalInput
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'idfactura')?.browNombre ?? 'Factura'}
                                     fieldId="IDFACTURA"
                                     hasToBeProportional={false}
-                                    defaultValue=""
+                                    defaultValue={cabeceraInitialValues.IDFACTURA ?? ""}
                                     isError={false}
                                     errorMessage={null}
                                     setErrors={() => {}}
+                                    disabled={consultMode}
                                 />
                                 <HorizontalSelect
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'idunegocio')?.browNombre ?? 'Unidad de negocio'}
                                     fieldId="IDUNEGOCIO"
+                                    onValueChange={(key) => setCabeceraValue('IDUNEGOCIO', key)}
                                     options={cabeceraData.unidadesNegocio}
-                                    defaultValue={cabeceraData.defaultUnegocio ?? undefined}
+                                    defaultValue={cabeceraInitialValues.IDUNEGOCIO ?? cabeceraData.defaultUnegocio ?? undefined}
                                     hasToBeProportional={false}
+                                    disabled={consultMode}
                                     chooseOptionHandler={(e, ref) => {
                                         const li = e.currentTarget as HTMLLIElement;
                                         if (ref?.current) {
@@ -543,17 +1031,19 @@ export default function AbmFixedAsset() : React.ReactElement {
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'identificacion')?.browNombre ?? 'Identificacion'}
                                     fieldId="IDENTIFICACION"
                                     hasToBeProportional={false}
-                                    defaultValue=""
+                                    defaultValue={cabeceraInitialValues.IDENTIFICACION ?? ""}
                                     isError={false}
                                     errorMessage={null}
                                     setErrors={() => {}}
+                                    disabled={consultMode}
                                 />
                                 <HorizontalSelect
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'idactivo')?.browNombre ?? 'Cta activo'}
                                     fieldId="IDACTIVO"
                                     options={cabeceraData.cuentas}
-                                    defaultValue={cabeceraData.defaultActivo ?? undefined}
+                                    defaultValue={cabeceraInitialValues.IDACTIVO ?? (cabeceraCuenta ?? cabeceraData?.defaultActivo ?? undefined)}
                                     hasToBeProportional={false}
+                                    disabled={consultMode}
                                     chooseOptionHandler={(e, ref) => {
                                         const li = e.currentTarget as HTMLLIElement;
                                         if (ref?.current) {
@@ -561,22 +1051,26 @@ export default function AbmFixedAsset() : React.ReactElement {
                                             ref.current.dataset.key = li.dataset.key || "";
                                         }
                                     }}
+                                    onValueChange={(key) => { setCabeceraCuenta(key); setCabeceraValue('IDACTIVO', key); }}
                                 />
                                 <HorizontalInput
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'trfecactivo')?.browNombre ?? 'Fecha transf cuenta'}
                                     fieldId="TRFECACTIVO"
                                     hasToBeProportional={false}
-                                    defaultValue=""
-                                    isError={false}
-                                    errorMessage={null}
-                                    setErrors={() => {}}
+                                    defaultValue={cabeceraInitialValues.TRFECACTIVO ?? ""}
+                                    isError={!!getCabeceraFieldError('TRFECACTIVO')}
+                                    errorMessage={getCabeceraFieldError('TRFECACTIVO')}
+                                    setErrors={() => clearCabeceraFieldError('TRFECACTIVO')}
+                                    disabled={consultMode}
                                 />
                                 <HorizontalSelect
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'idmodelo')?.browNombre ?? 'Modelo'}
                                     fieldId="IDMODELO"
+                                    onValueChange={(key) => setCabeceraValue('IDMODELO', key)}
                                     options={cabeceraData.modelos}
-                                    defaultValue={cabeceraData.defaultModelo ?? undefined}
+                                    defaultValue={cabeceraInitialValues.IDMODELO ?? cabeceraData.defaultModelo ?? undefined}
                                     hasToBeProportional={false}
+                                    disabled={consultMode}
                                     chooseOptionHandler={(e, ref) => {
                                         const li = e.currentTarget as HTMLLIElement;
                                         if (ref?.current) {
@@ -589,35 +1083,40 @@ export default function AbmFixedAsset() : React.ReactElement {
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'tridactivo')?.browNombre ?? 'Cuenta transf cuenta'}
                                     fieldId="TRIDACTIVO"
                                     hasToBeProportional={false}
-                                    defaultValue=""
+                                    defaultValue={cabeceraInitialValues.TRIDACTIVO ?? ""}
                                     isError={false}
                                     errorMessage={null}
                                     setErrors={() => {}}
+                                    disabled={consultMode}
                                 />
                                 <HorizontalInput
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'idordencompra')?.browNombre ?? 'Orden de compra'}
                                     fieldId="IDORDENCOMPRA"
                                     hasToBeProportional={false}
-                                    defaultValue=""
+                                    defaultValue={cabeceraInitialValues.IDORDENCOMPRA ?? ""}
                                     isError={false}
                                     errorMessage={null}
                                     setErrors={() => {}}
+                                    disabled={consultMode}
                                 />
                                 <HorizontalInput
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'trfecproyecto')?.browNombre ?? 'Fecha transf proyecto'}
                                     fieldId="TRFECPROYECTO"
                                     hasToBeProportional={false}
-                                    defaultValue=""
-                                    isError={false}
-                                    errorMessage={null}
-                                    setErrors={() => {}}
+                                    defaultValue={cabeceraInitialValues.TRFECPROYECTO ?? ""}
+                                    isError={!!getCabeceraFieldError('TRFECPROYECTO')}
+                                    errorMessage={getCabeceraFieldError('TRFECPROYECTO')}
+                                    setErrors={() => clearCabeceraFieldError('TRFECPROYECTO')}
+                                    disabled={consultMode}
                                 />
                                 <HorizontalSelect
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'idorigen')?.browNombre ?? 'Origen'}
                                     fieldId="IDORIGEN"
+                                    onValueChange={(key) => setCabeceraValue('IDORIGEN', key)}
                                     options={cabeceraData.origenes}
-                                    defaultValue={cabeceraData.defaultOrigen ?? undefined}
+                                    defaultValue={cabeceraInitialValues.IDORIGEN ?? cabeceraData.defaultOrigen ?? undefined}
                                     hasToBeProportional={false}
+                                    disabled={consultMode}
                                     chooseOptionHandler={(e, ref) => {
                                         const li = e.currentTarget as HTMLLIElement;
                                         if (ref?.current) {
@@ -630,26 +1129,30 @@ export default function AbmFixedAsset() : React.ReactElement {
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'trfecunegocio')?.browNombre ?? 'Fecha transf U negocio'}
                                     fieldId="TRFECUNEGOCIO"
                                     hasToBeProportional={false}
-                                    defaultValue=""
-                                    isError={false}
-                                    errorMessage={null}
-                                    setErrors={() => {}}
+                                    defaultValue={cabeceraInitialValues.TRFECUNEGOCIO ?? ""}
+                                    isError={!!getCabeceraFieldError('TRFECUNEGOCIO')}
+                                    errorMessage={getCabeceraFieldError('TRFECUNEGOCIO')}
+                                    setErrors={() => clearCabeceraFieldError('TRFECUNEGOCIO')}
+                                    disabled={consultMode}
                                 />
                                 <HorizontalInput
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'idproveedor')?.browNombre ?? 'Proveedor'}
                                     fieldId="IDPROVEEDOR"
                                     hasToBeProportional={false}
-                                    defaultValue=""
+                                    defaultValue={cabeceraInitialValues.IDPROVEEDOR ?? ""}
                                     isError={false}
                                     errorMessage={null}
                                     setErrors={() => {}}
+                                    disabled={consultMode}
                                 />
                                 <HorizontalSelect
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'esencial')?.browNombre ?? 'Esencial'}
                                     fieldId="ESENCIAL"
+                                    onValueChange={(key) => setCabeceraValue('ESENCIAL', key)}
                                     options={[{ key: '0', value: 'No' }, { key: '1', value: 'Si' }]}
-                                    defaultValue="0"
+                                    defaultValue={cabeceraInitialValues.ESENCIAL ?? "0"}
                                     hasToBeProportional={false}
+                                    disabled={consultMode}
                                     chooseOptionHandler={(e, ref) => {
                                         const li = e.currentTarget as HTMLLIElement;
                                         if (ref?.current) {
@@ -662,17 +1165,20 @@ export default function AbmFixedAsset() : React.ReactElement {
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'idfabricante')?.browNombre ?? 'Fabricante'}
                                     fieldId="IDFABRICANTE"
                                     hasToBeProportional={false}
-                                    defaultValue=""
+                                    defaultValue={cabeceraInitialValues.IDFABRICANTE ?? ""}
                                     isError={false}
                                     errorMessage={null}
                                     setErrors={() => {}}
+                                    disabled={consultMode}
                                 />
                                 <HorizontalSelect
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'nuevo')?.browNombre ?? 'Nuevo'}
                                     fieldId="NUEVO"
+                                    onValueChange={(key) => setCabeceraValue('NUEVO', key)}
                                     options={[{ key: '1', value: 'Si' }, { key: '0', value: 'No' }]}
-                                    defaultValue="1"
+                                    defaultValue={cabeceraInitialValues.NUEVO ?? "1"}
                                     hasToBeProportional={false}
+                                    disabled={consultMode}
                                     chooseOptionHandler={(e, ref) => {
                                         const li = e.currentTarget as HTMLLIElement;
                                         if (ref?.current) {
@@ -684,9 +1190,11 @@ export default function AbmFixedAsset() : React.ReactElement {
                                 <HorizontalSelect
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'idproyecto')?.browNombre ?? 'Proyecto'}
                                     fieldId="IDPROYECTO"
+                                    onValueChange={(key) => setCabeceraValue('IDPROYECTO', key)}
                                     options={cabeceraData.proyectos}
-                                    defaultValue={cabeceraData.defaultProyecto ?? undefined}
+                                    defaultValue={cabeceraInitialValues.IDPROYECTO ?? cabeceraData.defaultProyecto ?? undefined}
                                     hasToBeProportional={false}
+                                    disabled={consultMode}
                                     chooseOptionHandler={(e, ref) => {
                                         const li = e.currentTarget as HTMLLIElement;
                                         if (ref?.current) {
@@ -704,6 +1212,9 @@ export default function AbmFixedAsset() : React.ReactElement {
                                     errorMessage={null}
                                     setErrors={() => {}}
                                     onValueChange={(val) => setValorOrigenGral(val)}
+                                    inputType="number"
+                                    inputStep="0.01"
+                                    disabled={consultMode}
                                 />
                             </div>
                             )}
@@ -717,15 +1228,25 @@ export default function AbmFixedAsset() : React.ReactElement {
                                             >
                                                 <p className="text-gabu-100 text-xs text-center py-1.5">{tab.label.split('').map((char, i) => <React.Fragment key={i}>{char}{i < tab.label.length - 1 && <br />}</React.Fragment>)}</p>
                                             </div>
-                                            <div className={`overflow-hidden transition-[width,flex] duration-200 ease-linear bg-gabu-100 min-w-0 ${horizontalTabCabecera === tab.id ? 'flex-1' : 'w-0'} ${idx === horizontalTabsCabecera.length - 1 ? 'rounded-r-xl' : ''}`}>
+                                            <div className={`${horizontalTabCabecera === tab.id ? 'flex-1 overflow-visible' : 'w-0 overflow-hidden'} transition-[width,flex] duration-200 ease-linear bg-gabu-100 min-w-0 ${idx === horizontalTabsCabecera.length - 1 ? 'rounded-r-xl' : ''}`}>
                                                 <div className="w-full p-5 min-h-[260px] flex flex-col justify-center" style={{ display: horizontalTabCabecera === tab.id ? '' : 'none' }}>
                                                     {tab.id === 'distribucion' && (
-                                                        <div className="flex flex-col gap-2">
+                                                        <div className={`flex flex-col gap-2 ${(distribucionInvalid || distribucionDuplicateCencos) ? 'rounded-md border-2 border-gabu-error p-2' : ''}`}>
+                                                            {distribucionInvalid && (
+                                                                <p className="text-sm text-gabu-error">
+                                                                    Suma: {distribucionSum.toFixed(1)}% — El conjunto de la distribución tiene que ser un 100%
+                                                                </p>
+                                                            )}
+                                                            {distribucionDuplicateCencos && (
+                                                                <p className="text-sm text-gabu-error">
+                                                                    Hay un centro de costo que se repite en la distribución
+                                                                </p>
+                                                            )}
                                                             {distribucionRows.map((row) => (
-                                                                <div key={row.id} className="flex gap-2 items-center">
-                                                                    <div className="relative h-8 w-1/2 bg-gabu-300 rounded-md border border-gabu-900">
+                                                                <div key={row.id} className={`flex gap-2 items-center ${distribucionOpenId === row.id ? 'relative z-[10002]' : ''} ${consultMode ? 'pointer-events-none' : ''}`}>
+                                                                    <div className={`relative h-8 flex-1 min-w-0 rounded-md border border-gabu-900 ${consultMode ? 'bg-gabu-500' : 'bg-gabu-300'}`}>
                                                                         <div
-                                                                            className="bg-gabu-300 h-full flex justify-between items-center cursor-pointer px-3 rounded-md"
+                                                                            className={`h-full flex justify-between items-center px-3 rounded-md ${consultMode ? 'bg-gabu-500' : 'bg-gabu-300 cursor-pointer'}`}
                                                                             onClick={() => setDistribucionOpenId((prev) => prev === row.id ? null : row.id)}
                                                                         >
                                                                             <span className="text-sm text-gabu-900 truncate">
@@ -735,7 +1256,7 @@ export default function AbmFixedAsset() : React.ReactElement {
                                                                                 <path fillRule="evenodd" clipRule="evenodd" d="M8.90061 5.55547L1.85507 10L0.0939941 8.88906L6.259 5L0.0939941 1.11094L1.85507 0L8.90061 4.44453C9.1341 4.59187 9.26527 4.79167 9.26527 5C9.26527 5.20833 9.1341 5.40813 8.90061 5.55547Z"/>
                                                                             </svg>
                                                                         </div>
-                                                                        <ul className={`w-full rounded-b-md absolute z-50 font-normal cursor-pointer bg-gabu-300 overflow-y-auto border-x border-b border-gabu-900 transition-all duration-200 ease-linear ${distribucionOpenId === row.id ? 'max-h-32' : 'max-h-0 border-0'}`}>
+                                                                        <ul className={`w-full rounded-b-md absolute z-[10001] font-normal cursor-pointer bg-gabu-300 overflow-y-auto border-x border-b border-gabu-900 transition-all duration-200 ease-linear ${distribucionOpenId === row.id ? 'max-h-32' : 'max-h-0 border-0'}`}>
                                                                             {ccostosOptions.map((opt) => (
                                                                                 <li
                                                                                     key={opt.key}
@@ -752,27 +1273,39 @@ export default function AbmFixedAsset() : React.ReactElement {
                                                                             ))}
                                                                         </ul>
                                                                     </div>
-                                                                    <div className="flex rounded-md border border-gabu-900 items-center h-8 bg-gabu-300 w-1/2">
+                                                                    <div className="flex rounded-md border border-gabu-900 items-center h-8 bg-gabu-300 flex-1 min-w-0">
                                                                         <input
                                                                             type="number"
-                                                                            className="appearance-none focus:outline-none text-gabu-900 h-full px-3 w-[85%] bg-transparent"
+                                                                            readOnly={consultMode}
+                                                                            className={`appearance-none focus:outline-none text-gabu-900 h-full px-3 w-[85%] bg-transparent ${consultMode ? 'bg-gabu-500' : ''}`}
                                                                             value={row.porcentaje}
-                                                                            onChange={(e) => setDistribucionRows((prev) =>
-                                                                                prev.map((r) => r.id === row.id ? { ...r, porcentaje: e.target.value } : r)
-                                                                            )}
+                                                                            onChange={(e) => !consultMode && updateDistribucionPorcentaje(row.id, e.target.value)}
                                                                         />
                                                                         <div className="flex border-l border-l-gabu-900 justify-center items-center w-[15%] h-full">
                                                                             <Percentage />
                                                                         </div>
                                                                     </div>
+                                                                    {!consultMode && (
+                                                                    <div
+                                                                        className="shrink-0 w-7 h-7 rounded-full bg-gabu-700 flex items-center justify-center cursor-pointer hover:bg-gabu-500 transition-colors"
+                                                                        onClick={() => removeDistribucionRow(row.id)}
+                                                                    >
+                                                                        <Cross
+                                                                            style="h-4 w-4 fill-current text-gabu-100"
+                                                                            onClick={() => {}}
+                                                                        />
+                                                                    </div>
+                                                                    )}
                                                                 </div>
                                                             ))}
+                                                            {!consultMode && (
                                                             <div
-                                                                className="flex rounded-md h-8 bg-gabu-700 items-center justify-center hover:bg-gabu-500 transition-all duration-150 cursor-pointer mt-1"
+                                                                className={`flex rounded-md h-8 bg-gabu-700 items-center justify-center hover:bg-gabu-500 transition-all duration-150 cursor-pointer mt-1 ${distribucionRows.length >= 4 ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
                                                                 onClick={addDistribucionRow}
                                                             >
                                                                 <p className="text-gabu-100">Agregar centro de costo</p>
                                                             </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                     {tab.id === 'notas' && (
@@ -828,7 +1361,7 @@ export default function AbmFixedAsset() : React.ReactElement {
                             return (
                                 <div key={acordeon.prefijo} className={`flex flex-col w-full select-none bg-gabu-700 ${isLast ? 'mb-10 rounded-b-xl' : ''}`}>
                                     <div
-                                        className="flex justify-center items-center transition-all duration-150 py-1.5 border-b-2 border-b-gabu-100 cursor-pointer sticky top-0 z-[10000] bg-gabu-700"
+                                        className={`flex justify-center items-center transition-all duration-150 py-1.5 border-b-2 border-b-gabu-100 cursor-pointer sticky top-0 z-[10000] bg-gabu-700 rounded-t-xl ${accordionErrors[acordeon.prefijo]?.length ? 'border-2 border-gabu-error' : ''}`}
                                         onClick={() => toggleLibroOpen(acordeon.prefijo)}
                                     >
                                         <ArrowSvg open={isOpen} />
@@ -840,7 +1373,7 @@ export default function AbmFixedAsset() : React.ReactElement {
                                                 const campoUp = field.idCampo.toUpperCase();
                                                 const isDisabled = LIBRO_DISABLED_FIELDS.has(campoUp);
                                                 const isFullWidth = campoUp === 'VALORI';
-                                                const isReactive = campoUp === 'FECDEP' || campoUp === 'FECFIN';
+                                                const isReactive = campoUp === 'FECDEP' || campoUp === 'FECFIN' || campoUp === 'VALORI';
                                                 const defaultVal = getLibroDefault(acordeon.prefijo, field.idCampo);
                                                 if (LIBRO_SELECT_FIELDS.has(campoUp)) {
                                                     const opts = getLibroFieldOptions(field.idCampo) ?? [];
@@ -854,13 +1387,17 @@ export default function AbmFixedAsset() : React.ReactElement {
                                                             hasToBeProportional={isFullWidth}
                                                             colSpan={isFullWidth ? 'col-span-2' : undefined}
                                                             chooseOptionHandler={selectOptionHandler}
-                                                            disabled={isDisabled}
+                                                            disabled={consultMode || isDisabled}
+                                                            selectedRow={campoUp === 'IDACTIVO' ? cabeceraCuenta : undefined}
                                                             onValueChange={campoUp === 'IDTIPOAMORTIZACION' ? (key) => {
                                                                 setLibrosTipoAmor((prev) => ({ ...prev, [acordeon.prefijo]: key }));
+                                                            } : campoUp === 'IDACTIVO' ? (key) => {
+                                                                setCabeceraCuenta(key);
                                                             } : undefined}
                                                         />
                                                     );
                                                 }
+                                                const isNumericField = campoUp === 'VALORI' || campoUp === 'VIDAUTIL';
                                                 return (
                                                     <HorizontalInput
                                                         key={field.idCampo}
@@ -870,14 +1407,21 @@ export default function AbmFixedAsset() : React.ReactElement {
                                                         fixedValue={isReactive ? (defaultVal ?? '') : undefined}
                                                         hasToBeProportional={isFullWidth}
                                                         colSpan={isFullWidth ? 'col-span-2' : undefined}
-                                                        disabled={isDisabled}
-                                                        isError={false}
-                                                        errorMessage={null}
-                                                        setErrors={() => {}}
+                                                        disabled={consultMode || isDisabled}
+                                                        isError={!!getLibroFieldError(acordeon.prefijo, field.idCampo)}
+                                                        errorMessage={getLibroFieldError(acordeon.prefijo, field.idCampo)}
+                                                        setErrors={() => clearLibroFieldError(acordeon.prefijo, field.idCampo)}
+                                                        inputType={isNumericField ? 'number' : 'text'}
+                                                        inputStep={campoUp === 'VALORI' ? '0.01' : campoUp === 'VIDAUTIL' ? '1' : undefined}
                                                         onValueChange={campoUp === 'FECORI' ? (val) => {
                                                             setLibrosFecori((prev) => ({ ...prev, [acordeon.prefijo]: val }));
                                                         } : campoUp === 'VIDAUTIL' ? (val) => {
                                                             setLibrosVidautil((prev) => ({ ...prev, [acordeon.prefijo]: val }));
+                                                        } : campoUp === 'VALORI' ? (val) => {
+                                                            const num = parseFloat(String(val).replace(',', '.')) || 0;
+                                                            const cot = getCotizacion(acordeon.prefijo);
+                                                            const raw = cot !== 0 ? num * cot : num; // display = raw/cot, luego raw = display*cot
+                                                            setLibrosValori((prev) => ({ ...prev, [acordeon.prefijo]: String(raw) }));
                                                         } : undefined}
                                                     />
                                                 );
@@ -909,12 +1453,35 @@ export default function AbmFixedAsset() : React.ReactElement {
                                                                     };
                                                                     const fieldSuffix = suffixMap[tab.id] ?? 'Referencial';
                                                                     const fieldId = `${acordeon.prefijo}.${base}${fieldSuffix}`;
+                                                                    const fixedVal = (() => {
+                                                                        if (altaAgregadoMode) return '0';
+                                                                        if (isVrepoe) {
+                                                                            const fromBien = bienId && bienData ? getRowVal(bienData, fieldId) : undefined;
+                                                                            if (fromBien != null && fromBien !== '') {
+                                                                                const num = parseFloat(String(fromBien).replace(',', '.'));
+                                                                                return !isNaN(num) ? num.toFixed(2) : (() => {
+                                                                                    const r = librosValori[acordeon.prefijo];
+                                                                                    const raw = r !== undefined && r !== '' ? r : (valorOrigenGral ?? '0');
+                                                                                    return valorConCotizacion(raw || '0', acordeon.prefijo);
+                                                                                })();
+                                                                            }
+                                                                            const r = librosValori[acordeon.prefijo];
+                                                                            const raw = r !== undefined && r !== '' ? r : (valorOrigenGral ?? '0');
+                                                                            return valorConCotizacion(raw || '0', acordeon.prefijo);
+                                                                        }
+                                                                        const fromBien = bienId && bienData ? getRowVal(bienData, fieldId) : undefined;
+                                                                        if (fromBien != null && fromBien !== '') {
+                                                                            const num = parseFloat(String(fromBien).replace(',', '.'));
+                                                                            return !isNaN(num) ? num.toFixed(2) : '0';
+                                                                        }
+                                                                        return '0';
+                                                                    })();
                                                                     return (
                                                                         <HorizontalInput
                                                                             key={fieldId}
                                                                             label={label}
                                                                             fieldId={fieldId}
-                                                                            fixedValue={isVrepoe ? valorOrigenGral : '0'}
+                                                                            fixedValue={fixedVal}
                                                                             hasToBeProportional={false}
                                                                             disabled={true}
                                                                             isError={false}
@@ -936,10 +1503,15 @@ export default function AbmFixedAsset() : React.ReactElement {
                     )}
                 </div>
             </div>
+            <Alert message={saveError} type="error" show={!!saveError} onClose={() => setSaveError(null)} />
+            {!consultMode && (
             <div className="sticky w-full h-15 bg-gabu-500 border-2 border-gabu-900 flex justify-end gap-5 p-3">
-                <button onClick={handleRevert} className="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300 border border-gabu-900">Revertir</button>
-                <button className="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300 border border-gabu-900">Guardar bien</button>
+                <button type="button" onClick={handleRevert} className="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300 border border-gabu-900">Revertir</button>
+                <button type="submit" disabled={saving} className="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300 border border-gabu-900 disabled:opacity-70 disabled:cursor-not-allowed">
+                    {saving ? 'Guardando…' : 'Guardar bien'}
+                </button>
             </div>
-        </div>
+            )}
+        </form>
     );
 }

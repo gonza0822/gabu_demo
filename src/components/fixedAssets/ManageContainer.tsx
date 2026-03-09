@@ -2,9 +2,9 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { useRouter } from "next/navigation";
 import { RootState } from "@/store";
 import { navActions } from "@/store/navSlice";
+import { openPagesActions } from "@/store/openPagesSlice";
 import { Menu } from "@/store/navSlice";
 import { FixedAssetsData, FixedAssets } from "@/lib/models/fixedAssets/FixedAsset";
 import { useFetch } from "@/hooks/useFetch";
@@ -27,6 +27,8 @@ import Select from "../ui/Select";
 import ExcelJS from "exceljs";
 import Excel from "../svg/Excel";
 import FilterModal, { FilterValues } from "./FilterModal";
+import BajaModal from "./BajaModal";
+import TransferModal from "./TransferModal";
 import { getColumnType, type ColumnFilterValue } from "./ColumnFilter";
 import AssetActions, { type ActionId } from "./AssetActions";
 import ManageFieldsPanel from "./ManageFieldsPanel";
@@ -40,7 +42,6 @@ const PAGE_SIZE_OPTIONS = [
 
 export default function ManageContainer() : React.ReactElement {
     const dispatch = useDispatch();
-    const router = useRouter();
     const client : string = useSelector((state : RootState) => state.authorization.client);
     const clientMenu : Menu = useSelector((state: RootState) => state.nav.find((m : Menu) => m.client === client)!);
 
@@ -88,6 +89,8 @@ export default function ManageContainer() : React.ReactElement {
         origen: '',
     });
     const [showFilterAppliedAlert, setShowFilterAppliedAlert] = useState(false);
+    const [showBajaSuccessAlert, setShowBajaSuccessAlert] = useState(false);
+    const [showBajaErrorAlert, setShowBajaErrorAlert] = useState(false);
     const filterAppliedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [columnFilterColumnId, setColumnFilterColumnId] = useState<string | null>(null);
@@ -100,6 +103,11 @@ export default function ManageContainer() : React.ReactElement {
     const [manageFieldsOpen, setManageFieldsOpen] = useState(false);
     const [manageFieldsTriggerRect, setManageFieldsTriggerRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
     const manageFieldsTriggerRef = useRef<HTMLElement | null>(null);
+
+    const [isBajaModalOpen, setIsBajaModalOpen] = useState(false);
+    const [bajaModalAssets, setBajaModalAssets] = useState<FixedAssets[]>([]);
+    const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+    const [transferModalAssets, setTransferModalAssets] = useState<FixedAssets[]>([]);
 
     const sensors = useSensors(
         useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -624,6 +632,64 @@ export default function ManageContainer() : React.ReactElement {
 
     return (
         <>
+            <TransferModal
+                isOpen={isTransferModalOpen}
+                onClose={() => {
+                    setIsTransferModalOpen(false);
+                    setTransferModalAssets([]);
+                }}
+                assets={transferModalAssets}
+                fieldsManage={fixedAssetsData?.fieldsManage ?? []}
+                cuentasDestinoOptions={fixedAssetsData?.cuentasDestinoOptions ?? []}
+                fecproTransferenciaDefault={fixedAssetsData?.fecproTransferenciaDefault ?? ''}
+                client={client}
+                onSuccess={() => {
+                    refetch();
+                    setShowBajaSuccessAlert(true);
+                    if (filterAppliedTimeoutRef.current) clearTimeout(filterAppliedTimeoutRef.current);
+                    filterAppliedTimeoutRef.current = setTimeout(() => {
+                        filterAppliedTimeoutRef.current = null;
+                        setShowBajaSuccessAlert(false);
+                    }, 3000);
+                }}
+                onError={() => {
+                    setShowBajaErrorAlert(true);
+                    if (filterAppliedTimeoutRef.current) clearTimeout(filterAppliedTimeoutRef.current);
+                    filterAppliedTimeoutRef.current = setTimeout(() => {
+                        filterAppliedTimeoutRef.current = null;
+                        setShowBajaErrorAlert(false);
+                    }, 5000);
+                }}
+            />
+            <BajaModal
+                isOpen={isBajaModalOpen}
+                onClose={() => {
+                    setIsBajaModalOpen(false);
+                    setBajaModalAssets([]);
+                }}
+                assets={bajaModalAssets}
+                fieldsManage={fixedAssetsData?.fieldsManage ?? []}
+                tipoBajaOptions={fixedAssetsData?.tipoBajaOptions ?? []}
+                fecproBajaDefault={fixedAssetsData?.fecproBajaDefault ?? ''}
+                client={client}
+                onSuccess={() => {
+                    refetch();
+                    setShowBajaSuccessAlert(true);
+                    if (filterAppliedTimeoutRef.current) clearTimeout(filterAppliedTimeoutRef.current);
+                    filterAppliedTimeoutRef.current = setTimeout(() => {
+                        filterAppliedTimeoutRef.current = null;
+                        setShowBajaSuccessAlert(false);
+                    }, 3000);
+                }}
+                onError={() => {
+                    setShowBajaErrorAlert(true);
+                    if (filterAppliedTimeoutRef.current) clearTimeout(filterAppliedTimeoutRef.current);
+                    filterAppliedTimeoutRef.current = setTimeout(() => {
+                        filterAppliedTimeoutRef.current = null;
+                        setShowBajaErrorAlert(false);
+                    }, 5000);
+                }}
+            />
             <FilterModal
                 isOpen={isFilterModalOpen}
                 onClose={() => setIsFilterModalOpen(false)}
@@ -652,7 +718,85 @@ export default function ManageContainer() : React.ReactElement {
                 triggerRect={actionsTriggerRect}
                 rowId={actionsOpenRowId}
                 onAction={(rowId, actionId) => {
-                    // TODO: handle action (Clonar, Baja, etc.)
+                    const row = table.getPrePaginationRowModel().rows.find((r) => String(r.id) === String(rowId));
+                    if (!row) return;
+                    const rowData = row.original;
+                    const idParts = ['idCodigo', 'idSubien', 'idSubtra', 'idSufijo'].map((key) => {
+                        let v = getRowVal(rowData, key);
+                        if (v == null || v === '') v = getRowVal(rowData, `cabecera.${key}`);
+                        return String(v ?? '');
+                    });
+                    const id = idParts.join('-');
+                    if (!id || id === '---') return;
+                    if (actionId === 'modificar') {
+                        const tableName = `AbmFixedAssetModify-${id}`;
+                        const path = `/fixedAssets/modify/${id}`;
+                        dispatch(navActions.addDynamicSubmenu({
+                            client,
+                            path,
+                            submenuTitle: `Modificacion bien ${id}`,
+                            table: tableName,
+                            hiddenFromSidebar: true,
+                        }));
+                        dispatch(openPagesActions.addOpenPage({ page: tableName }));
+                        window.history.pushState(null, '', path);
+                    } else if (actionId === 'consultar') {
+                        const tableName = `AbmFixedAssetConsult-${id}`;
+                        const path = `/fixedAssets/consult/${id}`;
+                        dispatch(navActions.addDynamicSubmenu({
+                            client,
+                            path,
+                            submenuTitle: `Consultar bien ${id}`,
+                            table: tableName,
+                            hiddenFromSidebar: true,
+                        }));
+                        dispatch(openPagesActions.addOpenPage({ page: tableName }));
+                        window.history.pushState(null, '', path);
+                    } else if (actionId === 'clonar') {
+                        const tableName = `AbmFixedAssetClone-${id}`;
+                        const path = `/fixedAssets/clone/${id}`;
+                        dispatch(navActions.addDynamicSubmenu({
+                            client,
+                            path,
+                            submenuTitle: `Clonar bien ${id}`,
+                            table: tableName,
+                            hiddenFromSidebar: true,
+                        }));
+                        dispatch(openPagesActions.addOpenPage({ page: tableName }));
+                        window.history.pushState(null, '', path);
+                    } else if (actionId === 'alta-agregado') {
+                        const tableName = `AbmFixedAssetAltaAgregado-${id}`;
+                        const path = `/fixedAssets/alta-agregado/${id}`;
+                        dispatch(navActions.addDynamicSubmenu({
+                            client,
+                            path,
+                            submenuTitle: `Alta agregado bien ${id}`,
+                            table: tableName,
+                            hiddenFromSidebar: true,
+                        }));
+                        dispatch(openPagesActions.addOpenPage({ page: tableName }));
+                        window.history.pushState(null, '', path);
+                    } else if (actionId === 'baja') {
+                        const idCodigoVal = String(getRowVal(rowData, 'idCodigo') ?? getRowVal(rowData, 'cabecera.idcodigo') ?? '').trim();
+                        if (!idCodigoVal) return;
+                        const allAssets = fixedAssetsData?.fixedAssets ?? [];
+                        const sameIdCodigo = allAssets.filter((a) => {
+                            const ac = String(getRowVal(a, 'idCodigo') ?? getRowVal(a, 'cabecera.idcodigo') ?? getRowVal(a, 'idcodigo') ?? '').trim();
+                            return ac === idCodigoVal;
+                        });
+                        setBajaModalAssets(sameIdCodigo);
+                        setIsBajaModalOpen(true);
+                    } else if (actionId === 'transferencia') {
+                        const idCodigoVal = String(getRowVal(rowData, 'idCodigo') ?? getRowVal(rowData, 'cabecera.idcodigo') ?? '').trim();
+                        if (!idCodigoVal) return;
+                        const allAssets = fixedAssetsData?.fixedAssets ?? [];
+                        const sameIdCodigo = allAssets.filter((a) => {
+                            const ac = String(getRowVal(a, 'idCodigo') ?? getRowVal(a, 'cabecera.idcodigo') ?? getRowVal(a, 'idcodigo') ?? '').trim();
+                            return ac === idCodigoVal;
+                        });
+                        setTransferModalAssets(sameIdCodigo);
+                        setIsTransferModalOpen(true);
+                    }
                 }}
             />
             <ManageFieldsPanel
@@ -712,7 +856,7 @@ export default function ManageContainer() : React.ReactElement {
                             )?.find(({ s }) => s.path === "/fixedAssets/add");
                             if (found) {
                                 dispatch(navActions.openPage({ client, menuId: found.menuId, submenuId: found.submenuId }));
-                                router.push("/fixedAssets/add");
+                                window.history.pushState(null, '', '/fixedAssets/add');
                             }
                         }}
                     >
@@ -733,6 +877,16 @@ export default function ManageContainer() : React.ReactElement {
                     message="Filtro aplicado" 
                     type="success" 
                     show={showFilterAppliedAlert} 
+                />
+                <Alert 
+                    message="Se dio de baja el bien con éxito" 
+                    type="success" 
+                    show={showBajaSuccessAlert} 
+                />
+                <Alert 
+                    message="Ocurrió un error al dar de baja el bien" 
+                    type="error" 
+                    show={showBajaErrorAlert} 
                 />
                 {loading && (
                     <div className="relative w-full h-full overflow-x-auto table-scroll">
@@ -1177,6 +1331,18 @@ export default function ManageContainer() : React.ReactElement {
                             <span className="absolute top-2 -end-1.5 w-4 h-4 bg-gabu-700 rotate-45 rounded-sm"></span>
                             <p className="text-lg text-gabu-100 w-full text-center p-1 border-2 border-gabu-100/20">Acciones</p>
                             <div className="flex flex-col w-full gap-1 mt-1">
+                                <div className="flex justify-between items-center cursor-pointer hover:bg-gabu-500 transition-colors duration-300 px-3">
+                                <p className="text-gabu-100">Modificar</p>
+                                <svg width="9" height="9" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" className="fill-current text-gabu-100">
+                                    <path fillRule="evenodd" clipRule="evenodd" d="M8.90061 5.55547L1.85507 10L0.0939941 8.88906L6.259 5L0.0939941 1.11094L1.85507 0L8.90061 4.44453C9.1341 4.59187 9.26527 4.79167 9.26527 5C9.26527 5.20833 9.1341 5.40813 8.90061 5.55547Z"/>
+                                </svg>
+                                </div>
+                                <div className="flex justify-between items-center cursor-pointer hover:bg-gabu-500 transition-colors duration-300 px-3">
+                                <p className="text-gabu-100">Consultar</p>
+                                <svg width="9" height="9" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" className="fill-current text-gabu-100">
+                                    <path fillRule="evenodd" clipRule="evenodd" d="M8.90061 5.55547L1.85507 10L0.0939941 8.88906L6.259 5L0.0939941 1.11094L1.85507 0L8.90061 4.44453C9.1341 4.59187 9.26527 4.79167 9.26527 5C9.26527 5.20833 9.1341 5.40813 8.90061 5.55547Z"/>
+                                </svg>
+                                </div>
                                 <div className="flex justify-between items-center cursor-pointer hover:bg-gabu-500 transition-colors duration-300 px-3">
                                 <p className="text-gabu-100">Clonar</p>
                                 <svg width="9" height="9" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" className="fill-current text-gabu-100">

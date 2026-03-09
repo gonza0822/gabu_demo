@@ -8,7 +8,9 @@ type UserPostRequest =
     | { petition: "GetCabeceraFormData"; client: string; data: {} }
     | { petition: "GetLibrosFormData"; client: string; data: {} }
     | { petition: "GetCCostosOptions"; client: string; data: {} }
-    | { petition: "Add"; client: string; data: Record<string, unknown> };
+    | { petition: "Add"; client: string; data: Record<string, unknown> }
+    | { petition: "GetBienData"; client: string; data: { bienId: string } }
+    | { petition: "Update"; client: string; data: { bienId: string } & Record<string, unknown> };
 
 export async function POST(
     request: Request
@@ -32,8 +34,61 @@ export async function POST(
                 return NextResponse.json(await fixedAssetModel.getAbmLibrosData());
             case "GetCCostosOptions":
                 return NextResponse.json(await fixedAssetModel.getCCostosOptions());
-            case "Add":
-                return NextResponse.json({ ok: true });
+            case "GetBienData": {
+                const data = (body as { data?: { bienId: string } }).data;
+                if (!data?.bienId) {
+                    return NextResponse.json({ message: "bienId is required", status: 400 }, { status: 400 });
+                }
+                const bien = await fixedAssetModel.getBienById(data.bienId);
+                if (!bien) {
+                    return NextResponse.json({ message: "Bien no encontrado", status: 404 }, { status: 404 });
+                }
+                return NextResponse.json(bien);
+            }
+            case "Update": {
+                const data = (body as { data?: { bienId: string } & Record<string, unknown> }).data;
+                if (!data?.bienId || typeof data.bienId !== 'string') {
+                    return NextResponse.json({ message: "bienId is required", status: 400 }, { status: 400 });
+                }
+                const { bienId, ...payload } = data;
+                try {
+                    await fixedAssetModel.updateBien(bienId, payload as Parameters<typeof fixedAssetModel.updateBien>[1]);
+                    return NextResponse.json({ ok: true });
+                } catch (updateErr) {
+                    const msg = updateErr instanceof Error ? updateErr.message : String(updateErr);
+                    return NextResponse.json({ message: msg, status: 500 }, { status: 500 });
+                }
+            }
+            case "Add": {
+                const data = (body as { data?: Record<string, unknown> }).data;
+                if (!data || typeof data !== 'object') {
+                    return NextResponse.json({ message: "Data is required", status: 400 }, { status: 400 });
+                }
+                try {
+                    const result = await fixedAssetModel.addBien(data as Parameters<typeof fixedAssetModel.addBien>[0]);
+                    return NextResponse.json({ ok: true, idCodigo: result.idCodigo });
+                } catch (addErr) {
+                    const msg = addErr instanceof Error ? addErr.message : String(addErr);
+                    const cause = addErr && typeof addErr === 'object' && 'cause' in addErr ? (addErr as { cause?: unknown }).cause : null;
+                    const full = msg + (cause ? String(cause) : '');
+                    if (/truncat|String or binary data would be truncated|DriverAdapterError/i.test(full)) {
+                        const payload = JSON.stringify(data, null, 2);
+                        console.error('[Add] String truncation - payload (revisar longitudes):', payload);
+                        const lenReport = Object.entries(data).flatMap(([k, v]) => {
+                            if (v && typeof v === 'object' && !Array.isArray(v)) {
+                                return Object.entries(v as Record<string, unknown>).map(([f, val]) => `${k}.${f}: ${String(val).length} chars`);
+                            }
+                            return [`${k}: ${String(v).length} chars`];
+                        });
+                        console.error('[Add] Longitudes:', lenReport.join(', '));
+                        return NextResponse.json({
+                            message: "Algún campo excede la longitud permitida. Revisar en consola del servidor: cabecera (idDescripcion=6, idActivo=15, idFactura=30, idCencos=5, idPlanta=5), distribucion (idCencos=5), libros (idMoneda=2).",
+                            status: 500,
+                        }, { status: 500 });
+                    }
+                    throw addErr;
+                }
+            }
             default:
                 return NextResponse.json({ ok: true });
         }

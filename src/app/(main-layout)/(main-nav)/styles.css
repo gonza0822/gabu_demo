@@ -43,3 +43,14 @@
   background-color: var(--color-gabu-100);
   border-radius: .5em;
 }
+
+.desc-textarea::-webkit-scrollbar {
+  width: 0.7em;
+  background: var(--color-gabu-100);
+}
+
+.desc-textarea::-webkit-scrollbar-thumb {
+  background-color: var(--color-gabu-700);
+  border-radius: .5em;
+  border: .12em solid var(--color-gabu-100);
+}
