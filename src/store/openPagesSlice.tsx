@@ -14,15 +14,18 @@ const openPagesSlice = createSlice({
     reducers: {
         addOpenPage(state: OpenPage[], action: PayloadAction<{page: string}>){
             const existingPage = state.find(p => p.page === action.payload.page);
-            if(!existingPage){
-                state.forEach(p => {
-                    p.active = false;
-                });
-                state.push({
-                    page: action.payload.page,
-                    active: true
-                });
+            if(existingPage){
+                if (!existingPage.active) {
+                    state.forEach(p => { p.active = false; });
+                    existingPage.active = true;
+                }
+                return;
             }
+            state.forEach(p => { p.active = false; });
+            state.push({
+                page: action.payload.page,
+                active: true
+            });
         },
         removeOpenPage(state: OpenPage[], action: PayloadAction<{page: string}>){
             return state.filter(p => p.page !== action.payload.page);

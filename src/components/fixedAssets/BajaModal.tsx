@@ -10,6 +10,7 @@ import Order from "../svg/table/Order";
 import Checked from "../svg/Checked";
 import Percentage from "../svg/Percentage";
 import { FixedAssets, type LibroAccordionData } from "@/lib/models/fixedAssets/FixedAsset";
+import { getLibrosFormDataCached, getLibrosFormDataFromCache } from "@/lib/cache/librosFormCache";
 import { parseStringDate, parseDateString } from "@/util/date/parseDate";
 
 type FieldMeta = { IdCampo: string; BrowNombre: string | null };
@@ -23,6 +24,13 @@ function findBrowNombre(fieldsManage: FieldMeta[], pattern: string | RegExp, pre
         if (typeof pattern === 'string') return id.includes(pattern.toLowerCase());
         return pattern.test(id);
     });
+    return f?.BrowNombre ?? '';
+}
+
+/** Busca BrowNombre por IdCampo exacto (evita que cabecera.idDescripcion coincida al buscar descripcion) */
+function findBrowNombreExact(fieldsManage: FieldMeta[], idCampo: string): string {
+    const want = idCampo.toLowerCase();
+    const f = fieldsManage.find((fm) => (fm.IdCampo ?? '').toLowerCase() === want);
     return f?.BrowNombre ?? '';
 }
 
@@ -63,26 +71,6 @@ function getBienCodigo(row: FixedAssets): string {
         return String(v ?? '').trim();
     });
     return parts.join('-');
-}
-
-function getGroupKey(row: FixedAssets): string {
-    const parts = ['idCodigo', 'idSubien', 'idSubtra'].map((key) => {
-        let v = getRowVal(row, key);
-        if (v == null || v === '') v = getRowVal(row, `cabecera.${key}`);
-        if (v == null || v === '') v = getRowVal(row, key.toLowerCase());
-        return String(v ?? '').trim();
-    });
-    return parts.join('-');
-}
-
-function getValoriNum(row: FixedAssets): number {
-    const v = getMonedaLocalVal(row, 'valori');
-    if (typeof v === 'number' && !isNaN(v)) return v;
-    if (v != null && v !== '') {
-        const n = parseFloat(String(v).replace(',', '.'));
-        return isNaN(n) ? 0 : n;
-    }
-    return 0;
 }
 
 function toComparableDate(val: unknown): number | null {
@@ -158,23 +146,22 @@ export default function BajaModal({
     const [tipoBaja, setTipoBaja] = useState('');
     const [precioVenta, setPrecioVenta] = useState('0.00');
     const [porcentajeBaja, setPorcentajeBaja] = useState('100');
+    const [porcentajeBajaError, setPorcentajeBajaError] = useState<string | null>(null);
     const [librosContables, setLibrosContables] = useState<LibroAccordionData[]>([]);
     const [librosLoading, setLibrosLoading] = useState(false);
     const [sorting, setSorting] = useState<SortingState>([]);
 
     const fetchLibrosData = useCallback(async () => {
         if (!client) return;
+        const fromCache = getLibrosFormDataFromCache(client);
+        if (fromCache) {
+            setLibrosContables(fromCache);
+            return;
+        }
         setLibrosLoading(true);
         try {
-            const res = await fetch("/api/fixedAssets/add", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ petition: "GetLibrosFormData", client, data: {} }),
-            });
-            const data = await res.json();
-            if (data && Array.isArray(data.acordeones)) {
-                setLibrosContables(data.acordeones);
-            }
+            const acordeones = await getLibrosFormDataCached(client);
+            setLibrosContables(acordeones);
         } finally {
             setLibrosLoading(false);
         }
@@ -199,6 +186,17 @@ export default function BajaModal({
         }
     }, [isOpen, fecproBajaDefault]);
 
+    // Al abrir el modal, resetear valores del formulario para no arrastrar datos de otra baja
+    useEffect(() => {
+        if (isOpen) {
+            setTipoBaja('');
+            setPrecioVenta('0.00');
+            setPorcentajeBaja('100');
+            setFechaBajaError(null);
+            setPorcentajeBajaError(null);
+        }
+    }, [isOpen]);
+
     const columnHelper = createColumnHelper<BajaRow>();
 
     const toggleSelect = (rowId: string) => {
@@ -210,20 +208,10 @@ export default function BajaModal({
         });
     };
 
-    const headerDescripcion = findBrowNombre(fieldsManage, 'descripcion', 'cabecera') || findBrowNombre(fieldsManage, 'descripcion') || 'Descripcion';
+    const headerDescripcion = findBrowNombreExact(fieldsManage, 'cabecera.descripcion') || findBrowNombre(fieldsManage, 'descripcion', 'cabecera') || findBrowNombre(fieldsManage, 'descripcion') || 'Descripcion';
     const headerFechaBaja = findBrowNombre(fieldsManage, 'fecbaj', 'monedalocal') || findBrowNombre(fieldsManage, 'fecbaj') || 'Fecha baja';
     const headerTipoBaja = findBrowNombre(fieldsManage, 'tipobaja', 'monedalocal') || findBrowNombre(fieldsManage, 'tipobaja') || 'Tipo de baja';
     const headerValorActual = findBrowNombre(fieldsManage, 'vrepoeactual', 'monedalocal') || findBrowNombre(fieldsManage, 'vrepoeactual') || 'Valor actual';
-
-    const groupTotalsByValori = useMemo(() => {
-        const map = new Map<string, number>();
-        for (const row of dataWithIds) {
-            const key = getGroupKey(row);
-            const valori = getValoriNum(row);
-            map.set(key, (map.get(key) ?? 0) + valori);
-        }
-        return map;
-    }, [dataWithIds]);
 
     const columns = useMemo(() => [
         columnHelper.display({
@@ -268,27 +256,11 @@ export default function BajaModal({
             return String(v ?? '');
         }, { id: 'tipoBaja', header: headerTipoBaja, size: 100, cell: (info) => info.getValue() || '-', sortingFn: 'myCustomSorting' as SortingFnOption<BajaRow> }),
         columnHelper.accessor((row) => {
-            const key = getGroupKey(row);
-            const total = groupTotalsByValori.get(key) ?? 0;
-            if (total <= 0) return 0;
-            const valori = getValoriNum(row);
-            return Math.round((valori / total) * 1000) / 10;
-        }, {
-            id: 'porcentaje',
-            header: 'Porcentaje baja',
-            size: 80,
-            cell: (info) => {
-                const v = info.getValue();
-                return typeof v === 'number' ? `${v}%` : '0%';
-            },
-            sortingFn: 'myCustomSorting' as SortingFnOption<BajaRow>,
-        }),
-        columnHelper.accessor((row) => {
             const v = getMonedaLocalVal(row, 'vrepoeactual');
             const n = typeof v === 'number' ? v : (v != null && v !== '' ? parseFloat(String(v)) : null);
             return n;
         }, { id: 'valorActual', header: headerValorActual, size: 110, cell: (info) => formatCellValue(info.getValue(), 'valorActual'), sortingFn: 'myCustomSorting' as SortingFnOption<BajaRow> }),
-    ], [columnHelper, selectedIds, groupTotalsByValori, headerDescripcion, headerFechaBaja, headerTipoBaja, headerValorActual]);
+    ], [columnHelper, selectedIds, headerDescripcion, headerFechaBaja, headerTipoBaja, headerValorActual]);
 
     const table = useReactTable({
         columns,
@@ -337,6 +309,12 @@ export default function BajaModal({
             return;
         }
         setFechaBajaError(null);
+        const pctBaja = parseFloat(String(porcentajeBaja).replace(',', '.'));
+        if (Number.isNaN(pctBaja) || pctBaja < 0 || pctBaja > 100) {
+            setPorcentajeBajaError('El porcentaje debe estar entre 0 y 100');
+            return;
+        }
+        setPorcentajeBajaError(null);
         if (!client) {
             onError?.('Cliente no seleccionado');
             return;
@@ -384,7 +362,7 @@ export default function BajaModal({
         >
             <div className="flex justify-end -mt-1 -mr-1">
                 <button type="button" onClick={onClose} className="p-1 rounded hover:bg-gabu-300 transition-colors" aria-label="Cerrar">
-                    <Cross style="h-5 w-5 fill-current text-gabu-900 cursor-pointer" />
+                    <Cross style="h-5 w-5 fill-current text-gabu-900 cursor-pointer" onClick={onClose} />
                 </button>
             </div>
             <p className="font-semibold text-gabu-900 w-full text-center text-2xl mt-1">
@@ -452,7 +430,7 @@ export default function BajaModal({
                         label="Fecha de baja"
                         hasLabel={true}
                         isLogin={false}
-                        disabled={false}
+                        disabled={true}
                         type="text"
                         isError={!!fechaBajaError}
                         errorMessage={fechaBajaError}
@@ -486,19 +464,45 @@ export default function BajaModal({
                         defaultValue={precioVenta}
                         handleInput={(e) => setPrecioVenta(e.currentTarget.value)}
                     />
-                    <div className="flex flex-col gap-1 w-full">
+                    <div className="flex flex-col gap-1 w-full relative">
                         <label className="text-gabu-900 text-lg">Porcentaje baja</label>
-                        <div className="flex rounded-md border border-gabu-900 items-center w-full py-2 pl-3 pr-2 min-h-[42px]">
+                        <div className={`flex rounded-md border items-center w-full py-2 pl-3 pr-2 min-h-[42px] ${porcentajeBajaError ? 'border-2 border-gabu-error' : 'border border-gabu-900'}`}>
                             <input
                                 type="number"
+                                min={0}
+                                max={100}
                                 className="text-gabu-900 outline-none focus:outline-none focus:ring-0 flex-1 min-w-0 bg-transparent"
                                 value={porcentajeBaja}
-                                onChange={(e) => setPorcentajeBaja(e.target.value)}
+                                onChange={(e) => {
+                                    const raw = e.target.value;
+                                    if (raw.startsWith('-')) {
+                                        setPorcentajeBaja('0');
+                                        setPorcentajeBajaError(null);
+                                        return;
+                                    }
+                                    if (raw === '') {
+                                        setPorcentajeBaja(raw);
+                                        setPorcentajeBajaError(null);
+                                        return;
+                                    }
+                                    const num = parseFloat(raw.replace(',', '.'));
+                                    if (!Number.isNaN(num)) {
+                                        if (num > 100) setPorcentajeBaja('100');
+                                        else setPorcentajeBaja(raw);
+                                    } else {
+                                        setPorcentajeBaja(raw);
+                                    }
+                                    setPorcentajeBajaError(null);
+                                }}
+                                onWheel={(e) => e.currentTarget.blur()}
                             />
                             <div className="flex border-l border-l-gabu-900 justify-center items-center pl-2 shrink-0">
                                 <Percentage style="w-4 h-4" />
                             </div>
                         </div>
+                        {porcentajeBajaError && (
+                            <p className="text-gabu-error text-sm mt-0.5">{porcentajeBajaError}</p>
+                        )}
                     </div>
                 </div>
                 <div className="flex w-[50%] p-3 pt-7">

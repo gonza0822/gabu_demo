@@ -119,22 +119,22 @@ export default function ChartsContainer(): ReactElement {
     }
 
     return (
-        <div className="flex flex-col h-full">
-            <div className="flex w-full h-[10%] bg-gabu-500 rounded-t-lg px-10">
+        <div className="flex flex-col h-full min-h-0">
+            <div className="home-charts-tabs flex w-full h-[10%] min-h-9 bg-gabu-500 rounded-t-lg px-10">
                 <Tab active={activeTab === 'inversionProyectos'} title="Inversion proyectos" key="inversionProyectos" onClick={() => handleTabClick('inversionProyectos')} hasBorderRight={activeTab === 'ejercicios'}/>
                 <Tab active={activeTab === 'amortizaciones'} title="Amortizaciones" key="amortizaciones" onClick={() => handleTabClick('amortizaciones')} hasBorderRight={activeTab === 'inversionProyectos'} hasBorderLeft={activeTab === 'ejercicios'}/>
                 <Tab active={activeTab === 'ejercicios'} title="Ejercicio" key="ejercicios" onClick={() => handleTabClick('ejercicios')} hasBorderLeft={activeTab === 'inversionProyectos'}/>
             </div>
-            <div className={`flex h-full w-full overflow-x-auto ${activeTab === 'inversionProyectos' ? '' : 'hidden'}`} id="inversion-proyectos">
+            <div className={`flex h-full min-h-0 w-full overflow-x-auto ${activeTab === 'inversionProyectos' ? '' : 'hidden'}`} id="inversion-proyectos">
                 <ChartContainer chartFn={mendozaPlantProjectChartFn} title="Proyecto Planta Mendoza" fullW={false} type="line" canRender={colors.isReady}/>
                 <ChartContainer chartFn={mainFactoryExpansionChartFn} title="Ampliacion Fabrica principal" fullW={false} type="line" canRender={colors.isReady}/>
                 <ChartContainer chartFn={newFactoryProjectChartFn} title="Proyecto Nueva Fabrica" fullW={false} type="line" canRender={colors.isReady}/>
             </div>
-            <div className={`flex h-full w-full overflow-x-auto ${activeTab === 'amortizaciones' ? '' : 'hidden'}`} id="amortizaciones">
+            <div className={`flex h-full min-h-0 w-full overflow-x-auto ${activeTab === 'amortizaciones' ? '' : 'hidden'}`} id="amortizaciones">
                 <ChartContainer chartFn={officeComputersChartFn} title="Computadoras de oficina" fullW={false} type="bar" canRender={colors.isReady}/>
                 <ChartContainer chartFn={industrialMachineChartFn} title="Maquina industrial" fullW={false} type="bar" canRender={colors.isReady}/>
             </div>
-            <div className={`flex h-full w-full overflow-x-auto ${activeTab === 'ejercicios' ? '' : 'hidden'}`} id="ejercicios">
+            <div className={`flex h-full min-h-0 w-full overflow-x-auto ${activeTab === 'ejercicios' ? '' : 'hidden'}`} id="ejercicios">
                 <ChartContainer chartFn={amortizationPeriodChartFn} title="Amortizacion acumulada ejercicio actual" fullW={true} type="line" canRender={colors.isReady}/>
             </div>
         </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import React from "react";
 import AccountsTable from "@/app/(main-layout)/(main-nav)/tables/accounts/page";
 import CostCenterTable from "@/app/(main-layout)/(main-nav)/tables/costCenter/page";
 import GroupsTable from "@/app/(main-layout)/(main-nav)/tables/groups/page";
@@ -36,22 +37,35 @@ const pagesMap = {
     AbmFixedAsset,
 };
 
-export function getPage(page : string) : React.ComponentType {
-    if (page.startsWith("AbmFixedAssetModify-")) {
-        const id = page.replace("AbmFixedAssetModify-", "");
-        return () => <AbmFixedAsset bienId={id} />;
+export type PageComponentProps = { pageKey?: string };
+
+/** Componente estable para evitar remontajes. Devuelve el mismo componente para todas las páginas dinámicas. */
+function AbmFixedAssetDynamic({ pageKey }: PageComponentProps): React.ReactElement {
+    if (!pageKey) return <AbmFixedAsset />;
+    if (pageKey.startsWith("AbmFixedAssetModify-")) {
+        const id = pageKey.replace("AbmFixedAssetModify-", "");
+        return <AbmFixedAsset bienId={id} />;
     }
-    if (page.startsWith("AbmFixedAssetConsult-")) {
-        const id = page.replace("AbmFixedAssetConsult-", "");
-        return () => <AbmFixedAsset bienId={id} consultMode />;
+    if (pageKey.startsWith("AbmFixedAssetConsult-")) {
+        const id = pageKey.replace("AbmFixedAssetConsult-", "");
+        return <AbmFixedAsset bienId={id} consultMode />;
     }
-    if (page.startsWith("AbmFixedAssetClone-")) {
-        const id = page.replace("AbmFixedAssetClone-", "");
-        return () => <AbmFixedAsset bienId={id} cloneMode />;
+    if (pageKey.startsWith("AbmFixedAssetClone-")) {
+        const id = pageKey.replace("AbmFixedAssetClone-", "");
+        return <AbmFixedAsset bienId={id} cloneMode />;
     }
-    if (page.startsWith("AbmFixedAssetAltaAgregado-")) {
-        const id = page.replace("AbmFixedAssetAltaAgregado-", "");
-        return () => <AbmFixedAsset bienId={id} altaAgregadoMode />;
+    if (pageKey.startsWith("AbmFixedAssetAltaAgregado-")) {
+        const id = pageKey.replace("AbmFixedAssetAltaAgregado-", "");
+        return <AbmFixedAsset bienId={id} altaAgregadoMode />;
     }
-    return pagesMap[page as keyof typeof pagesMap];
+    return <AbmFixedAsset />;
+}
+
+export function getPage(page: string): React.ComponentType<PageComponentProps> {
+    if (page.startsWith("AbmFixedAssetModify-") || page.startsWith("AbmFixedAssetConsult-") ||
+        page.startsWith("AbmFixedAssetClone-") || page.startsWith("AbmFixedAssetAltaAgregado-")) {
+        return AbmFixedAssetDynamic;
+    }
+    const StaticPage = pagesMap[page as keyof typeof pagesMap];
+    return StaticPage as React.ComponentType<PageComponentProps>;
 }

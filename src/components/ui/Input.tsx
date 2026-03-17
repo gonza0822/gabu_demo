@@ -47,7 +47,7 @@ export default function Input({
     return (
       <div className="flex flex-col gap-1 relative">
           {hasLabel && <label className={labelClass}>{label}</label>}
-          <input type={type} className={InputStyle} disabled={disabled} ref={ref} onInput={handleInput} autoComplete="off" {...(value !== undefined ? { value } : { defaultValue })} placeholder={placeholder}/>
+          <input type={type} className={InputStyle} disabled={disabled} ref={ref} onInput={handleInput} onWheel={type === 'number' ? (e) => e.currentTarget.blur() : undefined} autoComplete="off" {...(value !== undefined ? { value } : { defaultValue })} placeholder={placeholder}/>
           {isError && (
             <div className="absolute left-0 right-0 top-[calc(100%+6px)] flex z-30">
               <div className="relative bg-gabu-error rounded-lg px-3 py-2 shadow-sm">

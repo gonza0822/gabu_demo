@@ -27,15 +27,15 @@ export default function NavigationContainer({children} : {children : React.React
     }, []);
 
     return (      
-        <div className="flex items-start h-screen" id="app">
+        <div className="flex items-start h-screen overflow-hidden" id="app">
             <>
-                <aside className="h-full w-[20%] bg-gabu-900 flex flex-col">
+                <aside className="h-full w-[20%] bg-gabu-900 flex flex-col min-h-0">
                     <div className="w-full flex justify-center py-3 flex-none">
                         <img src="../assets/gabu_logo.png" alt="gabu_logo" className="brightness-200 h-[80px] w-[80px] btn-home cursor-pointer" onClick={() => router.push('/home')}/>
                     </div>
                     <NavigationMenu/>
                 </aside>
-                <div className="flex flex-col flex-grow-0 w-full h-full">
+                <div className="flex flex-col flex-grow-0 w-full h-full min-h-0">
                     <Header/>
                     {children}
                 </div>

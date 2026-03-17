@@ -55,12 +55,12 @@ export default function NavigationMenu() : ReactElement {
     }, []);
 
     return (
-        <nav className="w-full flex flex-col justify-between grow">
-            <ul>
+        <nav className="w-full flex flex-col grow min-h-0">
+            <ul className="menu-main-list flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
                 {clientMenu.menu && clientMenu.menu.map((item, index) => <MenuItem key={index} menuId={index} menuItem={item} onClick={() => handleClickItem(index)} active={index === idActive}/>)}
             </ul>
 
-            <ul className="ml-5 mb-[25%] flex flex-col gap-5">
+            <ul className="menu-footer-list ml-5 mb-4 mt-3 flex flex-col gap-4 shrink-0">
                 <NavigationDefaultItem icon={HelpIcon} title="Ayuda" onClick={() => {}}/>
                 <NavigationDefaultItem icon={CloseSessionIcon} title="Cerrar sesion" onClick={handleCloseSession}/>
             </ul>

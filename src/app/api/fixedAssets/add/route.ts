@@ -14,7 +14,7 @@ type UserPostRequest =
 
 export async function POST(
     request: Request
-): Promise<NextResponse<AbmDatosGeneralesData | AbmCabeceraData | AbmLibrosData | { key: string; value: string }[] | { ok: boolean } | ErrorResponse>> {
+): Promise<NextResponse<AbmDatosGeneralesData | AbmCabeceraData | AbmLibrosData | { key: string; value: string }[] | { ok: boolean } | Record<string, unknown> | ErrorResponse>> {
     try {
         const body = await request.json() as UserPostRequest;
         const { client, petition } = body;
@@ -66,7 +66,8 @@ export async function POST(
                 }
                 try {
                     const result = await fixedAssetModel.addBien(data as Parameters<typeof fixedAssetModel.addBien>[0]);
-                    return NextResponse.json({ ok: true, idCodigo: result.idCodigo });
+                    const bienId = `${result.idCodigo}-${result.idSubien}-0-0`;
+                    return NextResponse.json({ ok: true, bienId, idCodigo: result.idCodigo });
                 } catch (addErr) {
                     const msg = addErr instanceof Error ? addErr.message : String(addErr);
                     const cause = addErr && typeof addErr === 'object' && 'cause' in addErr ? (addErr as { cause?: unknown }).cause : null;

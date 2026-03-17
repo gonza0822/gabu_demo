@@ -556,7 +556,8 @@ class FixedAsset {
             const libros = data.libros ?? {};
             for (const [prefijo, fields] of Object.entries(libros)) {
                 if (!fields || Object.keys(fields).length === 0) continue;
-                const idActivo = trim(cab.idActivo ?? fields['IDACTIVO'], 15);
+                const idActivoSource = cab.idActivo ?? fields['IDACTIVO'];
+                const idActivo = trim(idActivoSource == null ? null : String(idActivoSource), 15);
                 const idMoneda = (trim(fields['IDMONEDA'], 2) ?? getIdMoneda(prefijo)).slice(0, 2);
                 const valori = valNum(fields['VALORI']) ?? 0;
                 const row: Record<string, unknown> = {
@@ -596,7 +597,7 @@ class FixedAsset {
                     AmefieCierreAnterior: subCol(fields, 'AmefieCierreAnterior', 0),
                     AmpefeCierreAnterior: subCol(fields, 'AmpefeCierreAnterior', 0),
                 };
-                const model = (tx as Record<string, { create: (arg: { data: Record<string, unknown> }) => Promise<unknown> }>)[prefijo];
+                const model = (tx as unknown as Record<string, { create: (arg: { data: Record<string, unknown> }) => Promise<unknown> }>)[prefijo];
                 if (model?.create) await model.create({ data: row });
             }
 
@@ -802,7 +803,8 @@ class FixedAsset {
             const libros = data.libros ?? {};
             for (const [prefijo, fields] of Object.entries(libros)) {
                 if (!fields || Object.keys(fields).length === 0) continue;
-                const idActivo = trim(cab.idActivo ?? fields['IDACTIVO'], 15);
+                const idActivoSource = cab.idActivo ?? fields['IDACTIVO'];
+                const idActivo = trim(idActivoSource == null ? null : String(idActivoSource), 15);
                 const idMoneda = (trim(fields['IDMONEDA'], 2) ?? getIdMoneda(prefijo)).slice(0, 2);
                 const valori = valNumUpdate(fields['VALORI']) ?? 0;
                 const subAccordionCols = {
@@ -845,7 +847,7 @@ class FixedAsset {
                     Valori: valNumUpdate(fields['VALORI']) ?? null,
                     ...subAccordionCols,
                 };
-                const model = (tx as Record<string, { updateMany: (arg: { where: object; data: object }) => Promise<unknown>; create: (arg: { data: object }) => Promise<unknown> }>)[prefijo];
+                const model = (tx as unknown as Record<string, { updateMany: (arg: { where: object; data: object }) => Promise<{ count: number }>; create: (arg: { data: object }) => Promise<unknown> }>)[prefijo];
                 if (!model) continue;
                 const hasIdActivoInPk = /^impu|^me\d/i.test(prefijo);
                 const where: Record<string, unknown> = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
@@ -958,7 +960,7 @@ class FixedAsset {
                     const factorBaja = pct / 100;
                     const factorResto = 1 - factorBaja;
 
-                    /** Guardar filas ORIGINALES por prefijo antes de modificar (para el 40% del bien nuevo) */
+                    /** Guardar filas ORIGINALES por prefijo (para crear el bien nuevo con el % de baja) */
                     const originalRowsByPrefix = new Map<string, Record<string, unknown>[]>();
 
                     for (const prefijo of prefixes) {
@@ -975,15 +977,12 @@ class FixedAsset {
 
                         originalRowsByPrefix.set(prefijo, rows);
 
-                        const updateData: Record<string, unknown> = {
-                            FecBaj: fecBajDate,
-                            TipoBaja: tipoBajaVal,
-                            precioVenta: precioNum,
-                        };
+                        // Bien original: se queda con el % que NO se da de baja (factorResto); sin FecBaj/TipoBaja/precioVenta
+                        const updateData: Record<string, unknown> = {};
                         for (const f of FixedAsset.LIBRO_VALUE_FIELDS) {
                             const v = rows[0][f] ?? rows[0][f.toLowerCase()];
                             if (typeof v === 'number' && !isNaN(v)) {
-                                updateData[f] = Math.round(v * factorBaja * 1e6) / 1e6;
+                                updateData[f] = Math.round(v * factorResto * 1e6) / 1e6;
                             }
                         }
                         await model.updateMany({ where, data: updateData });
@@ -1040,13 +1039,21 @@ class FixedAsset {
                                     newRow.idSufijo = newSufijo;
                                     continue;
                                 }
-                                if (k === 'FecBaj' || k === 'TipoBaja' || k === 'precioVenta') {
-                                    newRow[k] = null;
+                                if (k === 'FecBaj') {
+                                    newRow[k] = fecBajDate;
+                                    continue;
+                                }
+                                if (k === 'TipoBaja') {
+                                    newRow[k] = tipoBajaVal;
+                                    continue;
+                                }
+                                if (k === 'precioVenta') {
+                                    newRow[k] = precioNum;
                                     continue;
                                 }
                                 if (FixedAsset.LIBRO_VALUE_FIELDS.includes(k as typeof FixedAsset.LIBRO_VALUE_FIELDS[number])) {
                                     const num = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
-                                    newRow[k] = isNaN(num) ? v : Math.round(num * factorResto * 1e6) / 1e6;
+                                    newRow[k] = isNaN(num) ? v : Math.round(num * factorBaja * 1e6) / 1e6;
                                 } else {
                                     newRow[k] = v;
                                 }
@@ -1064,20 +1071,28 @@ class FixedAsset {
         }, { timeout: 60000 });
     }
 
-    /** Transferencia de bienes: actualiza idActivo (cuenta destino) en cabecera y libros */
+    /** Transferencia de bienes: actualiza cuenta (idActivo) y aplica porcentaje en valores de libros */
     async transferBienes(params: {
         selectedAssets: FixedAssets[];
         fechaTransferencia: string;
         cuentaDestino: string;
         porcentajeTransferencia: string;
     }): Promise<{ ok: boolean }> {
-        const { selectedAssets, cuentaDestino, porcentajeTransferencia } = params;
+        const { selectedAssets, fechaTransferencia, cuentaDestino, porcentajeTransferencia } = params;
         if (!selectedAssets || selectedAssets.length === 0) {
             throw new Error('No hay bienes seleccionados');
         }
         const cuentaDestinoVal = String(cuentaDestino ?? '').trim();
         if (!cuentaDestinoVal) throw new Error('Cuenta destino requerida');
         const pct = parseFloat(porcentajeTransferencia.replace(',', '.')) || 100;
+
+        const parseMmYyyy = (s: string): Date | null => {
+            const m = String(s || '').match(/^(\d{1,2})[\/\-](\d{4})$/);
+            if (!m) return null;
+            return new Date(Number(m[2]), Number(m[1]) - 1, 1);
+        };
+        const trFecActivoDate = parseMmYyyy(fechaTransferencia);
+        if (!trFecActivoDate) throw new Error('Fecha de transferencia inválida. Use formato MM/YYYY.');
 
         const getBienId = (row: FixedAssets): string => {
             const r = row as Record<string, unknown>;
@@ -1109,19 +1124,146 @@ class FixedAsset {
                 const sidSubien = idSubien.padStart(3, '0');
                 const where = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
 
-                await tx.cabecera.updateMany({
-                    where,
-                    data: { idActivo: cuentaDestinoVal },
+                const cabecera = await tx.cabecera.findUnique({
+                    where: { idCodigo_idSubien_idSubtra_idSufijo: { idCodigo, idSubien: sidSubien, idSubtra, idSufijo } },
                 });
+                if (!cabecera) continue;
+                const idActivoOriginal = (cabecera.idActivo ?? '').trim();
 
                 if (pct >= 100) {
+                    await tx.cabecera.updateMany({
+                        where,
+                        data: {
+                            tridActivo: idActivoOriginal || null,
+                            idActivo: cuentaDestinoVal,
+                            trFecActivo: trFecActivoDate,
+                        },
+                    });
                     const updateData = { idActivo: cuentaDestinoVal };
                     for (const prefijo of prefixes) {
                         const modelName = this.prefijoToModel(prefijo);
                         const txRecord = tx as unknown as Record<string, { updateMany?: (arg: { where: object; data: object }) => Promise<{ count: number }> }>;
                         const model = this.getModelFromRecord(txRecord, modelName);
                         if (!model?.updateMany) continue;
-                        await model.updateMany({ where, data: updateData });
+                        const modelWhere = { ...where } as Record<string, unknown>;
+                        const hasIdActivo = /^impu|^me\d/i.test(prefijo);
+                        if (hasIdActivo && idActivoOriginal) (modelWhere as Record<string, unknown>).idActivo = idActivoOriginal;
+                        await model.updateMany({ where: modelWhere, data: updateData });
+                    }
+                } else {
+                    const factorTransfer = pct / 100;
+                    const factorResto = 1 - factorTransfer;
+
+                    const originalRowsByPrefix = new Map<string, Record<string, unknown>[]>();
+                    for (const prefijo of prefixes) {
+                        const modelName = this.prefijoToModel(prefijo);
+                        const model = this.getModelFromRecord(tx as unknown as Record<string, {
+                            findMany: (arg: { where: object }) => Promise<unknown[]>;
+                            updateMany: (arg: { where: object; data: object }) => Promise<{ count: number }>;
+                            create: (arg: { data: object }) => Promise<unknown>;
+                        }>, modelName);
+                        if (!model?.findMany || !model?.updateMany) continue;
+                        const modelWhere: Record<string, unknown> = { ...where };
+                        const hasIdActivo = /^impu|^me\d/i.test(prefijo);
+                        if (hasIdActivo && idActivoOriginal) modelWhere.idActivo = idActivoOriginal;
+                        const rows = await model.findMany({ where: modelWhere }) as Record<string, unknown>[];
+                        if (rows.length === 0) continue;
+
+                        originalRowsByPrefix.set(prefijo, rows);
+
+                        const updateData: Record<string, unknown> = {};
+                        for (const f of FixedAsset.LIBRO_VALUE_FIELDS) {
+                            const v = rows[0][f] ?? rows[0][f.toLowerCase()];
+                            if (typeof v === 'number' && !isNaN(v)) {
+                                (updateData as Record<string, unknown>)[f] = Math.round(v * factorResto * 1e6) / 1e6;
+                            }
+                        }
+                        await model.updateMany({ where: modelWhere, data: updateData });
+                    }
+
+                    await tx.cabecera.updateMany({
+                        where,
+                        data: {
+                            tridActivo: null,
+                            trFecActivo: null,
+                        },
+                    });
+
+                    const maxSubtra = await tx.cabecera.findMany({
+                        where: { idCodigo, idSubien: sidSubien, idSufijo },
+                        select: { idSubtra: true },
+                    });
+                    const maxVal = maxSubtra.reduce((m, r) => Math.max(m, parseInt(String(r.idSubtra ?? '0'), 10) || 0), 0);
+                    const newIdSubtra = String(maxVal + 1);
+
+                    const cabData = cabecera as unknown as Record<string, unknown>;
+                    const { idCodigo: _1, idSubien: _2, idSubtra: _3, idSufijo: _4, ...cabRest } = cabData;
+                    await tx.cabecera.create({
+                        data: {
+                            ...cabRest,
+                            idCodigo,
+                            idSubien: sidSubien,
+                            idSubtra: newIdSubtra,
+                            idSufijo,
+                            idActivo: cuentaDestinoVal,
+                            tridActivo: idActivoOriginal || null,
+                            trFecActivo: trFecActivoDate,
+                        } as Parameters<typeof tx.cabecera.create>[0]['data'],
+                    });
+
+                    const distribucion = await tx.distribucion.findMany({
+                        where: { idCodigo, idsubien: sidSubien, idsubtra: idSubtra, idsufijo: idSufijo },
+                    });
+                    for (const d of distribucion) {
+                        await tx.distribucion.create({
+                            data: {
+                                idCodigo,
+                                idsubien: sidSubien,
+                                idsubtra: newIdSubtra,
+                                idsufijo: idSufijo,
+                                idCencos: d.idCencos,
+                                porcentaje: d.porcentaje,
+                            },
+                        });
+                    }
+
+                    for (const prefijo of prefixes) {
+                        const modelName = this.prefijoToModel(prefijo);
+                        const model = this.getModelFromRecord(tx as unknown as Record<string, { create: (arg: { data: object }) => Promise<unknown> }>, modelName);
+                        if (!model?.create) continue;
+                        const rows = originalRowsByPrefix.get(prefijo);
+                        if (!rows || rows.length === 0) continue;
+                        const hasIdActivo = /^impu|^me\d/i.test(prefijo);
+                        for (const row of rows) {
+                            const newRow: Record<string, unknown> = {};
+                            for (const [k, v] of Object.entries(row)) {
+                                if (['idCodigo', 'idSubien', 'idSubtra', 'idSufijo'].includes(k)) continue;
+                                if (k === 'idSubtra') {
+                                    newRow.idSubtra = newIdSubtra;
+                                    continue;
+                                }
+                                if (k === 'idActivo') {
+                                    newRow[k] = cuentaDestinoVal;
+                                    continue;
+                                }
+                                if (k === 'FecBaj' || k === 'TipoBaja' || k === 'precioVenta') {
+                                    newRow[k] = null;
+                                    continue;
+                                }
+                                if (FixedAsset.LIBRO_VALUE_FIELDS.includes(k as typeof FixedAsset.LIBRO_VALUE_FIELDS[number])) {
+                                    const num = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
+                                    newRow[k] = isNaN(num) ? v : Math.round(num * factorTransfer * 1e6) / 1e6;
+                                } else {
+                                    newRow[k] = v;
+                                }
+                            }
+                            newRow.idCodigo = idCodigo;
+                            newRow.idSubien = sidSubien;
+                            newRow.idSubtra = newIdSubtra;
+                            newRow.idSufijo = idSufijo;
+                            if (hasIdActivo) newRow.idActivo = cuentaDestinoVal;
+                            await model.create({ data: newRow });
+                        }
                     }
                 }
             }

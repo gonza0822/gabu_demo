@@ -27,6 +27,16 @@ const menu : Menu[] = menuConfig;
 
 const initialNavState : Menu[] = menu
 
+function moveOpenSubmenusOneStep(menuObj: Menu): void {
+    menuObj.menu.forEach((item) => {
+        item.submenu.forEach((subItem) => {
+            if (subItem.isOpen) {
+                subItem.order += 1;
+            }
+        });
+    });
+}
+
 const navSlice = createSlice({
     name: 'navSlice',
     initialState: initialNavState,
@@ -43,7 +53,8 @@ const navSlice = createSlice({
                 submenu.active = true;
                 if(!submenu.isOpen){
                     submenu.isOpen = true;
-                    submenu.order = menuObj.maxOrder + 1;
+                    moveOpenSubmenusOneStep(menuObj);
+                    submenu.order = 1;
                     menuObj.maxOrder = menuObj.maxOrder + 1;
                 }
             }
@@ -52,23 +63,30 @@ const navSlice = createSlice({
             const menuObj = state.find(m => m.client === action.payload.client);
             if(menuObj){
                 const submenu : Submenu = menuObj.menu[action.payload.menuId].submenu[action.payload.submenuId];
+                const closedOrder = submenu.order;
+
+                let fallbackTab: Submenu | undefined;
+                if (submenu.active) {
+                    const openTabs = menuObj.menu
+                        .flatMap((item) => item.submenu)
+                        .filter((subItem) => subItem.isOpen && subItem.path !== submenu.path);
+                    fallbackTab = openTabs.find((subItem) => subItem.order === closedOrder - 1)
+                        ?? openTabs.find((subItem) => subItem.order === closedOrder + 1);
+                }
+
                 submenu.isOpen = false;
                 menuObj.menu.forEach(item => {
                     item.submenu.forEach(subItem => {
-                        if(subItem.order === submenu.order - 1){
-                            console.log("estoy");
-                            if(submenu.active){
-                                subItem.active = true;
-                            }
-                        }
-
-                        if(subItem.order > submenu.order){
+                        if(subItem.order > closedOrder){
                             subItem.order = subItem.order - 1
                         }
+                        subItem.active = false;
                     })
                 })
+                if (fallbackTab) {
+                    fallbackTab.active = true;
+                }
                 submenu.order = 0;
-                submenu.active = false;
                 menuObj.maxOrder = menuObj.maxOrder - 1;
             }
         },
@@ -115,7 +133,20 @@ const navSlice = createSlice({
             const menuObj = state.find(m => m.client === client);
             if (!menuObj) return;
             const allSubmenus = menuObj.menu.flatMap(m => m.submenu);
-            if (allSubmenus.some(s => s.path === path)) return;
+            const existing = allSubmenus.find(s => s.path === path);
+            if (existing) {
+                menuObj.menu.forEach(item => {
+                    item.submenu.forEach(subItem => { subItem.active = subItem.path === path; });
+                });
+                existing.isOpen = true;
+                existing.active = true;
+                if (existing.order === 0) {
+                    moveOpenSubmenusOneStep(menuObj);
+                    existing.order = 1;
+                    menuObj.maxOrder += 1;
+                }
+                return;
+            }
             const addMenuIdx = menuObj.menu.findIndex(m => m.submenu.some(s => s.path === '/fixedAssets/add'));
             if (addMenuIdx < 0) return;
             menuObj.menu.forEach(item => {
@@ -127,9 +158,10 @@ const navSlice = createSlice({
                 table,
                 isOpen: true,
                 active: true,
-                order: menuObj.maxOrder + 1,
+                order: 1,
                 ...(hiddenFromSidebar !== undefined && { hiddenFromSidebar }),
             };
+            moveOpenSubmenusOneStep(menuObj);
             menuObj.menu[addMenuIdx].submenu.push(newSubmenu);
             menuObj.maxOrder += 1;
         },

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
 import { navActions } from "@/store/navSlice";
@@ -41,6 +42,7 @@ const PAGE_SIZE_OPTIONS = [
 ] as const;
 
 export default function ManageContainer() : React.ReactElement {
+    const router = useRouter();
     const dispatch = useDispatch();
     const client : string = useSelector((state : RootState) => state.authorization.client);
     const clientMenu : Menu = useSelector((state: RootState) => state.nav.find((m : Menu) => m.client === client)!);
@@ -91,7 +93,11 @@ export default function ManageContainer() : React.ReactElement {
     const [showFilterAppliedAlert, setShowFilterAppliedAlert] = useState(false);
     const [showBajaSuccessAlert, setShowBajaSuccessAlert] = useState(false);
     const [showBajaErrorAlert, setShowBajaErrorAlert] = useState(false);
+    const [showTransferSuccessAlert, setShowTransferSuccessAlert] = useState(false);
+    const [showTransferErrorAlert, setShowTransferErrorAlert] = useState(false);
     const filterAppliedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const bajaAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const transferAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [columnFilterColumnId, setColumnFilterColumnId] = useState<string | null>(null);
     const [closingColumnId, setClosingColumnId] = useState<string | null>(null);
@@ -135,6 +141,8 @@ export default function ManageContainer() : React.ReactElement {
         return () => {
             if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
             if (filterAppliedTimeoutRef.current) clearTimeout(filterAppliedTimeoutRef.current);
+            if (bajaAlertTimeoutRef.current) clearTimeout(bajaAlertTimeoutRef.current);
+            if (transferAlertTimeoutRef.current) clearTimeout(transferAlertTimeoutRef.current);
         };
     }, []);
 
@@ -645,19 +653,19 @@ export default function ManageContainer() : React.ReactElement {
                 client={client}
                 onSuccess={() => {
                     refetch();
-                    setShowBajaSuccessAlert(true);
-                    if (filterAppliedTimeoutRef.current) clearTimeout(filterAppliedTimeoutRef.current);
-                    filterAppliedTimeoutRef.current = setTimeout(() => {
-                        filterAppliedTimeoutRef.current = null;
-                        setShowBajaSuccessAlert(false);
+                    setShowTransferSuccessAlert(true);
+                    if (transferAlertTimeoutRef.current) clearTimeout(transferAlertTimeoutRef.current);
+                    transferAlertTimeoutRef.current = setTimeout(() => {
+                        transferAlertTimeoutRef.current = null;
+                        setShowTransferSuccessAlert(false);
                     }, 3000);
                 }}
                 onError={() => {
-                    setShowBajaErrorAlert(true);
-                    if (filterAppliedTimeoutRef.current) clearTimeout(filterAppliedTimeoutRef.current);
-                    filterAppliedTimeoutRef.current = setTimeout(() => {
-                        filterAppliedTimeoutRef.current = null;
-                        setShowBajaErrorAlert(false);
+                    setShowTransferErrorAlert(true);
+                    if (transferAlertTimeoutRef.current) clearTimeout(transferAlertTimeoutRef.current);
+                    transferAlertTimeoutRef.current = setTimeout(() => {
+                        transferAlertTimeoutRef.current = null;
+                        setShowTransferErrorAlert(false);
                     }, 5000);
                 }}
             />
@@ -675,17 +683,17 @@ export default function ManageContainer() : React.ReactElement {
                 onSuccess={() => {
                     refetch();
                     setShowBajaSuccessAlert(true);
-                    if (filterAppliedTimeoutRef.current) clearTimeout(filterAppliedTimeoutRef.current);
-                    filterAppliedTimeoutRef.current = setTimeout(() => {
-                        filterAppliedTimeoutRef.current = null;
+                    if (bajaAlertTimeoutRef.current) clearTimeout(bajaAlertTimeoutRef.current);
+                    bajaAlertTimeoutRef.current = setTimeout(() => {
+                        bajaAlertTimeoutRef.current = null;
                         setShowBajaSuccessAlert(false);
                     }, 3000);
                 }}
                 onError={() => {
                     setShowBajaErrorAlert(true);
-                    if (filterAppliedTimeoutRef.current) clearTimeout(filterAppliedTimeoutRef.current);
-                    filterAppliedTimeoutRef.current = setTimeout(() => {
-                        filterAppliedTimeoutRef.current = null;
+                    if (bajaAlertTimeoutRef.current) clearTimeout(bajaAlertTimeoutRef.current);
+                    bajaAlertTimeoutRef.current = setTimeout(() => {
+                        bajaAlertTimeoutRef.current = null;
                         setShowBajaErrorAlert(false);
                     }, 5000);
                 }}
@@ -739,7 +747,7 @@ export default function ManageContainer() : React.ReactElement {
                             hiddenFromSidebar: true,
                         }));
                         dispatch(openPagesActions.addOpenPage({ page: tableName }));
-                        window.history.pushState(null, '', path);
+                        router.push(path);
                     } else if (actionId === 'consultar') {
                         const tableName = `AbmFixedAssetConsult-${id}`;
                         const path = `/fixedAssets/consult/${id}`;
@@ -751,7 +759,7 @@ export default function ManageContainer() : React.ReactElement {
                             hiddenFromSidebar: true,
                         }));
                         dispatch(openPagesActions.addOpenPage({ page: tableName }));
-                        window.history.pushState(null, '', path);
+                        router.push(path);
                     } else if (actionId === 'clonar') {
                         const tableName = `AbmFixedAssetClone-${id}`;
                         const path = `/fixedAssets/clone/${id}`;
@@ -763,7 +771,7 @@ export default function ManageContainer() : React.ReactElement {
                             hiddenFromSidebar: true,
                         }));
                         dispatch(openPagesActions.addOpenPage({ page: tableName }));
-                        window.history.pushState(null, '', path);
+                        router.push(path);
                     } else if (actionId === 'alta-agregado') {
                         const tableName = `AbmFixedAssetAltaAgregado-${id}`;
                         const path = `/fixedAssets/alta-agregado/${id}`;
@@ -775,7 +783,7 @@ export default function ManageContainer() : React.ReactElement {
                             hiddenFromSidebar: true,
                         }));
                         dispatch(openPagesActions.addOpenPage({ page: tableName }));
-                        window.history.pushState(null, '', path);
+                        router.push(path);
                     } else if (actionId === 'baja') {
                         const idCodigoVal = String(getRowVal(rowData, 'idCodigo') ?? getRowVal(rowData, 'cabecera.idcodigo') ?? '').trim();
                         if (!idCodigoVal) return;
@@ -856,7 +864,7 @@ export default function ManageContainer() : React.ReactElement {
                             )?.find(({ s }) => s.path === "/fixedAssets/add");
                             if (found) {
                                 dispatch(navActions.openPage({ client, menuId: found.menuId, submenuId: found.submenuId }));
-                                window.history.pushState(null, '', '/fixedAssets/add');
+                                router.push('/fixedAssets/add');
                             }
                         }}
                     >
@@ -887,6 +895,16 @@ export default function ManageContainer() : React.ReactElement {
                     message="Ocurrió un error al dar de baja el bien" 
                     type="error" 
                     show={showBajaErrorAlert} 
+                />
+                <Alert
+                    message="Se transfirió el bien con éxito"
+                    type="success"
+                    show={showTransferSuccessAlert}
+                />
+                <Alert
+                    message="Ocurrió un error al transferir el bien"
+                    type="error"
+                    show={showTransferErrorAlert}
                 />
                 {loading && (
                     <div className="relative w-full h-full overflow-x-auto table-scroll">

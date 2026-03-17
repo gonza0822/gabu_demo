@@ -17,6 +17,7 @@ let sqlConfig:{
     options: {
         encrypt: boolean;
         trustServerCertificate: boolean;
+        requestTimeout: number;
     };
 }
 
@@ -53,7 +54,8 @@ function configPrisma(dbUser : string, dbPassword : string, dbName : string, ser
     },
     options: {
       encrypt: true, // for azure
-      trustServerCertificate: true // change to true for local dev / self-signed certs
+      trustServerCertificate: true, // change to true for local dev / self-signed certs
+      requestTimeout: 30000 // 30 segundos (default: 15000)
     }
   }
 }

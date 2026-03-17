@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
-import { navActions } from "@/store/navSlice";
+import { navActions, type Menu } from "@/store/navSlice";
 import { openPagesActions } from "@/store/openPagesSlice";
 import Select from "@/components/ui/Select";
 import Excel from "@/components/svg/Excel";
@@ -83,8 +84,11 @@ const selectOptionHandler = (e: React.MouseEvent<HTMLLIElement>, ref: React.RefO
 type AbmFixedAssetProps = { bienId?: string; consultMode?: boolean; cloneMode?: boolean; altaAgregadoMode?: boolean };
 
 export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgregadoMode }: AbmFixedAssetProps) : React.ReactElement {
+    const router = useRouter();
+    const pathname = usePathname();
     const dispatch = useDispatch();
     const client = useSelector((state: RootState) => state.authorization.client);
+    const clientMenu = useSelector((state: RootState) => state.nav.find((m: Menu) => m.client === client));
     const [datosGenerales, setDatosGenerales] = useState<AbmDatosGeneralesData | null>(null);
     const [datosGeneralesLoading, setDatosGeneralesLoading] = useState(true);
     const [cabeceraData, setCabeceraData] = useState<AbmCabeceraData | null>(null);
@@ -637,10 +641,20 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
                     setDatosZona(datosGenerales?.defaultZona ?? '');
                     setDatosCencos(datosGenerales?.defaultCencos ?? '');
                     handleRevert();
-                    const newBienId = data?.bienId as string | undefined;
+                    const newBienId = (data?.bienId ?? (data?.idCodigo ? `${data.idCodigo}-${data?.idSubien ?? '000'}-0-0` : undefined)) as string | undefined;
                     if (client && newBienId) {
                         const tableName = `AbmFixedAssetConsult-${newBienId}`;
                         const path = `/fixedAssets/consult/${newBienId}`;
+                        // Cerrar el tab actual (alta pura, clonar o alta agregado) al abrir el de consulta
+                        if (clientMenu) {
+                            const menuId = clientMenu.menu.findIndex((menu) => menu.submenu.some((s) => s.path === pathname));
+                            const submenuId = menuId >= 0 ? clientMenu.menu[menuId].submenu.findIndex((s) => s.path === pathname) : -1;
+                            const currentSubmenu = menuId >= 0 && submenuId >= 0 ? clientMenu.menu[menuId].submenu[submenuId] : null;
+                            if (currentSubmenu) {
+                                dispatch(navActions.closePage({ client, submenuId, menuId }));
+                                dispatch(openPagesActions.removeOpenPage({ page: currentSubmenu.table }));
+                            }
+                        }
                         dispatch(navActions.addDynamicSubmenu({
                             client,
                             path,
@@ -649,7 +663,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
                             hiddenFromSidebar: true,
                         }));
                         dispatch(openPagesActions.addOpenPage({ page: tableName }));
-                        window.history.pushState(null, '', path);
+                        router.push(path);
                     }
                 }
             } else {
@@ -662,7 +676,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
         } finally {
             setSaving(false);
         }
-    }, [client, descripcion, datosPlanta, datosZona, datosCencos, distribucionRows, cabeceraCuenta, datosGenerales, librosData, librosValori, handleRevert, bienId, cloneMode, altaAgregadoMode, dispatch]);
+    }, [client, clientMenu, pathname, descripcion, datosPlanta, datosZona, datosCencos, distribucionRows, cabeceraCuenta, datosGenerales, librosData, librosValori, handleRevert, bienId, cloneMode, altaAgregadoMode, dispatch, router]);
     const [horizontalTabCabecera, setHorizontalTabCabecera] = useState<'distribucion' | 'notas' | 'fotos' | 'documentos' | 'tecnica'>('distribucion');
 
     const horizontalTabsCabecera = [
@@ -754,6 +768,17 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
         const def = cabeceraData?.defaultActivo ?? librosData?.cuentas?.[0]?.key ?? '';
         if (def && cabeceraCuenta === '') setCabeceraCuenta(def);
     }, [cabeceraData?.defaultActivo, librosData?.cuentas, cabeceraCuenta]);
+
+    // Sync valorOrigenGral → librosValori en clonar y alta agregado (mismo comportamiento que alta pura)
+    useEffect(() => {
+        if (!librosData || !(cloneMode || altaAgregadoMode)) return;
+        const valGral = parseFloat(String(valorOrigenGral || '0').replace(',', '.')) || 0;
+        const valoriMap: Record<string, string> = {};
+        librosData.acordeones.forEach((ac) => {
+            valoriMap[ac.prefijo] = String(valGral);
+        });
+        setLibrosValori((prev) => ({ ...prev, ...valoriMap }));
+    }, [librosData, valorOrigenGral, cloneMode, altaAgregadoMode]);
 
     // Initialize reactive fields when librosData loads; update vida util when cabeceraCuenta changes
     // Skip when bienData exists - the bienData effect populates libros from API; this would overwrite
@@ -1280,6 +1305,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
                                                                             className={`appearance-none focus:outline-none text-gabu-900 h-full px-3 w-[85%] bg-transparent ${consultMode ? 'bg-gabu-500' : ''}`}
                                                                             value={row.porcentaje}
                                                                             onChange={(e) => !consultMode && updateDistribucionPorcentaje(row.id, e.target.value)}
+                                                                            onWheel={(e) => e.currentTarget.blur()}
                                                                         />
                                                                         <div className="flex border-l border-l-gabu-900 justify-center items-center w-[15%] h-full">
                                                                             <Percentage />
@@ -1454,7 +1480,15 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
                                                                     const fieldSuffix = suffixMap[tab.id] ?? 'Referencial';
                                                                     const fieldId = `${acordeon.prefijo}.${base}${fieldSuffix}`;
                                                                     const fixedVal = (() => {
-                                                                        if (altaAgregadoMode) return '0';
+                                                                        // En clonar y alta agregado: mismo comportamiento que alta pura — valores actuales derivados de valores de origen (librosValori / valorOrigenGral)
+                                                                        if (cloneMode || altaAgregadoMode) {
+                                                                            if (isVrepoe) {
+                                                                                const r = librosValori[acordeon.prefijo];
+                                                                                const raw = r !== undefined && r !== '' ? r : (valorOrigenGral ?? '0');
+                                                                                return valorConCotizacion(raw || '0', acordeon.prefijo);
+                                                                            }
+                                                                            return '0';
+                                                                        }
                                                                         if (isVrepoe) {
                                                                             const fromBien = bienId && bienData ? getRowVal(bienData, fieldId) : undefined;
                                                                             if (fromBien != null && fromBien !== '') {

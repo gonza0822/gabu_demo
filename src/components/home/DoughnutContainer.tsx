@@ -20,13 +20,13 @@ export default function DoughnutContainer() : ReactElement {
     }, colors.colors);
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full min-h-0">
             <div className="w-full justify-start px-5 2xl:px-12 pt-3 2xl:pt-7">
-                <p className="text-xl xl:text-2xl 2xl:text-3xl text-gabu-900 font-medium">Uso de bienes</p>
+                <p className="home-doughnut-title text-xl xl:text-2xl 2xl:text-3xl text-gabu-900 font-medium">Uso de bienes</p>
             </div>
-            <div className="flex gap-5 xl:gap-8 2xl:gap-10 2xl:px-12 h-full justify-center pb-2">
-                <div className="relative flex justify-center items-center h-full w-[40%] 2xl:w-auto">
-                    <div className="z-10 h-[60%] xl:h-[80%]">
+            <div className="home-doughnut-layout flex gap-5 xl:gap-8 2xl:gap-10 2xl:px-12 h-full min-h-0 justify-center pb-2">
+                <div className="home-doughnut-chart relative flex justify-center items-center h-full w-[40%] 2xl:w-auto">
+                    <div className="home-doughnut-chart-inner z-10 h-[60%] xl:h-[80%]">
                         {colors.isReady && <Chart type={"doughnut"} options={options} data={data}/>}
                     </div>
                     <div className="absolute bg-gabu-100 flex flex-col justify-center items-center">
@@ -34,7 +34,7 @@ export default function DoughnutContainer() : ReactElement {
                     <p className="text-gabu-900 text-xl 2xl:text-3xl font-semibold">14392</p>
                     </div>
                 </div>
-                <div className="flex flex-col gap-5 2xl:gap-10 justify-center">
+                <div className="home-doughnut-legend flex flex-col gap-5 2xl:gap-10 justify-center">
                     <div className="flex gap-3 items-center">
                         <span className="h-3 w-3 bg-gabu-900"></span>
                         <p className="text-gabu-900 text-xs xl:text-base font-medium">Bienes en uso</p>
