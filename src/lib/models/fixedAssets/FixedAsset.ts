@@ -551,11 +551,25 @@ class FixedAsset {
                 const n = parseFloat(String(s ?? '').replace(',', '.'));
                 return isNaN(n) ? null : n;
             };
+            const normalizeYyyyMm = (s: string | undefined): string | null => {
+                const v = String(s ?? '').trim();
+                const direct = v.match(/^(\d{4})(\d{2})$/);
+                if (direct) return `${direct[1]}${direct[2]}`;
+                const mmYyyy = v.match(/^(\d{1,2})[\/\-](\d{4})$/);
+                if (mmYyyy) return `${mmYyyy[2]}${mmYyyy[1].padStart(2, '0')}`;
+                return null;
+            };
+            const fieldNum = (fields: Record<string, string>, key: string): number | null =>
+                valNum(fields[key] ?? fields[key.toUpperCase()]);
             const subCol = (fields: Record<string, string>, key: string, fallback: number): number =>
-                valNum(fields[key] ?? fields[key.toUpperCase()]) ?? fallback;
+                fieldNum(fields, key) ?? fallback;
             const libros = data.libros ?? {};
             for (const [prefijo, fields] of Object.entries(libros)) {
                 if (!fields || Object.keys(fields).length === 0) continue;
+                const valoriForValidation = valNum(fields['VALORI']);
+                if (!(valoriForValidation != null && valoriForValidation > 0)) {
+                    throw new Error(`No se puede dar de alta un bien con VALORI en 0 para ${prefijo}`);
+                }
                 const idActivoSource = cab.idActivo ?? fields['IDACTIVO'];
                 const idActivo = trim(idActivoSource == null ? null : String(idActivoSource), 15);
                 const idMoneda = (trim(fields['IDMONEDA'], 2) ?? getIdMoneda(prefijo)).slice(0, 2);
@@ -578,8 +592,17 @@ class FixedAsset {
                     FecOri: parseMmYyyyLibro(fields['FECORI'] ?? '') ?? null,
                     FecDep: parseMmYyyyLibro(fields['FECDEP'] ?? '') ?? null,
                     Fecfin: parseMmYyyyLibro(fields['FECFIN'] ?? '') ?? null,
-                    vidaUtil: parseFloat(String(fields['VIDAUTIL'] ?? '').replace(',', '.')) || null,
+                    vidaUtil: fieldNum(fields, 'VIDAUTIL'),
+                    vidaTranscurrida: fieldNum(fields, 'VIDATRANSCURRIDA') ?? 0,
+                    vidaRestante: fieldNum(fields, 'VIDARESTANTE') ?? 0,
+                    indice: fieldNum(fields, 'INDICE') ?? 1,
+                    FecPro: normalizeYyyyMm(fields['FECPRO']) ?? normalizeYyyyMm(fields['FECORI']) ?? null,
                     Valori: valNum(fields['VALORI']) ?? null,
+                    valgra21: 0,
+                    valgra105: 0,
+                    valnogra: 0,
+                    valiva21: 0,
+                    valiva105: 0,
                     VrepoeReferencial: subCol(fields, 'VrepoeReferencial', valori),
                     AmafieReferencial: subCol(fields, 'AmafieReferencial', 0),
                     AmefieReferencial: subCol(fields, 'AmefieReferencial', 0),
@@ -798,8 +821,18 @@ class FixedAsset {
                 const n = parseFloat(String(s ?? '').replace(',', '.'));
                 return isNaN(n) ? null : n;
             };
+            const normalizeYyyyMmUpdate = (s: string | undefined): string | null => {
+                const v = String(s ?? '').trim();
+                const direct = v.match(/^(\d{4})(\d{2})$/);
+                if (direct) return `${direct[1]}${direct[2]}`;
+                const mmYyyy = v.match(/^(\d{1,2})[\/\-](\d{4})$/);
+                if (mmYyyy) return `${mmYyyy[2]}${mmYyyy[1].padStart(2, '0')}`;
+                return null;
+            };
+            const fieldNumUpdate = (fields: Record<string, string>, key: string): number | null =>
+                valNumUpdate(fields[key] ?? fields[key.toUpperCase()]);
             const subColUpdate = (fields: Record<string, string>, key: string, fallback: number): number =>
-                valNumUpdate(fields[key] ?? fields[key.toUpperCase()]) ?? fallback;
+                fieldNumUpdate(fields, key) ?? fallback;
             const libros = data.libros ?? {};
             for (const [prefijo, fields] of Object.entries(libros)) {
                 if (!fields || Object.keys(fields).length === 0) continue;
@@ -843,8 +876,17 @@ class FixedAsset {
                     FecOri: parseMmYyyyLibro(fields['FECORI'] ?? '') ?? null,
                     FecDep: parseMmYyyyLibro(fields['FECDEP'] ?? '') ?? null,
                     Fecfin: parseMmYyyyLibro(fields['FECFIN'] ?? '') ?? null,
-                    vidaUtil: parseFloat(String(fields['VIDAUTIL'] ?? '').replace(',', '.')) || null,
+                    vidaUtil: fieldNumUpdate(fields, 'VIDAUTIL'),
+                    vidaTranscurrida: fieldNumUpdate(fields, 'VIDATRANSCURRIDA') ?? 0,
+                    vidaRestante: fieldNumUpdate(fields, 'VIDARESTANTE') ?? 0,
+                    indice: fieldNumUpdate(fields, 'INDICE') ?? 1,
+                    FecPro: normalizeYyyyMmUpdate(fields['FECPRO']) ?? normalizeYyyyMmUpdate(fields['FECORI']) ?? null,
                     Valori: valNumUpdate(fields['VALORI']) ?? null,
+                    valgra21: 0,
+                    valgra105: 0,
+                    valnogra: 0,
+                    valiva21: 0,
+                    valiva105: 0,
                     ...subAccordionCols,
                 };
                 const model = (tx as unknown as Record<string, { updateMany: (arg: { where: object; data: object }) => Promise<{ count: number }>; create: (arg: { data: object }) => Promise<unknown> }>)[prefijo];
@@ -1269,6 +1311,52 @@ class FixedAsset {
             }
             return { ok: true };
         }, { timeout: 60000 });
+    }
+    /** Baja física: elimina el bien completo de la base de datos (cabecera, distribucion, todos los libros) */
+    async bajaFisica(bienId: string): Promise<{ ok: boolean }> {
+        const parts = bienId.split('-');
+        if (parts.length < 4) throw new Error('bienId inválido');
+        const [idCodigo, idSubien = '000', idSubtra = '0', idSufijo = '0'] = parts;
+        const sidSubien = idSubien.padStart(3, '0');
+
+        return this.prisma.$transaction(async (tx) => {
+            const cabecera = await tx.cabecera.findUnique({
+                where: { idCodigo_idSubien_idSubtra_idSufijo: { idCodigo, idSubien: sidSubien, idSubtra, idSufijo } },
+            });
+            if (!cabecera) throw new Error(`Bien ${bienId} no encontrado`);
+
+            const converFields = await tx.converField.findMany({
+                where: { IdTabla: 'actifijo', NOT: { IdCampo: { startsWith: 'cabecera.' } } },
+                select: { IdCampo: true },
+            });
+            const prefixesFromConver = [...new Set(converFields.map((f) => {
+                const idx = f.IdCampo.indexOf('.');
+                return idx >= 0 ? f.IdCampo.substring(0, idx) : null;
+            }).filter(Boolean))] as string[];
+            const prefixes = [...new Set([...prefixesFromConver, 'ME01', 'ME02'])];
+
+            const where = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
+
+            for (const prefijo of prefixes) {
+                const modelName = this.prefijoToModel(prefijo);
+                const model = this.getModelFromRecord(
+                    tx as unknown as Record<string, { deleteMany?: (arg: { where: object }) => Promise<unknown> }>,
+                    modelName
+                );
+                if (!model?.deleteMany) continue;
+                await model.deleteMany({ where });
+            }
+
+            await tx.distribucion.deleteMany({
+                where: { idCodigo, idsubien: sidSubien, idsubtra: idSubtra, idsufijo: idSufijo },
+            });
+
+            await tx.cabecera.delete({
+                where: { idCodigo_idSubien_idSubtra_idSufijo: { idCodigo, idSubien: sidSubien, idSubtra, idSufijo } },
+            });
+
+            return { ok: true };
+        }, { timeout: 30000 });
     }
 }
 

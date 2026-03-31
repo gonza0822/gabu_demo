@@ -9,6 +9,8 @@ let sqlConfig:{
     password: string;
     database: string;
     server: string;
+    port: number;
+    connectionTimeout: number;
     pool: {
         max: number;
         min: number;
@@ -24,7 +26,7 @@ let sqlConfig:{
 export function getPrisma(client?: string) : PrismaClient {
   for (const clie of clients){
       if(clie.client === client){ 
-          configPrisma(clie.dbUser, clie.dbPassword, clie.dbName, clie.dbHost);
+          configPrisma(clie.dbUser, clie.dbPassword, clie.dbName, clie.dbHost, clie.dbPort);
       }
   }
 
@@ -41,12 +43,14 @@ export function getPrisma(client?: string) : PrismaClient {
   return prisma;
 }
 
-function configPrisma(dbUser : string, dbPassword : string, dbName : string, server : string) {
+function configPrisma(dbUser : string, dbPassword : string, dbName : string, server : string, port: number = 1433) {
   sqlConfig = {
     user: dbUser,
     password: dbPassword,
     database: dbName,
     server: server,
+    port,
+    connectionTimeout: 120000,
     pool: {
       max: 10,
       min: 0,
@@ -55,7 +59,7 @@ function configPrisma(dbUser : string, dbPassword : string, dbName : string, ser
     options: {
       encrypt: true, // for azure
       trustServerCertificate: true, // change to true for local dev / self-signed certs
-      requestTimeout: 30000 // 30 segundos (default: 15000)
+      requestTimeout: 300000 // timeout de consulta (5 min) para SP pesados de procesos
     }
   }
 }

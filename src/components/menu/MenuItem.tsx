@@ -23,10 +23,9 @@ export default function MenuItem({menuItem, active, onClick, menuId} : {menuItem
                 <ul className="tabla-submenu-list ml-[6%] xl:ml-[10%] overflow-y-auto overflow-x-hidden max-h-[10rem] xl:max-h-[18rem] 2xl:max-h-[26rem]">
                     {(() => {
                     const visibleSubmenus = menuItem.submenu.filter(s => !s.hiddenFromSidebar);
-                    return visibleSubmenus.map((menu, index) => {
+                    return visibleSubmenus.map((menu) => {
                         const submenuIndex = menuItem.submenu.indexOf(menu);
-                        const isLastVisible = index === visibleSubmenus.length - 1;
-                        return <SubmenuItem key={submenuIndex} submenuId={submenuIndex} menuId={menuId} submenuItem={menu} isTheLast={isLastVisible}/>;
+                        return <SubmenuItem key={submenuIndex} submenuId={submenuIndex} menuId={menuId} submenuItem={menu}/>;
                     });
                 })()}
                 </ul>

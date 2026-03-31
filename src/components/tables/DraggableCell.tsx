@@ -15,7 +15,7 @@ export default function DraggableCell<TData>({cell, index}: {cell: Cell<TData, u
     };
 
     return (
-        <td ref={setNodeRef} key={cell.id} className={`${cell.column.id === 'manage' ? 'text-sm sticky right-0 z-10 bg-gabu-100' : 'px-2 text-xs whitespace-nowrap text-ellipsis overflow-hidden relative'} py-2 text-gabu-900 ${index === 0 && cell.column.id === 'get' ? 'flex justify-center' : ''}`} style={style}>
+        <td ref={setNodeRef} key={cell.id} className={`${cell.column.id === 'manage' ? 'text-sm sticky right-0 z-10 bg-gabu-100 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-xs' : 'px-2 text-xs whitespace-nowrap text-ellipsis overflow-hidden relative [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]'} py-2 text-gabu-900 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 ${index === 0 && cell.column.id === 'get' ? 'flex justify-center' : ''}`} style={style}>
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
         </td>
     );

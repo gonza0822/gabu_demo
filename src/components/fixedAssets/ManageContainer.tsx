@@ -30,10 +30,12 @@ import Excel from "../svg/Excel";
 import FilterModal, { FilterValues } from "./FilterModal";
 import BajaModal from "./BajaModal";
 import TransferModal from "./TransferModal";
+import BajaFisicaModal from "./BajaFisicaModal";
 import { getColumnType, type ColumnFilterValue } from "./ColumnFilter";
 import AssetActions, { type ActionId } from "./AssetActions";
 import ManageFieldsPanel from "./ManageFieldsPanel";
 import { parseStringDate, parseDateString } from "@/util/date/parseDate";
+import { getManageDataFromCache, setManageDataInCache, setSelectedBienFromGrid } from "@/lib/cache/fixedAssetsBootstrapCache";
 
 const PAGE_SIZE_OPTIONS = [
     { key: "5", value: "5" },
@@ -59,8 +61,14 @@ export default function ManageContainer() : React.ReactElement {
         }
     }), [client]);
 
+    const cachedManageData = useMemo(() => getManageDataFromCache(client), [client]);
+    const fetchConfig = useMemo(() => ({
+        initialData: cachedManageData,
+        skipInitialFetch: cachedManageData != null,
+        onData: (nextData: FixedAssetsData) => setManageDataInCache(client, nextData),
+    }), [cachedManageData, client]);
 
-    const { data:fixedAssetsData, error, loading, setData, refetch } = useFetch<FixedAssetsData>("/api/fixedAssets/manage", options);
+    const { data:fixedAssetsData, error, loading, setData, refetch } = useFetch<FixedAssetsData>("/api/fixedAssets/manage", options, fetchConfig);
 
     console.log(fixedAssetsData);
 
@@ -114,6 +122,11 @@ export default function ManageContainer() : React.ReactElement {
     const [bajaModalAssets, setBajaModalAssets] = useState<FixedAssets[]>([]);
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [transferModalAssets, setTransferModalAssets] = useState<FixedAssets[]>([]);
+    const [isBajaFisicaModalOpen, setIsBajaFisicaModalOpen] = useState(false);
+    const [bajaFisicaBienId, setBajaFisicaBienId] = useState('');
+    const [showBajaFisicaSuccessAlert, setShowBajaFisicaSuccessAlert] = useState(false);
+    const [showBajaFisicaErrorAlert, setShowBajaFisicaErrorAlert] = useState(false);
+    const bajaFisicaAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const sensors = useSensors(
         useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -698,6 +711,32 @@ export default function ManageContainer() : React.ReactElement {
                     }, 5000);
                 }}
             />
+            <BajaFisicaModal
+                isOpen={isBajaFisicaModalOpen}
+                onClose={() => {
+                    setIsBajaFisicaModalOpen(false);
+                    setBajaFisicaBienId('');
+                }}
+                bienId={bajaFisicaBienId}
+                client={client}
+                onSuccess={() => {
+                    refetch();
+                    setShowBajaFisicaSuccessAlert(true);
+                    if (bajaFisicaAlertTimeoutRef.current) clearTimeout(bajaFisicaAlertTimeoutRef.current);
+                    bajaFisicaAlertTimeoutRef.current = setTimeout(() => {
+                        bajaFisicaAlertTimeoutRef.current = null;
+                        setShowBajaFisicaSuccessAlert(false);
+                    }, 3000);
+                }}
+                onError={() => {
+                    setShowBajaFisicaErrorAlert(true);
+                    if (bajaFisicaAlertTimeoutRef.current) clearTimeout(bajaFisicaAlertTimeoutRef.current);
+                    bajaFisicaAlertTimeoutRef.current = setTimeout(() => {
+                        bajaFisicaAlertTimeoutRef.current = null;
+                        setShowBajaFisicaErrorAlert(false);
+                    }, 5000);
+                }}
+            />
             <FilterModal
                 isOpen={isFilterModalOpen}
                 onClose={() => setIsFilterModalOpen(false)}
@@ -736,6 +775,9 @@ export default function ManageContainer() : React.ReactElement {
                     });
                     const id = idParts.join('-');
                     if (!id || id === '---') return;
+                    if (actionId === 'modificar' || actionId === 'consultar' || actionId === 'clonar' || actionId === 'alta-agregado') {
+                        setSelectedBienFromGrid(client, id, rowData as Record<string, unknown>);
+                    }
                     if (actionId === 'modificar') {
                         const tableName = `AbmFixedAssetModify-${id}`;
                         const path = `/fixedAssets/modify/${id}`;
@@ -804,6 +846,9 @@ export default function ManageContainer() : React.ReactElement {
                         });
                         setTransferModalAssets(sameIdCodigo);
                         setIsTransferModalOpen(true);
+                    } else if (actionId === 'baja-fisica') {
+                        setBajaFisicaBienId(id);
+                        setIsBajaFisicaModalOpen(true);
                     }
                 }}
             />
@@ -821,43 +866,44 @@ export default function ManageContainer() : React.ReactElement {
                 onVisibilityChange={handleVisibilityChange}
                 client={client}
             />
-            <div className="border-b-4 border-gabu-300 h-[12%] flex items-end p-2 justify-between gap-3 px-4 xl:p-3 xl:px-6 xl:gap-4">
-                <div className="flex justify-start gap-2 xl:gap-3 min-w-0">
-                    <div className="flex bg-gabu-700 rounded-md py-1 px-2 gap-1.5 xl:py-1.5 xl:px-3 xl:gap-2 items-center min-w-0">
+            <div className="border-b-4 border-gabu-300 h-[12%] flex items-end p-2 justify-between gap-3 px-4 xl:p-3 xl:px-6 xl:gap-4 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:h-auto [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-h-[3.15rem] [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:items-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:mb-1.5">
+                <div className="flex justify-start gap-2 xl:gap-3 min-w-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1.5">
+                    <div className="flex bg-gabu-700 rounded-md py-1 px-2 gap-1.5 xl:py-1.5 xl:px-3 xl:gap-2 items-center min-w-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:h-8 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:w-[11rem]">
                         <Search style="stroke-gabu-100 h-[14px] w-[14px] xl:h-[17px] xl:w-[17px] shrink-0"/>
-                        <input ref={searchInputRef} type="text" placeholder="Buscar..." className="focus:outline-none text-gabu-100 w-full bg-transparent text-xs xl:text-sm" onInput={handleSearch}/>
+                        <input ref={searchInputRef} type="text" placeholder="Buscar..." className="focus:outline-none text-gabu-100 w-full bg-transparent text-xs xl:text-sm [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]" onInput={handleSearch}/>
                     </div>
-                    <div className={`flex bg-gabu-700 items-center pr-1.5 xl:pr-2 gap-1 xl:gap-2 shrink-0 ${isEntriesSelectOpen ? 'rounded-t-md rounded-b-none' : 'rounded-md'}`} id="select-entries-cont">
+                    <div className={`flex bg-gabu-700 items-center pr-1.5 xl:pr-2 gap-1 xl:gap-2 shrink-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:pr-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:h-8 ${isEntriesSelectOpen ? 'rounded-t-md rounded-b-none' : 'rounded-md'}`} id="select-entries-cont">
                     <Select
                         label=""
                         hasLabel={false}
                         isLogin={false}
                         variant="entriesPerPage"
+                        controlClassName="[@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:pl-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:pr-1.5"
                         onListOpenChange={setIsEntriesSelectOpen}
                         options={PAGE_SIZE_OPTIONS.map((o) => ({ key: o.key, value: o.value }))}
                         defaultValue={PAGE_SIZE_OPTIONS.some((o) => o.key === String(pagination.pageSize)) ? String(pagination.pageSize) : PAGE_SIZE_OPTIONS[0].key}
                         chooseOptionHandler={handleChoosePageSize}
                     />
-                    <p className="text-gabu-100 whitespace-nowrap text-xs xl:text-sm">Entradas por pagina</p>
+                    <p className="text-gabu-100 whitespace-nowrap text-xs xl:text-sm [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">Entradas por pagina</p>
                     </div>
                 </div>
-                <div className="flex justify-end gap-2 xl:gap-4 shrink-0 flex-wrap">
-                    <div className="bg-gabu-700 rounded-md p-1 xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100" onClick={() => refetch()} title="Recargar tabla">
+                <div className="flex justify-end gap-2 xl:gap-4 shrink-0 flex-wrap [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-2">
+                    <div className="bg-gabu-700 rounded-md p-1 xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-w-8 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:flex [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:justify-center" onClick={() => refetch()} title="Recargar tabla">
                         <Reload style="h-5 w-5 xl:h-6 xl:w-6 fill-current text-gabu-100"/>
                     </div>
-                    <div className="bg-gabu-700 rounded-md p-1 xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100">
+                    <div className="bg-gabu-700 rounded-md p-1 xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-w-8 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:flex [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:justify-center">
                         <Excel style="h-5 w-5 xl:h-6 xl:w-6 fill-current text-gabu-100" onClick={exportToExcel}/>
                     </div>
-                    <div className="bg-gabu-700 rounded-md py-1 px-3 xl:py-1.5 xl:px-6 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center gap-1 xl:gap-2 relative filter-button" onClick={() => setIsFilterModalOpen(true)}>
+                    <div className="bg-gabu-700 rounded-md py-1 px-3 xl:py-1.5 xl:px-6 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center gap-1 xl:gap-2 relative filter-button [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2.5" onClick={() => setIsFilterModalOpen(true)}>
                         <Filter style="h-5 w-5 xl:h-6 xl:w-6 stroke-current text-gabu-100 shrink-0"/>
-                    <p className="text-gabu-100 text-xs xl:text-sm">Filtrar</p>
+                    <p className="text-gabu-100 text-xs xl:text-sm [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">Filtrar</p>
                     </div>
-                    <div className="bg-gabu-700 rounded-md py-1 px-3 xl:py-1.5 xl:px-6 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center gap-1 xl:gap-2" onClick={removeAllFilters} title="Remover todos los filtros">
+                    <div className="bg-gabu-700 rounded-md py-1 px-3 xl:py-1.5 xl:px-6 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center gap-1 xl:gap-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2.5" onClick={removeAllFilters} title="Remover todos los filtros">
                         <RemoveFilter style="h-5 w-5 xl:h-6 xl:w-6 stroke-current text-gabu-100 shrink-0"/>
-                        <p className="text-gabu-100 text-xs xl:text-sm">Remover filtros</p>
+                        <p className="text-gabu-100 text-xs xl:text-sm [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">Remover filtros</p>
                     </div>
                     <div
-                        className="bg-gabu-900 rounded-md py-1 px-4 xl:py-1.5 xl:px-7 cursor-pointer hover:bg-gabu-700 transition-colors duration-100 flex items-center gap-1 xl:gap-2 btn-add-fixed-asset"
+                        className="bg-gabu-900 rounded-md py-1 px-4 xl:py-1.5 xl:px-7 cursor-pointer hover:bg-gabu-700 transition-colors duration-100 flex items-center gap-1 xl:gap-2 btn-add-fixed-asset [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-3"
                         onClick={() => {
                             const found = clientMenu?.menu?.flatMap((m, menuId) =>
                                 m.submenu.map((s, submenuId) => ({ s, menuId, submenuId }))
@@ -871,11 +917,11 @@ export default function ManageContainer() : React.ReactElement {
                     <svg className="h-5 w-5 xl:h-6 xl:w-6 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="#CDD5D8"/>
                     </svg>
-                    <p className="text-gabu-100 text-xs xl:text-sm">Añadir bien</p>
+                    <p className="text-gabu-100 text-xs xl:text-sm [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">Añadir bien</p>
                     </div>
                 </div>
             </div>
-            <div className="h-[88%] w-full pt-4 xl:pt-10 flex items-center flex-col relative px-4 xl:px-6">
+            <div className="h-[88%] w-full pt-4 xl:pt-10 flex items-center flex-col relative px-4 xl:px-6 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:pt-2.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1.5">
                 <Alert 
                     message={error ? error.message || "Error al cargar los datos" : null} 
                     type="error" 
@@ -906,6 +952,16 @@ export default function ManageContainer() : React.ReactElement {
                     type="error"
                     show={showTransferErrorAlert}
                 />
+                <Alert
+                    message="Se eliminó el bien con éxito"
+                    type="success"
+                    show={showBajaFisicaSuccessAlert}
+                />
+                <Alert
+                    message="Ocurrió un error al eliminar el bien"
+                    type="error"
+                    show={showBajaFisicaErrorAlert}
+                />
                 {loading && (
                     <div className="relative w-full h-full overflow-x-auto table-scroll">
                         <div className="w-full overflow-auto table-container grid">
@@ -916,7 +972,7 @@ export default function ManageContainer() : React.ReactElement {
                     </div>
                 )}
                 {!loading && !error && (
-                    <div className="relative w-full max-h-[95%] flex flex-col items-center flex-1 min-w-0">
+                    <div className="relative w-full max-h-[95%] flex flex-col items-center flex-1 min-w-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:max-h-full">
                         <div className="h-full w-full overflow-auto table-scroll">
                             <div className="w-full overflow-auto table-container grid">
                                 <div className="min-w-full">
@@ -981,13 +1037,13 @@ export default function ManageContainer() : React.ReactElement {
                             </div>
                         </div>
                         {table.getCanNextPage() || table.getCanPreviousPage() ? (
-                            <div className="mt-1.5 xl:mt-2 flex justify-center">
-                                <nav className="flex gap-1 xl:gap-2 items-center">
-                                    <span className="hover:bg-gabu-300 transition-colors duration-150 cursor-pointer p-1.5 xl:p-2 rounded-2xl inline-flex items-center justify-center [&_svg]:scale-90 xl:[&_svg]:scale-100" onClick={() => table.getCanPreviousPage() && table.previousPage()}>
+                            <div className="mt-1.5 xl:mt-2 flex justify-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:mt-1.5">
+                                <nav className="flex gap-1 xl:gap-2 items-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1">
+                                    <span className="hover:bg-gabu-300 transition-colors duration-150 cursor-pointer p-1.5 xl:p-2 rounded-2xl inline-flex items-center justify-center [&_svg]:scale-90 xl:[&_svg]:scale-100 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-1" onClick={() => table.getCanPreviousPage() && table.previousPage()}>
                                         <Arrow height={20} width={15} color="text-gabu-700" defaultRotation="rotate-180" activeRotation="rotate-180" active={false} />
                                     </span>
                                     {getPaginationItems()}
-                                    <span className="hover:bg-gabu-300 transition-colors duration-150 cursor-pointer p-1.5 xl:p-2 rounded-2xl inline-flex items-center justify-center [&_svg]:scale-90 xl:[&_svg]:scale-100" onClick={() => table.getCanNextPage() && table.nextPage()}>
+                                    <span className="hover:bg-gabu-300 transition-colors duration-150 cursor-pointer p-1.5 xl:p-2 rounded-2xl inline-flex items-center justify-center [&_svg]:scale-90 xl:[&_svg]:scale-100 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-1" onClick={() => table.getCanNextPage() && table.nextPage()}>
                                             <Arrow height={20} width={15} color="text-gabu-700" defaultRotation="rotate-0" activeRotation="rotate-0" active={false} />
                                     </span>
                                 </nav>

@@ -35,12 +35,12 @@ export default function Select({
     const isAbm = variant === 'abm';
 
     const optionStyle : string = isEntriesPerPage
-        ? 'px-3 py-2 text-gabu-100 text-base hover:bg-gabu-300 transition-all duration-300 bg-gabu-700 w-full'
+        ? 'px-3 py-1.5 text-gabu-100 text-sm hover:bg-gabu-300 transition-all duration-300 bg-gabu-700 w-full'
         : isFilterModal || isAbm
         ? 'px-3 py-1 text-gabu-900 text-xs hover:bg-gabu-300 transition-all duration-300 bg-gabu-100 w-full'
         : `${isLogin ? 'text-base border-l-10 border-gabu-900 py-2 pl-3 pr-2' : 'px-2'} hover:bg-gabu-300 transition-all duration-300 bg-gabu-100 w-full`;
     const selectStyle : string = isEntriesPerPage
-        ? 'border-0 bg-transparent py-2 pl-3 pr-2 w-full flex justify-between items-center cursor-pointer gap-2 min-w-0'
+        ? 'border-0 bg-transparent py-1.5 pl-3 pr-2 w-full flex justify-between items-center cursor-pointer gap-2 min-w-0'
         : isFilterModal
         ? 'border-0 bg-gabu-100 py-1.5 pl-4 pr-3 w-full flex justify-between items-center cursor-pointer gap-2'
         : isAbm
@@ -104,7 +104,7 @@ export default function Select({
             : 'text-gabu-900 text-lg'
         : '';
     const valueSpanClass = isEntriesPerPage
-        ? 'text-base text-gabu-100'
+        ? 'text-sm text-gabu-100'
         : isFilterModal || isAbm
         ? 'text-sm text-gabu-700 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap'
         : `${isLogin ? 'text-base' : 'text-xs'} text-gabu-900`;

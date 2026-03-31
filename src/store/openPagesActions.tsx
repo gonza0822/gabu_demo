@@ -16,6 +16,10 @@ import MeasurementUnitsTable from "@/app/(main-layout)/(main-nav)/tables/measure
 import ManageFixedAssets from "@/app/(main-layout)/(main-nav)/fixedAssets/manage/page";
 import ManageParametersTable from "@/app/(main-layout)/(main-nav)/fixedAssets/parameters/page";
 import ManageDefaultsTable from "@/app/(main-layout)/(main-nav)/fixedAssets/defaults/page";
+import ReportsEmissionPage from "@/app/(main-layout)/(main-nav)/fixedAssets/reports/page";
+import CalculoAmortizacionesPage from "@/app/(main-layout)/(main-nav)/processes/calculo-amortizaciones/page";
+import CierreMensualPage from "@/app/(main-layout)/(main-nav)/processes/cierre-mensual/page";
+import CierreEjercicioPage from "@/app/(main-layout)/(main-nav)/processes/cierre-ejercicio/page";
 import AbmFixedAsset from "@/components/fixedAssets/AbmFixedAsset";
 
 const pagesMap = {
@@ -34,6 +38,10 @@ const pagesMap = {
     ManageFixedAssets,
     ManageParametersTable,
     ManageDefaultsTable,
+    ReportsEmissionPage,
+    CalculoAmortizacionesPage,
+    CierreMensualPage,
+    CierreEjercicioPage,
     AbmFixedAsset,
 };
 

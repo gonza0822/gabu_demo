@@ -8,6 +8,7 @@ import { RootState } from "@/store";
 import { Dispatch } from "@reduxjs/toolkit";
 import { authorizationActions } from "@/store/authorizationSlice";
 import { useRouter } from "next/navigation";
+import { prefetchFixedAssetsBootstrap } from "@/lib/cache/fixedAssetsBootstrapCache";
 
 export default function LoginForm({ children, onLoginError, loginError } : { children : React.ReactNode, onLoginError: (message: string | null, isError: boolean) => void, loginError: { message: string | null, isError: boolean } }) : ReactElement {
     const isConnected : boolean = useSelector((state : RootState) => state.authorization.connected);
@@ -55,6 +56,7 @@ export default function LoginForm({ children, onLoginError, loginError } : { chi
         const data = await res.json();
 
         if(res.ok && data.user){
+            void prefetchFixedAssetsBootstrap(client).catch(() => null);
             dispatch(authorizationActions.login({
                 user: data.user,
             }));

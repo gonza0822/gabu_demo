@@ -142,8 +142,8 @@
           },
           {
             "submenuTitle": "Emision de reportes",
-            "table": "Grupos",
-            "path": "",
+            "table": "ReportsEmissionPage",
+            "path": "/fixedAssets/reports",
             "isOpen": false,
             "active": false,
             "order": 0
@@ -173,8 +173,8 @@
         "submenu": [
           {
             "submenuTitle": "Calculo de amort",
-            "table": "Grupos",
-            "path": "",
+            "table": "CalculoAmortizacionesPage",
+            "path": "/processes/calculo-amortizaciones",
             "isOpen": false,
             "active": false,
             "order": 0
@@ -189,8 +189,16 @@
           },
           {
             "submenuTitle": "Cierre de ejercicio",
-            "table": "Grupos",
-            "path": "",
+            "table": "CierreEjercicioPage",
+            "path": "/processes/cierre-ejercicio",
+            "isOpen": false,
+            "active": false,
+            "order": 0
+          },
+          {
+            "submenuTitle": "Cierre Mensual",
+            "table": "CierreMensualPage",
+            "path": "/processes/cierre-mensual",
             "isOpen": false,
             "active": false,
             "order": 0

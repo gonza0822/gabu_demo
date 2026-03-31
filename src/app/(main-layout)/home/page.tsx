@@ -8,9 +8,9 @@ import StadisticSection from '@/components/home/StadisticSection';
 export default function Home() : ReactElement {
 
     return (
-        <main className="home-grid bg-gabu-300 w-full h-full grid grid-cols-2 grid-rows-[minmax(0,45%)_minmax(0,55%)] gap-3 2xl:gap-7 p-4 2xl:p-7 overflow-auto">
+        <main className="home-grid bg-gabu-300 w-full h-full grid grid-cols-2 grid-rows-[minmax(0,45%)_minmax(0,55%)] gap-3 2xl:gap-7 p-4 2xl:p-7 overflow-auto [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:grid-rows-[minmax(0,44%)_minmax(0,56%)]">
             <div className="w-full h-full min-h-0 bg-gabu-100 rounded-lg">
-                <div className="home-stats-list flex flex-col justify-around h-full p-3 2xl:p-5 2xl:gap-5 gap-2">
+                <div className="home-stats-list flex flex-col justify-around h-full p-3 2xl:p-5 2xl:gap-5 gap-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1">
                     <StadisticSection title="Total de bienes" total={14392} />
                     <StadisticSection title="Bienes de este mes" total={1209} />
                     <StadisticSection title="Bienes dados de baja" total={7233} />

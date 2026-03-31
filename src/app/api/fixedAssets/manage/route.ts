@@ -25,12 +25,15 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
         porcentajeTransferencia: string;
     };
 
+    type BajaFisicaData = { bienId: string };
+
     type UserPostRequest =
         | { petition: "Get"; client: string; data: {} }
         | { petition: "UpdateOrder"; client: string; data: ReOrderData }
         | { petition: "SetListShow"; client: string; data: SetListShowData }
         | { petition: "Baja"; client: string; data: BajaData }
-        | { petition: "Transfer"; client: string; data: TransferData };
+        | { petition: "Transfer"; client: string; data: TransferData }
+        | { petition: "BajaFisica"; client: string; data: BajaFisicaData };
 
     try {
 
@@ -74,6 +77,14 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
                     cuentaDestino: transferData.cuentaDestino ?? "",
                     porcentajeTransferencia: transferData.porcentajeTransferencia ?? "100",
                 });
+                return NextResponse.json(result);
+            }
+            case "BajaFisica": {
+                const bajaFisicaData = data as BajaFisicaData;
+                if (!bajaFisicaData?.bienId?.trim()) {
+                    return NextResponse.json({ message: "bienId requerido", status: 400 }, { status: 400 });
+                }
+                const result = await fixedAssetsModel.bajaFisica(bajaFisicaData.bienId);
                 return NextResponse.json(result);
             }
             default:

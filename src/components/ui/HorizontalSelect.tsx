@@ -1,4 +1,4 @@
-import React, { use, useMemo } from "react";
+import React, { useMemo } from "react";
 import Arrow from "../svg/Arrow";
 import { useDispatch } from "react-redux";
 import { Dispatch } from "@reduxjs/toolkit";
@@ -28,24 +28,25 @@ export default function HorizontalSelect<TData>({label, options, defaultValue, c
         document.addEventListener('click', handleClickOutside);
 
         return () => {
-            document.addEventListener('click', handleClickOutside);
-        } 
+            document.removeEventListener('click', handleClickOutside);
+        };
 
-    }, [])
+    }, []);
 
     const defaultSelectedOption = useMemo(() => options.find(option => option.key === defaultValue), [options, defaultValue]);
 
     useEffect(() => {
-        valueSelectedRef.current!.value = defaultSelectedOption?.value || '';
-        valueSelectedRef.current!.dataset.key = defaultSelectedOption?.key || '';
-        hiddenInputRef.current!.value = defaultSelectedOption?.key || '';
-    }, [selectedRow]);
+        if (!valueSelectedRef.current || !hiddenInputRef.current) return;
+        valueSelectedRef.current.value = defaultSelectedOption?.value || '';
+        valueSelectedRef.current.dataset.key = defaultSelectedOption?.key || '';
+        hiddenInputRef.current.value = defaultSelectedOption?.key || '';
+    }, [defaultSelectedOption, selectedRow]);
 
     useEffect(() => {
-        if(disabled){
-            valueSelectedRef.current!.value = options[0].value;
-            valueSelectedRef.current!.dataset.key = '0';
-            hiddenInputRef.current!.value = '0';
+        if(disabled && valueSelectedRef.current && hiddenInputRef.current && options.length > 0){
+            valueSelectedRef.current.value = options[0].value;
+            valueSelectedRef.current.dataset.key = options[0].key;
+            hiddenInputRef.current.value = options[0].key;
         }
     }, [disabled]);
 

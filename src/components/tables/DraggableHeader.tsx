@@ -46,12 +46,12 @@ export default function DraggableHeader<TData>({
 
     if(header.id === 'manage'){
         return (
-            <th className="text-start py-2 text-gabu-900 sticky right-0 z-50 bg-gabu-100">
+            <th className="text-start py-2 text-gabu-900 sticky right-0 z-50 bg-gabu-100 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1">
                 <div
                     data-manage-fields-trigger
                     role="button"
                     tabIndex={0}
-                    className="px-4 flex justify-center cursor-pointer"
+                    className="px-4 flex justify-center cursor-pointer [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2.5"
                     title="Administrar campos"
                     onClick={(e) => {
                         e.stopPropagation();
@@ -81,7 +81,7 @@ export default function DraggableHeader<TData>({
     return (
         <th
             key={header.id}
-            className={`text-start py-2 px-2 text-gabu-900 whitespace-nowrap overflow-x-hidden relative`}
+            className={`text-start py-2 px-2 text-gabu-900 whitespace-nowrap overflow-x-hidden relative [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5`}
             style={style}
             ref={setRef}
         >
@@ -92,7 +92,7 @@ export default function DraggableHeader<TData>({
                     {...(header.id !== 'get' ? {...listeners} : {})}
                     onClick={handleSortClick}
                 >
-                    <p className="text-xs text-ellipsis overflow-hidden">{flexRender(header.column.columnDef.header, header.getContext())}</p>
+                    <p className="text-xs text-ellipsis overflow-hidden [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">{flexRender(header.column.columnDef.header, header.getContext())}</p>
                     {header.column.id !== 'get' && header.column.getCanSort() && <Order style="h-[15px] w-[8px] shrink-0 cursor-pointer" />}
                 </div>
                 {showColumnFilter && (

@@ -120,7 +120,7 @@ export default function ChartsContainer(): ReactElement {
 
     return (
         <div className="flex flex-col h-full min-h-0">
-            <div className="home-charts-tabs flex w-full h-[10%] min-h-9 bg-gabu-500 rounded-t-lg px-10">
+            <div className="home-charts-tabs flex w-full h-[10%] min-h-9 bg-gabu-500 rounded-t-lg px-10 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-h-8 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2">
                 <Tab active={activeTab === 'inversionProyectos'} title="Inversion proyectos" key="inversionProyectos" onClick={() => handleTabClick('inversionProyectos')} hasBorderRight={activeTab === 'ejercicios'}/>
                 <Tab active={activeTab === 'amortizaciones'} title="Amortizaciones" key="amortizaciones" onClick={() => handleTabClick('amortizaciones')} hasBorderRight={activeTab === 'inversionProyectos'} hasBorderLeft={activeTab === 'ejercicios'}/>
                 <Tab active={activeTab === 'ejercicios'} title="Ejercicio" key="ejercicios" onClick={() => handleTabClick('ejercicios')} hasBorderLeft={activeTab === 'inversionProyectos'}/>

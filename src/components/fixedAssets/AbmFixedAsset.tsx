@@ -14,6 +14,15 @@ import Alert from "@/components/ui/Alert";
 import type { AbmCabeceraData, AbmLibrosData } from "@/lib/models/fixedAssets/FixedAsset";
 import Percentage from "@/components/svg/Percentage";
 import Cross from "@/components/svg/Cross";
+import {
+    getCabeceraDataFromCache,
+    getDatosGeneralesFromCache,
+    getLibrosDataFromCache,
+    getSelectedBienFromGrid,
+    setCabeceraDataInCache,
+    setDatosGeneralesInCache,
+    setLibrosDataInCache,
+} from "@/lib/cache/fixedAssetsBootstrapCache";
 
 type AbmDatosGeneralesData = {
     plants: { key: string; value: string }[];
@@ -83,6 +92,14 @@ const selectOptionHandler = (e: React.MouseEvent<HTMLLIElement>, ref: React.RefO
 
 type AbmFixedAssetProps = { bienId?: string; consultMode?: boolean; cloneMode?: boolean; altaAgregadoMode?: boolean };
 
+function shouldFetchBienDataFromApi(data: Record<string, unknown> | null): boolean {
+    if (!data) return true;
+    // La fila de la grilla ya contiene muchos campos de cabecera/libros; solo pedimos DB
+    // cuando faltan datos extendidos necesarios para edición completa (ej: distribución detallada).
+    const hasDistribucion = Array.isArray(data._distribucion);
+    return !hasDistribucion;
+}
+
 export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgregadoMode }: AbmFixedAssetProps) : React.ReactElement {
     const router = useRouter();
     const pathname = usePathname();
@@ -103,6 +120,11 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
         if (!client) return;
         setCabeceraLoading(true);
         try {
+            const cachedCabecera = getCabeceraDataFromCache(client);
+            if (cachedCabecera) {
+                setCabeceraData(cachedCabecera);
+                return;
+            }
             const res = await fetch("/api/fixedAssets/add", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -111,6 +133,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
             const data = await res.json();
             if (data && Array.isArray(data.fields)) {
                 setCabeceraData(data);
+                setCabeceraDataInCache(client, data);
             }
         } finally {
             setCabeceraLoading(false);
@@ -125,6 +148,11 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
         if (!client) return;
         setLibrosLoading(true);
         try {
+            const cachedLibros = getLibrosDataFromCache(client);
+            if (cachedLibros) {
+                setLibrosData(cachedLibros);
+                return;
+            }
             const res = await fetch("/api/fixedAssets/add", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -133,6 +161,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
             const data = await res.json();
             if (data && Array.isArray(data.acordeones)) {
                 setLibrosData(data);
+                setLibrosDataInCache(client, data);
             }
         } finally {
             setLibrosLoading(false);
@@ -164,6 +193,11 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
 
     const fetchBienData = useCallback(async () => {
         if (!client || !bienId) return;
+        const cachedFromGrid = getSelectedBienFromGrid(client, bienId);
+        if (cachedFromGrid) {
+            setBienData(cachedFromGrid);
+            if (!shouldFetchBienDataFromApi(cachedFromGrid)) return;
+        }
         setBienDataLoading(true);
         try {
             const res = await fetch("/api/fixedAssets/add", {
@@ -188,50 +222,22 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
         if (!client) return;
         setDatosGeneralesLoading(true);
         try {
-            const [defaultsRes, plantasRes, zonasRes, cencosRes] = await Promise.all([
-                fetch("/api/fixedAssets/defaults", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ petition: "Get", client, data: {} }),
-                }),
-                fetch("/api/fixedAssets/defaults", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ petition: "GetOptions", client, data: { idcampo: "idPlanta" } }),
-                }),
-                fetch("/api/fixedAssets/defaults", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ petition: "GetOptions", client, data: { idcampo: "idZona" } }),
-                }),
-                fetch("/api/fixedAssets/defaults", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ petition: "GetOptions", client, data: { idcampo: "idCencos" } }),
-                }),
-            ]);
+            const cachedDatosGenerales = getDatosGeneralesFromCache(client);
+            if (cachedDatosGenerales) {
+                setDatosGenerales(cachedDatosGenerales);
+                return;
+            }
 
-            const defaultsData = await defaultsRes.json();
-            const plantasData = await plantasRes.json();
-            const zonasData = await zonasRes.json();
-            const cencosData = await cencosRes.json();
-
-            const defaultsRows = Array.isArray(defaultsData) ? defaultsData : [];
-            const plants = Array.isArray(plantasData) ? plantasData : [];
-            const zonas = Array.isArray(zonasData) ? zonasData : [];
-            const costCenters = Array.isArray(cencosData) ? cencosData : [];
-
-            const findDefault = (idcampo: string) =>
-                defaultsRows.find((d: { idcampo: string }) => d.idcampo.toLowerCase() === idcampo.toLowerCase())?.iddefault ?? null;
-
-            setDatosGenerales({
-                plants,
-                zonas,
-                costCenters,
-                defaultPlanta: findDefault("idPlanta"),
-                defaultZona: findDefault("idZona"),
-                defaultCencos: findDefault("idCencos"),
+            const res = await fetch("/api/fixedAssets/add", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ petition: "GetFormData", client, data: {} }),
             });
+            const data = await res.json();
+            if (data && Array.isArray(data.plants) && Array.isArray(data.zonas) && Array.isArray(data.costCenters)) {
+                setDatosGenerales(data);
+                setDatosGeneralesInCache(client, data);
+            }
         } finally {
             setDatosGeneralesLoading(false);
         }
@@ -603,6 +609,28 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
                 libros[ac.prefijo] = row;
             });
 
+            const isAddFlow = !bienId || cloneMode || altaAgregadoMode;
+            if (isAddFlow) {
+                const nextErrors: Record<string, string[]> = { ...errors };
+                let hasValoriError = false;
+                Object.entries(libros).forEach(([prefijo, fields]) => {
+                    const valoriNum = parseFloat(String(fields['VALORI'] ?? '').replace(',', '.'));
+                    if (!(valoriNum > 0)) {
+                        const prev = nextErrors[prefijo] ?? [];
+                        if (!prev.some((e) => e.startsWith('VALORI:'))) {
+                            nextErrors[prefijo] = [...prev, 'VALORI: debe ser mayor a 0'];
+                            hasValoriError = true;
+                        }
+                    }
+                });
+                if (hasValoriError) {
+                    setAccordionErrors(nextErrors);
+                    setSaveError(null);
+                    setSaving(false);
+                    return;
+                }
+            }
+
             const payload = {
                 datosGenerales: {
                     descripcion: dgDesc,
@@ -725,6 +753,14 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
         return cot !== 0 ? (num / cot).toFixed(2) : num.toFixed(2);
     };
 
+    const mmYyyyToYyyyMm = (value: string): string => {
+        const m = String(value ?? '').match(/^(\d{1,2})[\/\-](\d{4})$/);
+        if (!m) return '';
+        const mm = m[1].padStart(2, '0');
+        const yyyy = m[2];
+        return `${yyyy}${mm}`;
+    };
+
     const getLibroDefault = (prefijo: string, idCampo: string): string | undefined => {
         if (!librosData) return undefined;
         const campoUp = idCampo.toUpperCase();
@@ -732,6 +768,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
         const defaults = librosData.defaultsByMoneda[idMoneda];
 
         const fecori   = librosFecori[prefijo]   ?? defaults?.FECORI ?? '';
+        const fecproYyyyMm = mmYyyyToYyyyMm(defaults?.FECORI ?? '');
         const tipoAmor = librosTipoAmor[prefijo]  ?? defaults?.IDTIPOAMORTIZACION ?? '';
         const vidautil = librosVidautil[prefijo]  ?? '';
         const fecdep   = fecori && tipoAmor ? calcFecdep(fecori, tipoAmor) : '';
@@ -754,11 +791,24 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
             case 'FECDEP':              return fecdep || undefined;
             case 'FECFIN':              return fecfin || undefined;
             case 'VIDAUTIL':            return vidautil || undefined;
+            case 'FECPRO': {
+                // En altas (alta pura / clonar / alta agregado) usar fecpro de parámetros en formato YYYYMM.
+                if (!bienData || cloneMode || altaAgregadoMode) return fecproYyyyMm || undefined;
+                const fromBien = getRowVal(bienData, `${prefijo}.FECPRO`) ?? getRowVal(bienData, `${prefijo.toLowerCase()}.fecpro`) ?? getRowVal(bienData, 'FECPRO');
+                if (fromBien != null && String(fromBien).trim() !== '') return String(fromBien);
+                return fecproYyyyMm || undefined;
+            }
             case 'PRECIOVENTA':         return '0';
             case 'VIDATRANSCURRIDA':    return '0';
             case 'VIDARESTANTE':        return '0';
             case 'VALORRESIDUAL':       return '0';
-            case 'INDICE':              return '0';
+            case 'INDICE': {
+                // En altas (alta pura / clonar / alta agregado) el default de índice es 1.
+                if (!bienData || cloneMode || altaAgregadoMode) return '1';
+                const fromBien = getRowVal(bienData, `${prefijo}.INDICE`) ?? getRowVal(bienData, `${prefijo.toLowerCase()}.indice`) ?? getRowVal(bienData, 'INDICE');
+                if (fromBien != null && String(fromBien).trim() !== '') return String(fromBien);
+                return '1';
+            }
             default:                    return undefined;
         }
     };
