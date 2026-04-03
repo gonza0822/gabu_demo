@@ -8,18 +8,19 @@ import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import type { ReportType } from "@/lib/models/reports/Reports";
 import Select from "@/components/ui/Select";
-import Input from "@/components/ui/Input";
 import Excel from "@/components/svg/Excel";
 import ExcelJS from "exceljs";
 
 type ReportBookOption = {
     key: string;
     value: string;
+    tableName: string;
 };
 
 type ReportsConfigResponse = {
     books: ReportBookOption[];
     defaultPeriod: string;
+    periods: string[];
 };
 
 const REPORTS: { key: ReportType; label: string }[] = [
@@ -189,10 +190,18 @@ const DETAIL_COLUMN_LABELS: Record<string, string> = {
     vidautil: "Vida util",
     vidarestante: "Vida Rest.",
     vrepeactual: "Valor actual.",
+    vrepoeactual: "Valor actual.",
     amafeactual: "Amort.Acum.",
+    amafieactual: "Amort.Acum.",
     amefeactual: "Amort.Ejercicio",
+    amefieactual: "Amort.Ejercicio",
     neto: "neto",
+    ampefeactual: "Amort.Periodo",
+    ampefeactua: "Amort.Periodo",
     amorefecactual: "Amort.Periodo",
+    amorefecactua: "Amort.Periodo",
+    tridactivo: "Cuenta origen",
+    trfecactivo: "Fecha de transferencia",
 };
 
 function isValidYYYYMM(value: string): boolean {
@@ -227,7 +236,19 @@ function getAnexoHeaderLabel(column: string): string {
 
 function getDetailHeaderLabel(column: string): string {
     const normalized = column.trim().toLowerCase().replace(/\s+/g, "").replace(/[_\-.]/g, "");
-    return DETAIL_COLUMN_LABELS[normalized] ?? column;
+    const direct = DETAIL_COLUMN_LABELS[normalized];
+    if (direct) return direct;
+
+    // Compatibilidad con aliases históricos de stores SQL.
+    if (normalized.startsWith("vrepe") || normalized.startsWith("vrepoe")) return "Valor actual.";
+    if (normalized.startsWith("amafe") || normalized.startsWith("amafie")) return "Amort.Acum.";
+    if (normalized.startsWith("amefe") || normalized.startsWith("amefie")) return "Amort.Ejercicio";
+    if (normalized.startsWith("ampefe") || normalized.startsWith("amorefec")) return "Amort.Periodo";
+    if (normalized.startsWith("tridactivo")) return "trIdActivo (Cuenta origen)";
+    if (normalized.startsWith("trfecactivo")) return "trFecActivo (Fecha de transferencia)";
+    if (normalized === "neto") return "neto";
+
+    return column;
 }
 
 function normalizeColumnKey(column: string): string {
@@ -280,13 +301,25 @@ function formatPeriodToMMYYYY(period: string): string {
     return `${period.slice(4, 6)}/${period.slice(0, 4)}`;
 }
 
+function isSummaryCell(value: unknown): boolean {
+    if (typeof value !== "string") return false;
+    const normalized = value.trim().toLowerCase();
+    return normalized.startsWith("subtotal ") || normalized === "total general";
+}
+
+function isSummaryRow(row: Record<string, unknown>): boolean {
+    return Object.values(row).some((value) => isSummaryCell(value));
+}
+
 export default function ReportsEmission(): React.ReactElement {
     const client = useSelector((state: RootState) => state.authorization.client);
     const [reportType, setReportType] = useState<ReportType>("ANEXO");
     const [generatedReportType, setGeneratedReportType] = useState<ReportType>("ANEXO");
     const [books, setBooks] = useState<ReportBookOption[]>([]);
+    const [periods, setPeriods] = useState<string[]>([]);
     const [selectedBookKey, setSelectedBookKey] = useState<string>("");
     const [period, setPeriod] = useState<string>("");
+    const [subtotalColumns, setSubtotalColumns] = useState<string>("0");
     const [periodError, setPeriodError] = useState<string | null>(null);
     const [rows, setRows] = useState<Record<string, unknown>[]>([]);
     const [hasGenerated, setHasGenerated] = useState<boolean>(false);
@@ -317,9 +350,82 @@ export default function ReportsEmission(): React.ReactElement {
         }
 
         if (displayedReportType !== "ANEXO") {
-            const totalsRow: Record<string, unknown> = {};
             const detailTotalColumns = getDetailTotalColumns(columns);
+            const subtotalDepth = Number(subtotalColumns);
+            const enabledSubtotalDepth = Number.isInteger(subtotalDepth) && subtotalDepth > 0
+                ? Math.min(subtotalDepth, columns.length)
+                : 0;
+            const subtotalGroupColumns = enabledSubtotalDepth > 0 ? columns.slice(0, enabledSubtotalDepth) : [];
 
+            const renderedRows: Record<string, unknown>[] = [];
+            if (subtotalGroupColumns.length > 0) {
+                let currentGroupKey = "";
+                let currentGroupValues: string[] = [];
+                let subtotalSumByColumn: Record<string, number> = {};
+                let subtotalHasNumericByColumn: Record<string, boolean> = {};
+
+                const resetSubtotal = () => {
+                    subtotalSumByColumn = {};
+                    subtotalHasNumericByColumn = {};
+                    for (const column of detailTotalColumns) {
+                        subtotalSumByColumn[column] = 0;
+                        subtotalHasNumericByColumn[column] = false;
+                    }
+                };
+
+                const buildGroupValues = (row: Record<string, unknown>): string[] =>
+                    subtotalGroupColumns.map((column) => normalizeCellValue(row[column]));
+
+                const pushSubtotalRow = () => {
+                    if (!currentGroupKey) return;
+                    const subtotalRow: Record<string, unknown> = {};
+                    for (const column of columns) {
+                        if (column === subtotalGroupColumns[0]) {
+                            subtotalRow[column] = `Subtotal ${currentGroupValues.join(" - ")}`;
+                            continue;
+                        }
+                        if (subtotalGroupColumns.includes(column)) {
+                            subtotalRow[column] = "";
+                            continue;
+                        }
+                        if (!detailTotalColumns.has(column)) {
+                            subtotalRow[column] = "";
+                            continue;
+                        }
+                        subtotalRow[column] = subtotalHasNumericByColumn[column] ? subtotalSumByColumn[column] : "";
+                    }
+                    renderedRows.push(subtotalRow);
+                };
+
+                resetSubtotal();
+                for (const row of rows) {
+                    const groupValues = buildGroupValues(row);
+                    const nextGroupKey = groupValues.join("||");
+                    if (currentGroupKey === "") {
+                        currentGroupKey = nextGroupKey;
+                        currentGroupValues = groupValues;
+                    } else if (nextGroupKey !== currentGroupKey) {
+                        pushSubtotalRow();
+                        currentGroupKey = nextGroupKey;
+                        currentGroupValues = groupValues;
+                        resetSubtotal();
+                    }
+
+                    renderedRows.push(row);
+
+                    for (const column of detailTotalColumns) {
+                        const numeric = toNumericValue(row[column]);
+                        if (numeric == null) continue;
+                        subtotalSumByColumn[column] += numeric;
+                        subtotalHasNumericByColumn[column] = true;
+                    }
+                }
+                pushSubtotalRow();
+            } else {
+                renderedRows.push(...rows);
+            }
+
+            const totalsRow: Record<string, unknown> = {};
             for (const column of columns) {
                 if (column === columns[0]) {
                     totalsRow[column] = "Total general";
@@ -342,7 +448,7 @@ export default function ReportsEmission(): React.ReactElement {
                 totalsRow[column] = hasNumeric ? sum : "";
             }
 
-            return [...rows, totalsRow];
+            return [...renderedRows, totalsRow];
         }
 
         const isIdActivoKey = (key: string): boolean => key.toLowerCase() === "idactivo";
@@ -378,7 +484,7 @@ export default function ReportsEmission(): React.ReactElement {
         }
 
         return [...rows, totalsRow];
-    }, [columns, displayedReportType, rows]);
+    }, [columns, displayedReportType, rows, subtotalColumns]);
     const selectedReportLabel = useMemo(
         () => REPORTS.find((report) => report.key === displayedReportType)?.label ?? "Reporte",
         [displayedReportType]
@@ -387,6 +493,17 @@ export default function ReportsEmission(): React.ReactElement {
         () => books.map((book) => ({ key: book.key, value: book.value })),
         [books]
     );
+    const periodOptions = useMemo(
+        () => periods.map((value) => ({ key: value, value })),
+        [periods]
+    );
+    const subtotalOptions = useMemo(() => {
+        const max = Math.max(columns.length, 0);
+        return Array.from({ length: max + 1 }, (_, index) => {
+            const value = String(index);
+            return { key: value, value };
+        });
+    }, [columns.length]);
 
     useEffect(() => {
         const tableEl = tableHorizontalRef.current;
@@ -431,6 +548,7 @@ export default function ReportsEmission(): React.ReactElement {
                 if (cancelled) return;
                 const config = data as ReportsConfigResponse;
                 setBooks(config.books ?? []);
+                setPeriods(config.periods ?? []);
                 setSelectedBookKey(config.books?.[0]?.key ?? "");
                 setPeriod(config.defaultPeriod ?? "");
             } catch (err) {
@@ -513,6 +631,46 @@ export default function ReportsEmission(): React.ReactElement {
         []
     );
 
+    const handlePeriodSelect = useCallback(
+        (e: React.MouseEvent<HTMLLIElement>, ref: React.RefObject<HTMLSpanElement | null>) => {
+            const target = e.target as HTMLLIElement;
+            const selectedKey = target.dataset.key ?? "";
+            const selectedValue = target.textContent ?? "";
+            if (ref.current) {
+                ref.current.textContent = selectedValue;
+                ref.current.dataset.key = selectedKey;
+            }
+            setPeriod(selectedKey);
+            if (periodError) setPeriodError(null);
+        },
+        [periodError]
+    );
+
+    const handleSubtotalSelect = useCallback(
+        (e: React.MouseEvent<HTMLLIElement>, ref: React.RefObject<HTMLSpanElement | null>) => {
+            const target = e.target as HTMLLIElement;
+            const selectedKey = target.dataset.key ?? "0";
+            const selectedValue = target.textContent ?? "";
+            if (ref.current) {
+                ref.current.textContent = selectedValue;
+                ref.current.dataset.key = selectedKey;
+            }
+            setSubtotalColumns(selectedKey);
+        },
+        []
+    );
+
+    useEffect(() => {
+        const current = Number(subtotalColumns);
+        if (!Number.isInteger(current) || current < 0) {
+            setSubtotalColumns("0");
+            return;
+        }
+        if (current > columns.length) {
+            setSubtotalColumns(String(columns.length));
+        }
+    }, [columns.length, subtotalColumns]);
+
     const syncFromBottomScrollbar = useCallback(() => {
         if (!bottomScrollbarRef.current || !tableHorizontalRef.current) return;
         if (scrollSyncLockRef.current) return;
@@ -569,7 +727,13 @@ export default function ReportsEmission(): React.ReactElement {
         const sourceRows = rows.length === 0 ? [] : rowsToRender;
 
         sourceRows.forEach((row) => {
-            worksheet.addRow(columns.map((column) => formatCellValue(row[column], column)));
+            const excelRow = worksheet.addRow(columns.map((column) => formatCellValue(row[column], column)));
+            columns.forEach((column, index) => {
+                const numeric = toNumericValue(row[column]);
+                if (numeric == null || isIdentifierColumn(column)) return;
+                const cell = excelRow.getCell(index + 1);
+                cell.alignment = { ...(cell.alignment ?? {}), horizontal: "right" };
+            });
         });
 
         worksheet.views = [{ state: "frozen", ySplit: 4 }];
@@ -660,26 +824,34 @@ export default function ReportsEmission(): React.ReactElement {
                             <div className="flex items-center gap-2">
                                 <label className="text-gabu-100 text-xs xl:text-sm whitespace-nowrap">Periodo (YYYYMM)</label>
                                 <div className="w-[7.5rem]">
-                                    <Input
+                                    <Select
                                         label="Periodo"
                                         hasLabel={false}
                                         isLogin={false}
-                                        disabled={loadingConfig || running}
-                                        type="text"
-                                        isError={false}
-                                        errorMessage={null}
-                                        value={period}
-                                        handleInput={(e) => {
-                                            const next = (e.target as HTMLInputElement).value.replace(/\s+/g, "");
-                                            setPeriod(next);
-                                            if (periodError) setPeriodError(null);
-                                        }}
                                         variant="abm"
-                                        placeholder="YYYYMM"
+                                        options={periodOptions}
+                                        defaultValue={period}
+                                        chooseOptionHandler={handlePeriodSelect}
+                                        controlClassName={loadingConfig || running ? "bg-gabu-300 pointer-events-none" : ""}
                                     />
                                 </div>
                             </div>
                             {periodError && <p className="text-xs text-gabu-error">{periodError}</p>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <label className="text-gabu-100 text-xs xl:text-sm whitespace-nowrap">Subtotales</label>
+                            <div className="w-[4.5rem]">
+                                <Select
+                                    label="Subtotales por columna"
+                                    hasLabel={false}
+                                    isLogin={false}
+                                    variant="abm"
+                                    options={subtotalOptions}
+                                    defaultValue={subtotalColumns}
+                                    chooseOptionHandler={handleSubtotalSelect}
+                                    controlClassName={loadingConfig || running ? "bg-gabu-300 pointer-events-none" : ""}
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -705,8 +877,8 @@ export default function ReportsEmission(): React.ReactElement {
                 </div>
                 <div className="flex-1 min-h-0 w-full flex items-center flex-col relative">
                     <div className="relative w-full max-h-[95%] flex flex-col items-center flex-1 min-w-0">
-                    <div className="flex-1 min-h-0 w-full overflow-auto table-scroll bg-gabu-100 border border-gabu-900 rounded-md pb-3">
-                        <div className="w-full overflow-auto table-container grid p-2">
+                    <div className="flex-1 min-h-0 w-full overflow-y-auto overflow-x-hidden table-scroll bg-gabu-100 border border-gabu-900 rounded-md pb-8">
+                        <div className="w-full overflow-y-auto overflow-x-hidden table-container grid p-2">
                             {loadingConfig ? (
                                 <div className="min-w-full">
                                     <Skeleton count={8} height={20} highlightColor="var(--color-gabu-700)" baseColor="var(--color-gabu-300)" className="mb-1" />
@@ -717,7 +889,7 @@ export default function ReportsEmission(): React.ReactElement {
                                 <div
                                     ref={tableHorizontalRef}
                                     onScroll={syncFromTableScrollbar}
-                                    className="w-full max-w-full overflow-x-auto table-scroll"
+                                    className="w-full max-w-full overflow-x-auto no-native-scrollbar"
                                 >
                                     <table className="border-collapse divide-y-2 divide-gabu-900/25 table-auto min-w-full">
                                         <thead>
@@ -740,19 +912,19 @@ export default function ReportsEmission(): React.ReactElement {
                                                 </tr>
                                             ) : (
                                                 rowsToRender.map((row, index) => (
-                                                    <tr
-                                                        key={`row-${index}`}
-                                                        className={
-                                                            index === rowsToRender.length - 1
-                                                                ? "font-semibold"
-                                                                : ""
-                                                        }
-                                                    >
-                                                        {columns.map((column) => (
-                                                            <td key={`${index}-${column}`} className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">
-                                                                {formatCellValue(row[column], column)}
-                                                            </td>
-                                                        ))}
+                                                    <tr key={`row-${index}`} className={isSummaryRow(row) ? "font-semibold" : ""}>
+                                                        {columns.map((column) => {
+                                                            const isNumericCell =
+                                                                !isIdentifierColumn(column) && toNumericValue(row[column]) != null;
+                                                            return (
+                                                                <td
+                                                                    key={`${index}-${column}`}
+                                                                    className={`py-2 px-2 text-gabu-900 text-xs whitespace-nowrap ${isNumericCell ? "text-right" : ""}`}
+                                                                >
+                                                                    {formatCellValue(row[column], column)}
+                                                                </td>
+                                                            );
+                                                        })}
                                                     </tr>
                                                 ))
                                             )}
@@ -764,13 +936,13 @@ export default function ReportsEmission(): React.ReactElement {
                     </div>
                 </div>
                     {hasGenerated && columns.length > 0 && (
-                        <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-gabu-100 border-x border-b border-gabu-900 rounded-b-md">
+                        <div className="absolute bottom-5 2xl:bottom-7 left-0 right-0 px-2 py-1">
                             <div
                                 ref={bottomScrollbarRef}
                                 onScroll={syncFromBottomScrollbar}
-                                className="w-full overflow-x-auto table-scroll"
+                                className="w-full overflow-x-scroll overflow-y-hidden table-scroll"
                             >
-                                <div style={{ width: `${Math.max(tableScrollWidth, 1)}px`, height: "1px" }} />
+                                <div style={{ width: `${Math.max(tableScrollWidth, 1) + 1}px`, height: "1px" }} />
                             </div>
                         </div>
                     )}

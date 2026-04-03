@@ -6,6 +6,7 @@ import { RootState } from "@/store";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import Alert from "@/components/ui/Alert";
+import Modal from "@/components/ui/Modal";
 import { usePathname } from "next/navigation";
 import { navActions, type Menu } from "@/store/navSlice";
 import { openPagesActions } from "@/store/openPagesSlice";
@@ -71,6 +72,7 @@ export default function ProcessRunner({ mode }: { mode: ProcessMode }): React.Re
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [showErrorAlert, setShowErrorAlert] = useState(false);
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+    const [showCloseSuccessModal, setShowCloseSuccessModal] = useState(false);
 
     const cfg = useMemo(() => modeConfig[mode], [mode]);
 
@@ -137,6 +139,7 @@ export default function ProcessRunner({ mode }: { mode: ProcessMode }): React.Re
         setSuccessMessage(null);
         setShowErrorAlert(false);
         setShowSuccessAlert(false);
+        setShowCloseSuccessModal(false);
         let processedCount = 0;
 
         for (const row of rows) {
@@ -190,13 +193,18 @@ export default function ProcessRunner({ mode }: { mode: ProcessMode }): React.Re
         setRunning(false);
         if (processedCount > 0) {
             if (mode === "cierre-ejercicio") {
-                closeCurrentProcessPage();
+                setShowCloseSuccessModal(true);
                 return;
             }
             setSuccessMessage(`${cfg.title} ejecutado correctamente`);
             setShowSuccessAlert(true);
         }
     }, [cfg, client, closeCurrentProcessPage, getRowKey, mode, rows, running]);
+
+    const handleAcceptCloseSuccess = useCallback(() => {
+        setShowCloseSuccessModal(false);
+        closeCurrentProcessPage();
+    }, [closeCurrentProcessPage]);
 
     const renderHeaders = mode === "cierre-ejercicio"
         ? ["Tabla", "Fecha cierre", "Estado"]
@@ -222,6 +230,23 @@ export default function ProcessRunner({ mode }: { mode: ProcessMode }): React.Re
 
     return (
         <div className="flex flex-col w-full h-full">
+            <Modal
+                isOpen={showCloseSuccessModal}
+                style="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 m-0 p-0 bg-transparent border-none outline-none backdrop:bg-gabu-900/40"
+            >
+                <div className="w-[420px] max-w-[92vw] bg-gabu-100 border border-gabu-900 rounded-md p-5 flex flex-col gap-4">
+                    <p className="text-gabu-900 text-lg font-medium">Cierre de ejercicio ejecutado con exito</p>
+                    <div className="flex justify-end">
+                        <button
+                            type="button"
+                            className="px-6 py-2 bg-gabu-900 text-gabu-100 rounded-md hover:bg-gabu-700 transition-colors duration-150"
+                            onClick={handleAcceptCloseSuccess}
+                        >
+                            Aceptar
+                        </button>
+                    </div>
+                </div>
+            </Modal>
             <Alert
                 message={errorMessage}
                 type="error"
