@@ -14,7 +14,29 @@ import DraggableCell from "./DraggableCell";
 import DraggableHeader from "./DraggableHeader";
 import ExcelJS from "exceljs";
 
-export default function MainTable<TData>({data, fields, client, connPath, onRowSelect, record} : {data: TData[], fields: FieldsWithRelation[], client: string, connPath: string, onRowSelect: React.Dispatch<React.SetStateAction<TData | null>>, record: TData | null}) : React.ReactElement {
+type SecondaryExportPayload = {
+    sheetName: string;
+    rows: Record<string, unknown>[];
+    fields: FieldsWithRelation[];
+};
+
+export default function MainTable<TData>({
+    data,
+    fields,
+    client,
+    connPath,
+    onRowSelect,
+    record,
+    getSecondaryExportData,
+}: {
+    data: TData[],
+    fields: FieldsWithRelation[],
+    client: string,
+    connPath: string,
+    onRowSelect: React.Dispatch<React.SetStateAction<TData | null>>,
+    record: TData | null,
+    getSecondaryExportData?: () => SecondaryExportPayload | null,
+}) : React.ReactElement {
 
     const columnHelper = createColumnHelper<TData>();
 
@@ -246,7 +268,7 @@ export default function MainTable<TData>({data, fields, client, connPath, onRowS
 
     async function exportToExcel() {
         const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Data');
+        const worksheet = workbook.addWorksheet(fields[0]?.IdTabla || "Data");
 
         const visibleColumns = table.getVisibleFlatColumns().filter(col => col.id !== 'get');
 
@@ -255,12 +277,39 @@ export default function MainTable<TData>({data, fields, client, connPath, onRowS
         const rows = table.getPrePaginationRowModel().rows;
 
         rows.forEach(row => {
-            const rowData: { [key: string]: string } = {};
+            const rowData: { [key: string]: unknown } = {};
             visibleColumns.forEach(col => {
                 rowData[col.id] = row.getValue(col.id);
             });
             worksheet.addRow(rowData);
         });
+
+        const secondaryExport = getSecondaryExportData?.() ?? null;
+        if (secondaryExport && secondaryExport.rows.length > 0) {
+            const safeSheetName = (secondaryExport.sheetName || "Secundaria").slice(0, 31);
+            const secondaryWorksheet = workbook.addWorksheet(safeSheetName);
+            const visibleSecondaryFields = secondaryExport.fields.filter((field) => !field.options?.hidden);
+
+            secondaryWorksheet.columns = visibleSecondaryFields.map((field) => ({
+                header: field.BrowNombre ?? field.IdCampo,
+                key: field.IdCampo,
+                width: 20,
+            }));
+
+            secondaryExport.rows.forEach((row) => {
+                const rowData: { [key: string]: unknown } = {};
+                visibleSecondaryFields.forEach((field) => {
+                    const rawValue = row[field.IdCampo];
+                    if (field.relation.length > 0) {
+                        const relationValue = field.relation.find((rel) => rel.id === String(rawValue))?.description;
+                        rowData[field.IdCampo] = relationValue ?? rawValue;
+                    } else {
+                        rowData[field.IdCampo] = rawValue;
+                    }
+                });
+                secondaryWorksheet.addRow(rowData);
+            });
+        }
 
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

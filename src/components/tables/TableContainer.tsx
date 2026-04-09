@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MainTable from "./MainTable";
 import { useFetch } from "@/hooks/useFetch";
 import { useSelector } from "react-redux";
@@ -373,6 +373,19 @@ export default function TableContainer<T>({connPath}: {connPath: string }) : Rea
         }
     }, [data?.secondaryTable]);
 
+    const getSecondaryExportData = useCallback(() => {
+        if (!data?.secondaryTable) return null;
+        const currentRows =
+            (secondaryTableRef.current?.getCurrentTableData() as Record<string, unknown>[] | undefined) ??
+            (secondaryTableData as Record<string, unknown>[]);
+
+        return {
+            sheetName: "Vidas utiles y grupos",
+            rows: currentRows,
+            fields: data.secondaryTable.fieldsManage,
+        };
+    }, [data?.secondaryTable, secondaryTableData]);
+
     return (
         <>
             <Modal isOpen={serverResponse.loading}>
@@ -382,7 +395,7 @@ export default function TableContainer<T>({connPath}: {connPath: string }) : Rea
             <div className="flex flex-col w-full h-full">
                 <div className="main-content w-full h-full flex flex-col p-8 pb-4 pr-4 overflow-y-auto">
                     <div className="p-5 bg-gabu-500 flex rounded-md border border-gabu-900">
-                        {data && <MainTable data={data.table} fields={data.fieldsManage} client={client} connPath={connPath} onRowSelect={setSelectedRow} record={selectedRow}/>}
+                        {data && <MainTable data={data.table} fields={data.fieldsManage} client={client} connPath={connPath} onRowSelect={setSelectedRow} record={selectedRow} getSecondaryExportData={getSecondaryExportData}/>}
                         {loading && <div className="w-full"><Skeleton count={5} height={20} highlightColor="var(--color-gabu-700)" baseColor="var(--color-gabu-300)" className="mb-1"/></div>}
                     </div>
                     <div className="flex flex-col xl:flex-row p-7 gap-7">

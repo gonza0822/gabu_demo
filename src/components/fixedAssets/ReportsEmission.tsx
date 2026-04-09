@@ -311,6 +311,17 @@ function isSummaryRow(row: Record<string, unknown>): boolean {
     return Object.values(row).some((value) => isSummaryCell(value));
 }
 
+type RenderRowMeta = {
+    kind: "data" | "subtotal" | "total";
+    groupKey?: string;
+};
+
+type RenderModel = {
+    rows: Record<string, unknown>[];
+    meta: RenderRowMeta[];
+    groupKeys: string[];
+};
+
 export default function ReportsEmission(): React.ReactElement {
     const client = useSelector((state: RootState) => state.authorization.client);
     const [reportType, setReportType] = useState<ReportType>("ANEXO");
@@ -329,6 +340,7 @@ export default function ReportsEmission(): React.ReactElement {
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [showErrorAlert, setShowErrorAlert] = useState(false);
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
     const bottomScrollbarRef = useRef<HTMLDivElement | null>(null);
     const tableHorizontalRef = useRef<HTMLDivElement | null>(null);
     const scrollSyncLockRef = useRef(false);
@@ -344,20 +356,22 @@ export default function ReportsEmission(): React.ReactElement {
         () => (rows.length > 0 ? Object.keys(rows[0]) : REPORT_HEADERS[displayedReportType]),
         [displayedReportType, rows]
     );
-    const rowsToRender = useMemo(() => {
+    const renderModel = useMemo<RenderModel>(() => {
         if (rows.length === 0 || columns.length === 0) {
-            return rows;
+            return { rows, meta: rows.map(() => ({ kind: "data" })), groupKeys: [] };
         }
 
         if (displayedReportType !== "ANEXO") {
             const detailTotalColumns = getDetailTotalColumns(columns);
             const subtotalDepth = Number(subtotalColumns);
-            const enabledSubtotalDepth = Number.isInteger(subtotalDepth) && subtotalDepth > 0
-                ? Math.min(subtotalDepth, columns.length)
-                : 0;
+            const enabledSubtotalDepth =
+                Number.isInteger(subtotalDepth) && subtotalDepth > 0 ? Math.min(subtotalDepth, columns.length) : 0;
             const subtotalGroupColumns = enabledSubtotalDepth > 0 ? columns.slice(0, enabledSubtotalDepth) : [];
 
             const renderedRows: Record<string, unknown>[] = [];
+            const renderedMeta: RenderRowMeta[] = [];
+            const groupKeysSet = new Set<string>();
+
             if (subtotalGroupColumns.length > 0) {
                 let currentGroupKey = "";
                 let currentGroupValues: string[] = [];
@@ -395,6 +409,8 @@ export default function ReportsEmission(): React.ReactElement {
                         subtotalRow[column] = subtotalHasNumericByColumn[column] ? subtotalSumByColumn[column] : "";
                     }
                     renderedRows.push(subtotalRow);
+                    renderedMeta.push({ kind: "subtotal", groupKey: currentGroupKey });
+                    groupKeysSet.add(currentGroupKey);
                 };
 
                 resetSubtotal();
@@ -412,6 +428,7 @@ export default function ReportsEmission(): React.ReactElement {
                     }
 
                     renderedRows.push(row);
+                    renderedMeta.push({ kind: "data", groupKey: currentGroupKey });
 
                     for (const column of detailTotalColumns) {
                         const numeric = toNumericValue(row[column]);
@@ -423,6 +440,7 @@ export default function ReportsEmission(): React.ReactElement {
                 pushSubtotalRow();
             } else {
                 renderedRows.push(...rows);
+                renderedMeta.push(...rows.map(() => ({ kind: "data" as const })));
             }
 
             const totalsRow: Record<string, unknown> = {};
@@ -448,7 +466,11 @@ export default function ReportsEmission(): React.ReactElement {
                 totalsRow[column] = hasNumeric ? sum : "";
             }
 
-            return [...renderedRows, totalsRow];
+            return {
+                rows: [...renderedRows, totalsRow],
+                meta: [...renderedMeta, { kind: "total" }],
+                groupKeys: Array.from(groupKeysSet),
+            };
         }
 
         const isIdActivoKey = (key: string): boolean => key.toLowerCase() === "idactivo";
@@ -483,7 +505,11 @@ export default function ReportsEmission(): React.ReactElement {
             if (descripcionColumn) totalsRow[descripcionColumn] = "";
         }
 
-        return [...rows, totalsRow];
+        return {
+            rows: [...rows, totalsRow],
+            meta: [...rows.map(() => ({ kind: "data" as const })), { kind: "total" }],
+            groupKeys: [],
+        };
     }, [columns, displayedReportType, rows, subtotalColumns]);
     const selectedReportLabel = useMemo(
         () => REPORTS.find((report) => report.key === displayedReportType)?.label ?? "Reporte",
@@ -498,7 +524,7 @@ export default function ReportsEmission(): React.ReactElement {
         [periods]
     );
     const subtotalOptions = useMemo(() => {
-        const max = Math.max(columns.length, 0);
+        const max = Math.max(Math.min(columns.length, 5), 0);
         return Array.from({ length: max + 1 }, (_, index) => {
             const value = String(index);
             return { key: value, value };
@@ -523,7 +549,7 @@ export default function ReportsEmission(): React.ReactElement {
             resizeObserver.disconnect();
             window.removeEventListener("resize", updateWidth);
         };
-    }, [columns, hasGenerated, rowsToRender.length]);
+    }, [columns, hasGenerated, renderModel.rows.length]);
 
     useEffect(() => {
         let cancelled = false;
@@ -584,6 +610,7 @@ export default function ReportsEmission(): React.ReactElement {
         setSuccessMessage(null);
         setShowErrorAlert(false);
         setShowSuccessAlert(false);
+        setCollapsedGroups(new Set());
         try {
             const res = await fetch("/api/reports", {
                 method: "POST",
@@ -671,6 +698,35 @@ export default function ReportsEmission(): React.ReactElement {
         }
     }, [columns.length, subtotalColumns]);
 
+    useEffect(() => {
+        setCollapsedGroups((prev) => {
+            if (prev.size === 0) return prev;
+            const valid = new Set(renderModel.groupKeys);
+            const next = new Set<string>();
+            prev.forEach((key) => {
+                if (valid.has(key)) next.add(key);
+            });
+            return next;
+        });
+    }, [renderModel.groupKeys]);
+
+    const toggleGroupCollapse = useCallback((groupKey: string) => {
+        setCollapsedGroups((prev) => {
+            const next = new Set(prev);
+            if (next.has(groupKey)) next.delete(groupKey);
+            else next.add(groupKey);
+            return next;
+        });
+    }, []);
+
+    const collapseAllGroups = useCallback(() => {
+        setCollapsedGroups(new Set(renderModel.groupKeys));
+    }, [renderModel.groupKeys]);
+
+    const expandAllGroups = useCallback(() => {
+        setCollapsedGroups(new Set());
+    }, []);
+
     const syncFromBottomScrollbar = useCallback(() => {
         if (!bottomScrollbarRef.current || !tableHorizontalRef.current) return;
         if (scrollSyncLockRef.current) return;
@@ -724,7 +780,7 @@ export default function ReportsEmission(): React.ReactElement {
         headerRow.alignment = { vertical: "middle", horizontal: "left" };
         headerRow.height = 20;
 
-        const sourceRows = rows.length === 0 ? [] : rowsToRender;
+        const sourceRows = rows.length === 0 ? [] : renderModel.rows;
 
         sourceRows.forEach((row) => {
             const excelRow = worksheet.addRow(columns.map((column) => formatCellValue(row[column], column)));
@@ -759,7 +815,7 @@ export default function ReportsEmission(): React.ReactElement {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-    }, [columns, displayedReportType, hasGenerated, period, rows, rowsToRender, selectedBook?.value, selectedReportLabel]);
+    }, [columns, displayedReportType, hasGenerated, period, renderModel.rows, rows, selectedBook?.value, selectedReportLabel]);
 
     return (
         <div className="w-full h-full overflow-hidden flex flex-col">
@@ -858,6 +914,24 @@ export default function ReportsEmission(): React.ReactElement {
                     <div className="flex items-center gap-2">
                         <button
                             type="button"
+                            className="bg-gabu-700 rounded-md h-7 px-3 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 text-gabu-100 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                            onClick={collapseAllGroups}
+                            disabled={loadingConfig || running || !hasGenerated || renderModel.groupKeys.length === 0}
+                            title="Colapsar todos los subtotales"
+                        >
+                            Colapsar todo
+                        </button>
+                        <button
+                            type="button"
+                            className="bg-gabu-700 rounded-md h-7 px-3 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 text-gabu-100 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                            onClick={expandAllGroups}
+                            disabled={loadingConfig || running || !hasGenerated || renderModel.groupKeys.length === 0}
+                            title="Expandir todos los subtotales"
+                        >
+                            Expandir todo
+                        </button>
+                        <button
+                            type="button"
                             className="bg-gabu-700 rounded-md p-1 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 disabled:opacity-60 disabled:cursor-not-allowed"
                             onClick={() => void exportToExcel()}
                             disabled={loadingConfig || running || !hasGenerated}
@@ -911,22 +985,52 @@ export default function ReportsEmission(): React.ReactElement {
                                                     </td>
                                                 </tr>
                                             ) : (
-                                                rowsToRender.map((row, index) => (
-                                                    <tr key={`row-${index}`} className={isSummaryRow(row) ? "font-semibold" : ""}>
-                                                        {columns.map((column) => {
-                                                            const isNumericCell =
-                                                                !isIdentifierColumn(column) && toNumericValue(row[column]) != null;
-                                                            return (
-                                                                <td
-                                                                    key={`${index}-${column}`}
-                                                                    className={`py-2 px-2 text-gabu-900 text-xs whitespace-nowrap ${isNumericCell ? "text-right" : ""}`}
-                                                                >
-                                                                    {formatCellValue(row[column], column)}
-                                                                </td>
-                                                            );
-                                                        })}
-                                                    </tr>
-                                                ))
+                                                renderModel.rows.map((row, index) => {
+                                                    const rowMeta = renderModel.meta[index] ?? { kind: "data" as const };
+                                                    const isDataHidden =
+                                                        rowMeta.kind === "data" &&
+                                                        !!rowMeta.groupKey &&
+                                                        collapsedGroups.has(rowMeta.groupKey);
+                                                    if (isDataHidden) return null;
+                                                    const isSummary = rowMeta.kind !== "data" || isSummaryRow(row);
+                                                    return (
+                                                        <tr key={`row-${index}`} className={isSummary ? "font-semibold" : ""}>
+                                                            {columns.map((column, columnIndex) => {
+                                                                const isNumericCell =
+                                                                    !isIdentifierColumn(column) && toNumericValue(row[column]) != null;
+                                                                const rawCellText = normalizeCellValue(row[column]);
+                                                                const canToggleSubtotal =
+                                                                    rowMeta.kind === "subtotal" &&
+                                                                    rowMeta.groupKey != null &&
+                                                                    columnIndex === 0 &&
+                                                                    rawCellText.toLowerCase().startsWith("subtotal ");
+                                                                if (canToggleSubtotal) {
+                                                                    const isCollapsed = collapsedGroups.has(rowMeta.groupKey!);
+                                                                    return (
+                                                                        <td key={`${index}-${column}`} className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">
+                                                                            <button
+                                                                                type="button"
+                                                                                className="cursor-pointer hover:text-gabu-700 transition-colors duration-100"
+                                                                                onClick={() => toggleGroupCollapse(rowMeta.groupKey!)}
+                                                                                title={isCollapsed ? "Expandir subtotal" : "Colapsar subtotal"}
+                                                                            >
+                                                                                {isCollapsed ? "▸" : "▾"} {formatCellValue(row[column], column)}
+                                                                            </button>
+                                                                        </td>
+                                                                    );
+                                                                }
+                                                                return (
+                                                                    <td
+                                                                        key={`${index}-${column}`}
+                                                                        className={`py-2 px-2 text-gabu-900 text-xs whitespace-nowrap ${isNumericCell ? "text-right" : ""}`}
+                                                                    >
+                                                                        {formatCellValue(row[column], column)}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                        </tr>
+                                                    );
+                                                })
                                             )}
                                         </tbody>
                                     </table>
