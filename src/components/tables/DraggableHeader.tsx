@@ -30,7 +30,10 @@ export default function DraggableHeader<TData>({
     columnFilterValue,
     onOpenManageFields,
 }: { header: Header<TData, unknown> } & DraggableHeaderColumnFilterProps) : React.ReactElement  {
-    const {attributes, isDragging, listeners, setNodeRef, transform, transition} = useSortable({ id: header.id });
+    const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
+        id: header.id,
+        disabled: header.id === "seleccionar",
+    });
     const thRef = useRef<HTMLTableCellElement | null>(null);
     const setRef = useCallback((el: HTMLTableCellElement | null) => {
         setNodeRef(el);
@@ -43,6 +46,26 @@ export default function DraggableHeader<TData>({
         transition: transition,
         zIndex: isDragging ? 100 : 0,
     };
+
+    if (header.id === "seleccionar") {
+        return (
+            <th
+                ref={setRef}
+                className="text-start py-2 px-2 text-gabu-900 sticky left-0 z-[25] bg-gabu-100 whitespace-nowrap shadow-[4px_0_12px_-8px_rgba(28,53,81,0.12)] [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5"
+                style={{
+                    width: header.getSize(),
+                    minWidth: header.getSize(),
+                    transform: CSS.Translate.toString(transform),
+                    transition,
+                    zIndex: isDragging ? 100 : 25,
+                }}
+            >
+                <p className="text-xs font-semibold text-gabu-900 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                </p>
+            </th>
+        );
+    }
 
     if(header.id === 'manage'){
         return (
@@ -88,8 +111,8 @@ export default function DraggableHeader<TData>({
             <div className="flex items-center gap-2">
                 <div
                     className="flex items-center gap-2 cursor-pointer min-w-0 flex-1"
-                    {...(header.id !== 'get' ? {...attributes} : {})}
-                    {...(header.id !== 'get' ? {...listeners} : {})}
+                    {...(header.id !== "get" && header.id !== "seleccionar" ? { ...attributes } : {})}
+                    {...(header.id !== "get" && header.id !== "seleccionar" ? { ...listeners } : {})}
                     onClick={handleSortClick}
                 >
                     <p className="text-xs text-ellipsis overflow-hidden [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">{flexRender(header.column.columnDef.header, header.getContext())}</p>

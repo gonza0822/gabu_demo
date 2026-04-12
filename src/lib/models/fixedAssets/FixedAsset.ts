@@ -159,6 +159,69 @@ class FixedAsset {
         return updatedRecords;
     }
 
+    async getAllSimulacion() : Promise<FixedAssetsData> {
+        const simulaRows = await this.prisma.moextra.findMany({
+            where: { simula: true },
+            select: { idMoextra: true },
+            orderBy: { idMoextra: "asc" },
+        });
+        const simulaIds = simulaRows.map((row) => row.idMoextra);
+        const [fieldsManage, fixedAssets, parametrosRows, internaBajaRows, cuentasDestino] = await Promise.all([
+            this.prisma.converField.findMany({
+                where: { IdTabla: 'simulacion' },
+                orderBy: { lisordencampos: 'asc' },
+            }),
+            this.prisma.$queryRaw<{ [key: string]: unknown}[]>`SELECT * FROM dbo.simulacion`,
+            this.prisma.parametros.findMany({
+                where: { idmoextra: { in: simulaIds } },
+                select: { fecini: true, fecpro: true },
+                orderBy: { idmoextra: 'asc' },
+            }),
+            this.prisma.interna.findMany({
+                where: { Tipo: 'BAJA' },
+                select: { IdInterno: true, Descripcion: true },
+                orderBy: { Orden: 'asc' },
+            }),
+            this.prisma.cuentas.findMany({
+                where: { OR: [{ IdTipo: { not: '0' } }, { IdTipo: null }] },
+                select: { IdActivo: true, Descripcion: true },
+            }),
+        ]);
+        const parametroSim = parametrosRows[0];
+        const feciniEjercicio = parametroSim?.fecini ? parametroSim.fecini.toISOString() : null;
+        const fecproBajaDefault = parametroSim?.fecpro
+            ? `${String((parametroSim.fecpro as Date).getMonth() + 1).padStart(2, '0')}/${(parametroSim.fecpro as Date).getFullYear()}`
+            : '';
+        const normalizedFieldsManage = fieldsManage.map(field => {
+            const raw = field.IdCampo.toLowerCase();
+            const normalized = raw.includes(".") ? raw.split(".").slice(1).join(".") : raw;
+            return {
+                ...field,
+                IdCampo: normalized,
+            };
+        });
+        const seenColumns = new Set<string>();
+        const serializedFieldsManage = normalizedFieldsManage.filter((field) => {
+            const key = field.IdCampo.toLowerCase();
+            if (seenColumns.has(key)) return false;
+            seenColumns.add(key);
+            return true;
+        });
+        const tipoBajaOptions = internaBajaRows.map((r) => ({
+            key: r.IdInterno ?? '',
+            value: r.Descripcion ?? r.IdInterno ?? '',
+        }));
+        return {
+            fixedAssets,
+            fieldsManage: serializedFieldsManage,
+            feciniEjercicio,
+            tipoBajaOptions,
+            fecproBajaDefault,
+            cuentasDestinoOptions: cuentasDestino.map((r) => ({ key: r.IdActivo, value: r.Descripcion ?? r.IdActivo })),
+            fecproTransferenciaDefault: fecproBajaDefault,
+        };
+    }
+
     /**
      * Actualiza listShow en ConverField para IdTabla 'actifijo'.
      * @param idCampo - Id del campo a mostrar u ocultar
@@ -179,11 +242,16 @@ class FixedAsset {
 
     /**
      * Datos para el formulario ABM — acordeón Cabecera: labels desde ConverField, opciones de selects y defaults.
+     * En simulación: IdTabla `simulacion`, campos `cabecera.*` (igual que actifijo).
      */
-    async getAbmCabeceraData(): Promise<AbmCabeceraData> {
+    async getAbmCabeceraData(simulationOnly = false): Promise<AbmCabeceraData> {
+        const cabeceraConverWhere = simulationOnly
+            ? { IdTabla: 'simulacion', IdCampo: { startsWith: 'cabecera.' } }
+            : { IdTabla: 'actifijo', IdCampo: { startsWith: 'cabecera.' } };
+
         const [converFields, defaultsRows, unidadesNegocio, cuentas, modelos, origenes, proyectos, situaciones] = await Promise.all([
             this.prisma.converField.findMany({
-                where: { IdTabla: 'actifijo', IdCampo: { startsWith: 'cabecera.' } },
+                where: cabeceraConverWhere,
                 orderBy: { lisordencampos: 'asc' },
                 select: { IdCampo: true, BrowNombre: true },
             }),
@@ -199,9 +267,12 @@ class FixedAsset {
         const findDefault = (idcampo: string) =>
             defaultsRows.find((d) => d.idcampo.toLowerCase() === idcampo.toLowerCase())?.iddefault ?? null;
 
+        const stripCabeceraSimPrefix = (idCampo: string) =>
+            idCampo.replace(/^cabecera\./i, '');
+
         return {
             fields: converFields.map((f) => ({
-                idCampo: f.IdCampo.replace(/^cabecera\./i, ''),
+                idCampo: stripCabeceraSimPrefix(f.IdCampo),
                 browNombre: f.BrowNombre ?? f.IdCampo,
             })),
             unidadesNegocio: unidadesNegocio.map((r) => ({ key: r.IdUNegocio, value: r.Descripcion ?? r.IdUNegocio })),
@@ -223,7 +294,7 @@ class FixedAsset {
      * Datos para el formulario ABM — acordeones de Libros Contables: acordeones dinámicos desde ConverField
      * (prefijos distintos de 'cabecera'), nombres desde moextra, opciones compartidas de selects.
      */
-    async getAbmLibrosData(): Promise<AbmLibrosData> {
+    async getAbmLibrosData(simulationOnly = false): Promise<AbmLibrosData> {
         const LIBRO_CAMPOS = [
             'VALORI', 'IDACTIVO', 'IDTIPOAMORTIZACION', 'IDINDACT', 'IDTIPOPROCESO',
             'IDCODAMO', 'ESTCON', 'IDMONEDA', 'FECORI', 'FECDEP', 'FECFIN',
@@ -241,26 +312,50 @@ class FixedAsset {
             return variants.map((v) => ({ IdCampo: { endsWith: `.${v}` } }));
         });
 
+        const libroConverWhere = simulationOnly
+            ? {
+                IdTabla: 'simulacion',
+                NOT: { IdCampo: { startsWith: 'cabecera.' } },
+                OR: campoCases,
+            }
+            : {
+                IdTabla: 'actifijo',
+                NOT: { IdCampo: { startsWith: 'cabecera.' } },
+                OR: campoCases,
+            };
+
+        const ctaVidautilPromise = simulationOnly
+            ? Promise.resolve([])
+            : this.prisma.ctaVidautil.findMany({
+                where: { NOT: { idMoextra: { in: ['03', '3'] } } },
+                select: { idMoextra: true, idActivo: true, vidautil: true },
+            });
+
         const [converFields, moextraRows, cuentas, internaRows, monedas, parametrosRows, ctaVidautilRows, cotextranjeraRows] = await Promise.all([
             this.prisma.converField.findMany({
-                where: {
-                    IdTabla: 'actifijo',
-                    NOT: { IdCampo: { startsWith: 'cabecera.' } },
-                    OR: campoCases,
-                },
+                where: libroConverWhere,
                 orderBy: { lisordencampos: 'asc' },
                 select: { IdCampo: true, BrowNombre: true },
             }),
-            this.prisma.moextra.findMany({ select: { idMoextra: true, Descripcion: true } }),
+            this.prisma.moextra.findMany({
+                where: simulationOnly ? { simula: true } : undefined,
+                select: { idMoextra: true, Descripcion: true, simula: true },
+            }),
             this.prisma.cuentas.findMany({ where: { IdActivo: { not: '0' } }, select: { IdActivo: true, Descripcion: true } }),
             this.prisma.interna.findMany({
                 where: { Tipo: { in: ['TIPAMOR', 'INDACT', 'CODAMO'] } },
                 select: { IdInterno: true, Descripcion: true, Tipo: true },
             }),
             this.prisma.monedas.findMany({ select: { IdMoneda: true, Descripcion: true } }),
-            this.prisma.parametros.findMany({ select: { idmoextra: true, IdTipoAmortizacion: true, fecpro: true } }),
-            this.prisma.ctaVidautil.findMany({ select: { idMoextra: true, idActivo: true, vidautil: true } }),
-            this.prisma.cotextranjera.findMany({ select: { Fecha: true, idMoextra: true, cotizacion: true } }),
+            this.prisma.parametros.findMany({
+                where: simulationOnly ? { idmoextra: { in: ["03"] } } : undefined,
+                select: { idmoextra: true, IdTipoAmortizacion: true, fecpro: true },
+            }),
+            ctaVidautilPromise,
+            this.prisma.cotextranjera.findMany({
+                where: simulationOnly ? { idMoextra: "03" } : undefined,
+                select: { Fecha: true, idMoextra: true, cotizacion: true },
+            }),
         ]);
 
         // Cotización por idMoextra: fecha más cercana a hoy. Se usa para todos los idMoextra (incl. 01=Dolares HB2).
@@ -312,22 +407,39 @@ class FixedAsset {
         };
 
         const acordeones: LibroAccordionData[] = [];
-        for (const [prefix, fields] of prefixMap.entries()) {
-            let nombre: string;
-            if (HARDCODED_NAMES[prefix]) {
-                nombre = HARDCODED_NAMES[prefix];
-            } else {
-                // ME01 → idMoextra = '01'
-                const meMatch = prefix.match(/^ME(\d+)$/i);
-                if (meMatch) {
-                    const idMo = meMatch[1].padStart(2, '0');
-                    const moRow = moextraRows.find((r) => r.idMoextra === idMo);
-                    nombre = moRow?.Descripcion ?? prefix;
+        if (simulationOnly) {
+            const me03Prefix = Array.from(prefixMap.keys()).find((p) => /^ME03$/i.test(p));
+            const anyMePrefix = Array.from(prefixMap.keys()).find((p) => /^ME\d+$/i.test(p));
+            const templatePrefix = me03Prefix ?? anyMePrefix ?? null;
+            const templateFields = templatePrefix ? (prefixMap.get(templatePrefix) ?? []) : [];
+            const defaultFields: LibroFieldMeta[] = LIBRO_CAMPOS.map((campo) => ({
+                idCampo: campo,
+                browNombre: campo,
+            }));
+            const simMo = moextraRows.find((r) => r.idMoextra === "03");
+            acordeones.push({
+                prefijo: "ME03",
+                nombre: simMo?.Descripcion?.trim() || "Simulacion",
+                fields: templateFields.length > 0 ? templateFields : defaultFields,
+            });
+        } else {
+            for (const [prefix, fields] of prefixMap.entries()) {
+                let nombre: string;
+                if (HARDCODED_NAMES[prefix]) {
+                    nombre = HARDCODED_NAMES[prefix];
                 } else {
-                    nombre = prefix;
+                    // ME01 → idMoextra = '01'
+                    const meMatch = prefix.match(/^ME(\d+)$/i);
+                    if (meMatch) {
+                        const idMo = meMatch[1].padStart(2, '0');
+                        const moRow = moextraRows.find((r) => r.idMoextra === idMo);
+                        nombre = moRow?.Descripcion ?? prefix;
+                    } else {
+                        nombre = prefix;
+                    }
                 }
+                acordeones.push({ prefijo: prefix, nombre, fields });
             }
-            acordeones.push({ prefijo: prefix, nombre, fields });
         }
 
         // Build shared option lists
@@ -620,7 +732,11 @@ class FixedAsset {
                     AmefieCierreAnterior: subCol(fields, 'AmefieCierreAnterior', 0),
                     AmpefeCierreAnterior: subCol(fields, 'AmpefeCierreAnterior', 0),
                 };
-                const model = (tx as unknown as Record<string, { create: (arg: { data: Record<string, unknown> }) => Promise<unknown> }>)[prefijo];
+                const modelName = this.prefijoToModel(prefijo);
+                const model = this.getModelFromRecord(
+                    tx as unknown as Record<string, { create: (arg: { data: Record<string, unknown> }) => Promise<unknown> }>,
+                    modelName
+                );
                 if (model?.create) await model.create({ data: row });
             }
 
@@ -671,20 +787,186 @@ class FixedAsset {
         return out;
     }
 
+    /** Sufijo de columna (minúsculas) → campo cabecera Prisma */
+    private simulacionSuffixToCabeceraField(suffixLower: string): string | null {
+        const m: Record<string, string> = {
+            descripcion: 'descripcion',
+            idplanta: 'idPlanta',
+            idzona: 'idZona',
+            idcencos: 'idCencos',
+            iddescripcion: 'idDescripcion',
+            idunegocio: 'idUnegocio',
+            cantidad: 'cantidad',
+            idactivo: 'idActivo',
+            idsituacion: 'idSituacion',
+            idfactura: 'idFactura',
+            identificacion: 'identificacion',
+            idmodelo: 'idModelo',
+            idorigen: 'idOrigen',
+            idproveedor: 'idProveedor',
+            idfabricante: 'idFabricante',
+            idproyecto: 'idProyecto',
+            idordencompra: 'idOrdenCompra',
+            trfecactivo: 'trFecActivo',
+            tridactivo: 'tridActivo',
+            trfecproyecto: 'trFecProyecto',
+            tridproyecto: 'tridProyecto',
+            trfecunegocio: 'trFecUNegocio',
+            tridunegocio: 'tridUNegocio',
+            escencial: 'escencial',
+            nuevo: 'nuevo',
+        };
+        return m[suffixLower] ?? null;
+    }
+
+    /**
+     * Vista simulación: columnas de dbo.simulacion (cabecera.*, me03.*, Expr*, etc.) → shape del ABM.
+     * Prioriza siempre valores no vacíos de la vista sobre cabecera/ME en `out` (la grilla y la vista suelen ser la fuente de verdad).
+     */
+    private hydrateFromSimulacionVistaRow(out: Record<string, unknown>, simRow: Record<string, unknown>): void {
+        const plain = this.toPlainRow(simRow);
+        const usable = (val: unknown): boolean => {
+            if (val == null) return false;
+            if (typeof val === 'number') return !Number.isNaN(val);
+            if (typeof val === 'string') return val.trim() !== '';
+            return true;
+        };
+        /** Sobrescribe si `val` aporta dato útil */
+        const setPrefer = (field: string, val: unknown) => {
+            if (!usable(val)) return;
+            out[field] = val;
+        };
+        for (const [rawK, v] of Object.entries(plain)) {
+            if (!usable(v)) continue;
+            const k = rawK.replace(/^\[+|\]+$/g, '').trim();
+            setPrefer(k, v);
+
+            const lastDot = k.lastIndexOf('.');
+            if (lastDot >= 0) {
+                const prefix = k.slice(0, lastDot);
+                const rest = k.slice(lastDot + 1);
+                const restLower = rest.toLowerCase();
+                const mePart = prefix.match(/^me0?(\d+)$/i);
+                if (mePart) {
+                    const n = mePart[1].padStart(2, '0');
+                    const prefijo = `ME${n}`;
+                    setPrefer(`${prefijo}.${rest}`, v);
+                    setPrefer(`${prefix.toLowerCase()}.${rest}`, v);
+                } else {
+                    const mapped = this.simulacionSuffixToCabeceraField(restLower);
+                    if (mapped) setPrefer(mapped, v);
+                    setPrefer(rest, v);
+                }
+            }
+
+            const lastUs = k.lastIndexOf('_');
+            if (lastUs >= 0 && !k.includes('.')) {
+                const tail = k.slice(lastUs + 1).toLowerCase();
+                const mapped = this.simulacionSuffixToCabeceraField(tail);
+                if (mapped) setPrefer(mapped, v);
+            }
+        }
+
+        /* Pasada por clave normalizada: SQL/vistas con distinto casing o alias */
+        for (const [rawK, v] of Object.entries(plain)) {
+            if (!usable(v)) continue;
+            const kl = rawK.replace(/^\[+|\]+$/g, '').trim().toLowerCase();
+            if ((kl === 'descripcion' || kl.endsWith('.descripcion') || /(^|[._])descripcion$/.test(kl)) && !kl.includes('iddescripcion')) {
+                setPrefer('descripcion', v);
+            }
+            if (kl === 'valori' || kl.endsWith('.valori') || /(^|[._])valori$/.test(kl)) {
+                setPrefer('Valori', v);
+                setPrefer('VALORI', v);
+                setPrefer('ME03.Valori', v);
+                setPrefer('me03.Valori', v);
+                setPrefer('me03.valori', v);
+            }
+        }
+    }
+
     /** Obtiene un bien por id desde cabecera, distribucion y tablas de libros */
-    async getBienById(bienId: string): Promise<{ [key: string]: unknown } | null> {
+    async getBienById(bienId: string, options?: { simulationOnly?: boolean }): Promise<{ [key: string]: unknown } | null> {
+        const simulationOnly = options?.simulationOnly ?? false;
         const parts = bienId.split('-');
         if (parts.length < 4) return null;
         const [idCodigo, idSubien = '000', idSubtra = '0', idSufijo = '0'] = parts;
         const sidSubien = idSubien.padStart(3, '0');
         const whereCab = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
 
-        const cabecera = await this.prisma.cabecera.findUnique({
-            where: { idCodigo_idSubien_idSubtra_idSufijo: whereCab },
-        });
-        if (!cabecera) return null;
+        const simRowsPromise = simulationOnly
+            ? this.prisma.$queryRaw<Record<string, unknown>[]>`
+                SELECT * FROM dbo.simulacion
+                WHERE idCodigo = ${idCodigo} AND idSubien = ${sidSubien} AND idSubtra = ${idSubtra} AND idSufijo = ${idSufijo}
+            `
+            : Promise.resolve([] as Record<string, unknown>[]);
 
-        const out: Record<string, unknown> = this.toPlainRow(cabecera as unknown as Record<string, unknown>);
+        const cabeceraPromise: Promise<Record<string, unknown> | null> = simulationOnly
+            ? this.prisma.$queryRaw<Record<string, unknown>[]>`
+                SELECT TOP 1 * FROM dbo.cabesimu
+                WHERE idCodigo = ${idCodigo} AND idSubien = ${sidSubien} AND idSubtra = ${idSubtra} AND idSufijo = ${idSufijo}
+            `.then((rows) => rows[0] ?? null)
+            : this.prisma.cabecera.findUnique({
+                where: { idCodigo_idSubien_idSubtra_idSufijo: whereCab },
+            }).then((row) => row as unknown as Record<string, unknown> | null);
+
+        const [cabecera, simRows] = await Promise.all([
+            cabeceraPromise,
+            simRowsPromise,
+        ]);
+        const simRow = simRows[0];
+
+        if (!cabecera) {
+            if (!simulationOnly || !simRow) return null;
+            const out: Record<string, unknown> = {
+                idCodigo,
+                idSubien: sidSubien,
+                idSubtra,
+                idSufijo,
+            };
+            this.hydrateFromSimulacionVistaRow(out, simRow as Record<string, unknown>);
+            const distribucion = await this.prisma.distribucion.findMany({
+                where: { idCodigo, idsubien: sidSubien, idsubtra: idSubtra, idsufijo: idSufijo },
+                select: { idCencos: true, porcentaje: true },
+            });
+            out._distribucion = distribucion;
+            const converFields = await this.prisma.converField.findMany({
+                where: {
+                    IdTabla: 'simulacion',
+                    NOT: { IdCampo: { startsWith: 'cabecera.' } },
+                },
+                select: { IdCampo: true },
+            });
+            let prefixes = [...new Set(converFields.map((f) => {
+                const idx = f.IdCampo.indexOf('.');
+                return idx >= 0 ? f.IdCampo.substring(0, idx) : null;
+            }).filter(Boolean))] as string[];
+            if (!prefixes.some((p) => /^me03$/i.test(p))) prefixes = [...prefixes, 'ME03'];
+            const idActivo = (out.idActivo as string | null | undefined) ?? null;
+            for (const prefijo of prefixes) {
+                const modelName = this.prefijoToModel(prefijo);
+                const model = this.getModelFromRecord(this.prisma as unknown as Record<string, { findMany: (arg: { where: object }) => Promise<unknown[]> }>, modelName);
+                if (!model?.findMany) continue;
+                const needsIdActivoInWhere = /^impu/i.test(prefijo);
+                const where: Record<string, unknown> = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
+                if (needsIdActivoInWhere && idActivo) (where as Record<string, unknown>).idActivo = idActivo;
+                const rows = await model.findMany({ where });
+                const row = rows[0] as Record<string, unknown> | undefined;
+                if (row) {
+                    const plain = this.toPlainRow(row);
+                    for (const [k, v] of Object.entries(plain)) {
+                        if (k === 'idCodigo' || k === 'idSubien' || k === 'idSubtra' || k === 'idSufijo') continue;
+                        out[`${prefijo}.${k}`] = v;
+                        out[`${prefijo.toLowerCase()}.${k}`] = v;
+                    }
+                }
+            }
+            if (simulationOnly && simRow && typeof simRow === 'object') {
+                this.hydrateFromSimulacionVistaRow(out, simRow as Record<string, unknown>);
+            }
+            return out;
+        }
+
+        const out: Record<string, unknown> = this.toPlainRow(cabecera as Record<string, unknown>);
 
         const distribucion = await this.prisma.distribucion.findMany({
             where: { idCodigo, idsubien: sidSubien, idsubtra: idSubtra, idsufijo: idSufijo },
@@ -692,23 +974,33 @@ class FixedAsset {
         });
         out._distribucion = distribucion;
 
+        if (simulationOnly && simRow && typeof simRow === 'object') {
+            this.hydrateFromSimulacionVistaRow(out, simRow as Record<string, unknown>);
+        }
+
         const converFields = await this.prisma.converField.findMany({
-            where: { IdTabla: 'actifijo', NOT: { IdCampo: { startsWith: 'cabecera.' } } },
+            where: simulationOnly
+                ? { IdTabla: 'simulacion', NOT: { IdCampo: { startsWith: 'cabecera.' } } }
+                : { IdTabla: 'actifijo', NOT: { IdCampo: { startsWith: 'cabecera.' } } },
             select: { IdCampo: true },
         });
-        const prefixes = [...new Set(converFields.map((f) => {
+        let prefixes = [...new Set(converFields.map((f) => {
             const idx = f.IdCampo.indexOf('.');
             return idx >= 0 ? f.IdCampo.substring(0, idx) : null;
         }).filter(Boolean))] as string[];
+        if (simulationOnly && !prefixes.some((p) => /^me03$/i.test(p))) {
+            prefixes = [...prefixes, 'ME03'];
+        }
 
-        const idActivo = cabecera.idActivo ?? null;
+        const idActivo = (cabecera.idActivo as string | null | undefined) ?? (out.idActivo as string | null | undefined) ?? null;
         for (const prefijo of prefixes) {
             const modelName = this.prefijoToModel(prefijo);
             const model = this.getModelFromRecord(this.prisma as unknown as Record<string, { findMany: (arg: { where: object }) => Promise<unknown[]> }>, modelName);
             if (!model?.findMany) continue;
-            const hasIdActivo = /^impu|^me\d/i.test(prefijo);
+            /** Solo impu* incluye idActivo en la PK; en ME* filtrar por idActivo puede ocultar la única fila del libro. */
+            const needsIdActivoInWhere = /^impu/i.test(prefijo);
             const where: Record<string, unknown> = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
-            if (hasIdActivo && idActivo) (where as Record<string, unknown>).idActivo = idActivo;
+            if (needsIdActivoInWhere && idActivo) (where as Record<string, unknown>).idActivo = idActivo;
             const rows = await model.findMany({ where });
             const row = rows[0] as Record<string, unknown> | undefined;
             if (row) {
@@ -719,6 +1011,10 @@ class FixedAsset {
                     out[`${prefijo.toLowerCase()}.${k}`] = v;
                 }
             }
+        }
+
+        if (simulationOnly && simRow && typeof simRow === 'object') {
+            this.hydrateFromSimulacionVistaRow(out, simRow as Record<string, unknown>);
         }
 
         return out;
@@ -889,7 +1185,11 @@ class FixedAsset {
                     valiva105: 0,
                     ...subAccordionCols,
                 };
-                const model = (tx as unknown as Record<string, { updateMany: (arg: { where: object; data: object }) => Promise<{ count: number }>; create: (arg: { data: object }) => Promise<unknown> }>)[prefijo];
+                const modelName = this.prefijoToModel(prefijo);
+                const model = this.getModelFromRecord(
+                    tx as unknown as Record<string, { updateMany: (arg: { where: object; data: object }) => Promise<{ count: number }>; create: (arg: { data: object }) => Promise<unknown> }>,
+                    modelName
+                );
                 if (!model) continue;
                 const hasIdActivoInPk = /^impu|^me\d/i.test(prefijo);
                 const where: Record<string, unknown> = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
@@ -1312,6 +1612,128 @@ class FixedAsset {
             return { ok: true };
         }, { timeout: 60000 });
     }
+    private static fecproDateToYyyyMm(d: Date): string {
+        return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    /**
+     * Libros origen para reinicio: siempre moneda local (ml → MONEDALOCAL) aunque en moextra tenga simula = true;
+     * más los ME## con simula = false (excl. 03).
+     */
+    async getLibrosParaReinicioSimulacion(): Promise<{ idMoextra: string; Descripcion: string | null }[]> {
+        const prismaRec = this.prisma as unknown as Record<string, unknown>;
+        const out: { idMoextra: string; Descripcion: string | null }[] = [];
+
+        if (this.getModelFromRecord(prismaRec, 'MONEDALOCAL')) {
+            const mlRow =
+                (await this.prisma.moextra.findUnique({ where: { idMoextra: 'ml' } })) ??
+                (await this.prisma.moextra.findUnique({ where: { idMoextra: 'ML' } }));
+            out.push({
+                idMoextra: mlRow?.idMoextra ?? 'ml',
+                Descripcion: mlRow?.Descripcion ?? null,
+            });
+        }
+
+        const rows = await this.prisma.moextra.findMany({
+            where: {
+                simula: false,
+                NOT: { idMoextra: '03' },
+            },
+            select: { idMoextra: true, Descripcion: true },
+            orderBy: { idMoextra: 'asc' },
+        });
+        for (const r of rows) {
+            const id = (r.idMoextra ?? '').trim();
+            if (!id || id.toLowerCase() === 'ml') continue;
+            if (/^\d{2}$/.test(id) && this.getModelFromRecord(prismaRec, `ME${id}`)) {
+                out.push({ idMoextra: r.idMoextra ?? id, Descripcion: r.Descripcion });
+            }
+        }
+
+        out.sort((a, b) => {
+            const am = (a.idMoextra ?? '').toLowerCase() === 'ml' ? 0 : 1;
+            const bm = (b.idMoextra ?? '').toLowerCase() === 'ml' ? 0 : 1;
+            if (am !== bm) return am - bm;
+            return (a.idMoextra ?? '').localeCompare(b.idMoextra ?? '', undefined, { numeric: true });
+        });
+        return out;
+    }
+
+    /**
+     * Nombre de tabla SQL Server para libro origen (lista blanca; evita inyección).
+     * Solo MONEDALOCAL o ME## distinto de ME03.
+     */
+    private sqlMeSourceTableName(sourceIdMoextra: string, isMl: boolean): string {
+        if (isMl) return 'MONEDALOCAL';
+        const pad = sourceIdMoextra.trim().padStart(2, '0');
+        if (pad === '03') throw new Error('Elija un libro distinto del 03 (simulación).');
+        if (!/^ME\d{2}$/.test(`ME${pad}`)) throw new Error('Código de libro inválido.');
+        return `ME${pad}`;
+    }
+
+    /**
+     * Reinicia simulación: vacía ME03 y cabesimu, copia cabecera → cabesimu y el libro elegido (MONEDALOCAL / ME01 / ME02 / …) → ME03.
+     * Requiere tabla dbo.cabesimu alineada en columnas con cabecera y ME03 alineado con la tabla origen (SELECT *).
+     */
+    async reiniciarSimulacionDesdeLibro(sourceIdMoextra: string): Promise<{ ok: true; bienesActualizados: number }> {
+        const trimmed = sourceIdMoextra.trim();
+        const isMl = trimmed.toLowerCase() === 'ml';
+
+        const prismaRec = this.prisma as unknown as Record<string, unknown>;
+        /** No usar getModelFromRecord('cabesimu'): el cliente Prisma a veces no se regeneró y no expone el delegado. */
+        const cabeSimuRows = await this.prisma.$queryRawUnsafe<{ n: number }[]>(
+            "SELECT 1 AS n WHERE OBJECT_ID(N'dbo.cabesimu', N'U') IS NOT NULL"
+        );
+        if (!cabeSimuRows.length) {
+            throw new Error(
+                'No existe la tabla dbo.cabesimu en esta base. Verifique el nombre (p. ej. dbo.CabeSimu) y el esquema, o ejecute npx prisma generate tras agregar el modelo.'
+            );
+        }
+        if (isMl) {
+            if (!this.getModelFromRecord(prismaRec, 'MONEDALOCAL')) {
+                throw new Error('No existe tabla MONEDALOCAL para moneda local.');
+            }
+        } else {
+            const mo = await this.prisma.moextra.findUnique({ where: { idMoextra: trimmed } });
+            if (!mo || mo.simula !== false) {
+                throw new Error('Libro no válido o pertenece a simulación (simula debe ser falso).');
+            }
+            const srcPad = trimmed.padStart(2, '0');
+            if (!this.getModelFromRecord(prismaRec, `ME${srcPad}`)) {
+                throw new Error('No existe tabla de libro para el código elegido.');
+            }
+        }
+
+        const srcTable = this.sqlMeSourceTableName(trimmed, isMl);
+
+        /**
+         * ME03 antes que cabesimu por posibles FKs. Un solo batch (adaptador Prisma+MSSQL).
+         */
+        const restartBatch = `
+BEGIN TRY
+BEGIN TRANSACTION;
+DELETE FROM dbo.ME03;
+DELETE FROM dbo.cabesimu;
+INSERT INTO dbo.cabesimu SELECT * FROM dbo.cabecera;
+INSERT INTO dbo.ME03 SELECT * FROM dbo.[${srcTable}];
+COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+  IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+  THROW;
+END CATCH
+`;
+
+        await this.prisma.$executeRawUnsafe(restartBatch);
+
+        const cntRows = await this.prisma.$queryRawUnsafe<{ cnt: bigint }[]>(`
+SELECT COUNT_BIG(1) AS cnt FROM dbo.cabesimu
+        `);
+        const bienesActualizados = Number(cntRows[0]?.cnt ?? 0);
+
+        return { ok: true, bienesActualizados };
+    }
+
     /** Baja física: elimina el bien completo de la base de datos (cabecera, distribucion, todos los libros) */
     async bajaFisica(bienId: string): Promise<{ ok: boolean }> {
         const parts = bienId.split('-');

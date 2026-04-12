@@ -5,7 +5,8 @@ type AuthorizationState = {
     connected: boolean,
     isLogging: boolean,
     user: string | null,
-    client: string
+    client: string,
+    supervisor: boolean,
 }
 
 const initialAuthorizationState : AuthorizationState = {
@@ -13,16 +14,18 @@ const initialAuthorizationState : AuthorizationState = {
     connected: false,
     user: null,
     client: 'Admagro',
-    isLogging: false
+    isLogging: false,
+    supervisor: false,
 }
 
 const authorizationSlice = createSlice({
     name: 'authSlice',
     initialState: initialAuthorizationState,
     reducers: {
-        login(state: AuthorizationState, action: PayloadAction<{user: string}>){
+        login(state: AuthorizationState, action: PayloadAction<{user: string, supervisor: boolean}>){
             state.logged = true;
             state.user = action.payload.user;
+            state.supervisor = action.payload.supervisor;
             state.isLogging = false;
         },
         LogginIn(state: AuthorizationState, action: PayloadAction<{isLogging: boolean}>){
@@ -35,6 +38,7 @@ const authorizationSlice = createSlice({
         logout(state: AuthorizationState) {
             state.logged = true;
             state.user = null;
+            state.supervisor = false;
         },
         setLogin(state: AuthorizationState, action: PayloadAction<{auth: AuthorizationState}>){
             return action.payload.auth;

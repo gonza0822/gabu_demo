@@ -6,6 +6,13 @@ import { fix } from "mssql";
 
 export type AccountsData = AllData<CuentasModel>;
 
+const ACCOUNT_ALLOWED_MOEXTRA = new Set(["01", "02", "ML", "IM"]);
+const normalizeAccountMoextra = (raw: string | null | undefined): string => {
+    const v = String(raw ?? "").trim().toUpperCase();
+    if (/^\d+$/.test(v)) return String(parseInt(v, 10)).padStart(2, "0");
+    return v;
+};
+
 class Account extends Table<
     CuentasModel,
     ReOrderData
@@ -137,22 +144,26 @@ class Account extends Table<
         const groups = await this.prisma.grupos.findMany();
         const extraCurrencies = await this.prisma.moextra.findMany({
             where: {
-                simula: false
-            }
+                simula: false,
+                // Gabu: Cod.ME solo monedas extra útiles (no simulación 03)
+                NOT: { idMoextra: { in: ['03', '3'] } },
+            },
         });
+        const baseRelations = extraCurrencies
+            .map((currency) => ({
+                id: currency.idMoextra!,
+                description: currency.Descripcion
+            }))
+            .filter((rel) => ACCOUNT_ALLOWED_MOEXTRA.has(normalizeAccountMoextra(rel.id)));
+
         const updatedUsefulLivesAndGrupsFields = usefulLivesAndGrupsFields.map(field => {
             if(field.IdCampo === 'idMoextra'){
                 return {
                     ...field,
                     relation: [
-                        ...extraCurrencies.map(currency => {
-                            return {
-                                id: currency.idMoextra!,
-                                description: currency.Descripcion
-                            }
-                        }),
-                        { id: 'ML', description: 'Moneda Local' },
-                        { id: 'IM', description: 'Impuestos' }
+                        ...baseRelations,
+                        ...(baseRelations.some((r) => normalizeAccountMoextra(r.id) === "ML") ? [] : [{ id: "ML", description: "Moneda Local" }]),
+                        ...(baseRelations.some((r) => normalizeAccountMoextra(r.id) === "IM") ? [] : [{ id: "IM", description: "Impuestos" }]),
                     ],
                     options: {
                         maxRows: true,
@@ -186,12 +197,29 @@ class Account extends Table<
             }
         });
 
+        const allCtaVidautil = await this.prisma.ctaVidautil.findMany();
+        const secondaryRowsByMainId: Record<string, Record<string, unknown>[]> = {};
+        for (const v of allCtaVidautil) {
+            const idMo = normalizeAccountMoextra(v.idMoextra);
+            if (!ACCOUNT_ALLOWED_MOEXTRA.has(idMo)) continue;
+            const id = (v.idActivo ?? "").trim();
+            if (!id) continue;
+            if (!secondaryRowsByMainId[id]) secondaryRowsByMainId[id] = [];
+            secondaryRowsByMainId[id].push({
+                idMoextra: idMo,
+                idActivo: v.idActivo,
+                idGrupo: v.idGrupo,
+                vidautil: v.vidautil,
+            });
+        }
+
         return {
             table: accounts,
             fieldsManage: updatedFieldsManage,
             secondaryTable: {
                 fieldsManage: updatedUsefulLivesAndGrupsFields
-            }
+            },
+            secondaryRowsByMainId,
         };
     }
 
@@ -205,11 +233,14 @@ class Account extends Table<
             }
         })
 
-        const usefulLivesAndGroups : ctaVidautilModel[] = await this.prisma.ctaVidautil.findMany({
+        const usefulLivesAndGroupsAll: ctaVidautilModel[] = await this.prisma.ctaVidautil.findMany({
             where: {
                 idActivo: id,
-            }
-        }); 
+            },
+        });
+        const usefulLivesAndGroups = usefulLivesAndGroupsAll.filter((row) =>
+            ACCOUNT_ALLOWED_MOEXTRA.has(normalizeAccountMoextra(row.idMoextra))
+        );
 
         return {
             mainTableData: account!,

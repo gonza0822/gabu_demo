@@ -14,10 +14,38 @@ import DraggableCell from "./DraggableCell";
 import DraggableHeader from "./DraggableHeader";
 import ExcelJS from "exceljs";
 
+/** Encabezado principal (cuentas): cyan */
+const EXCEL_FILL_CUENTAS_HEADER = "FF4DD0E1";
+/** Encabezados ctaVidautil (Cod.ME / Grupo / Vida util) y hoja secundaria: amarillo */
+const EXCEL_FILL_CTAVID_HEADER = "FFFFF59D";
+const ACCOUNT_ALLOWED_MOEXTRA = new Set(["01", "02", "ML", "IM"]);
+const normalizeAccountMoextra = (raw: unknown): string => {
+    const v = String(raw ?? "").trim().toUpperCase();
+    if (/^\d+$/.test(v)) return String(parseInt(v, 10)).padStart(2, "0");
+    return v;
+};
+
+function applyExcelHeaderStyle(row: ExcelJS.Row, fillArgb: string): void {
+    row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: fillArgb },
+        };
+        cell.font = { bold: true, color: { argb: "FF212121" } };
+    });
+}
+
 type SecondaryExportPayload = {
     sheetName: string;
     rows: Record<string, unknown>[];
     fields: FieldsWithRelation[];
+};
+
+/** Export cuentas: por cada fila, sub-bloque Cod.ME / Grupo / Vida útil alineado bajo Descripcion (o columna C). */
+export type AccountExcelNestedPayload = {
+    rowsByAccountId: Record<string, Record<string, unknown>[]>;
+    secondaryFields: FieldsWithRelation[];
 };
 
 export default function MainTable<TData>({
@@ -28,6 +56,7 @@ export default function MainTable<TData>({
     onRowSelect,
     record,
     getSecondaryExportData,
+    accountExcelNested,
 }: {
     data: TData[],
     fields: FieldsWithRelation[],
@@ -36,6 +65,7 @@ export default function MainTable<TData>({
     onRowSelect: React.Dispatch<React.SetStateAction<TData | null>>,
     record: TData | null,
     getSecondaryExportData?: () => SecondaryExportPayload | null,
+    accountExcelNested?: AccountExcelNestedPayload | null,
 }) : React.ReactElement {
 
     const columnHelper = createColumnHelper<TData>();
@@ -276,15 +306,80 @@ export default function MainTable<TData>({
 
         const rows = table.getPrePaginationRowModel().rows;
 
-        rows.forEach(row => {
-            const rowData: { [key: string]: unknown } = {};
-            visibleColumns.forEach(col => {
-                rowData[col.id] = row.getValue(col.id);
-            });
-            worksheet.addRow(rowData);
-        });
+        const idFieldName = fields.find((field) => field.relation?.[0]?.description === 'id')?.IdCampo;
 
-        const secondaryExport = getSecondaryExportData?.() ?? null;
+        if (accountExcelNested && idFieldName) {
+            const { rowsByAccountId, secondaryFields } = accountExcelNested;
+            const colIds = visibleColumns.map((c) => String(c.id));
+            const nestIdx = colIds.findIndex((id) => id.toLowerCase() === 'descripcion');
+            const start = nestIdx >= 0 ? nestIdx : Math.min(2, Math.max(0, colIds.length - 3));
+            const visSec = secondaryFields.filter((f) => !f.options?.hidden);
+            const fMe = visSec.find((f) => f.IdCampo.toLowerCase() === 'idmoextra');
+            const fGr = visSec.find((f) => f.IdCampo.toLowerCase() === 'idgrupo');
+            const fVi = visSec.find((f) => f.IdCampo.toLowerCase() === 'vidautil');
+
+            const blankRow = (): Record<string, unknown> => {
+                const o: Record<string, unknown> = {};
+                visibleColumns.forEach((col) => {
+                    o[String(col.id)] = '';
+                });
+                return o;
+            };
+
+            const fmtSec = (field: FieldsWithRelation | undefined, raw: unknown): unknown => {
+                if (!field) return raw ?? '';
+                if (field.relation.length > 0) {
+                    return field.relation.find((rel) => rel.id === String(raw))?.description ?? raw ?? '';
+                }
+                return raw ?? '';
+            };
+
+            for (const row of rows) {
+                const rowData: Record<string, unknown> = {};
+                visibleColumns.forEach((col) => {
+                    rowData[String(col.id)] = row.getValue(col.id);
+                });
+                worksheet.addRow(rowData);
+
+                const accountId = String(row.getValue(idFieldName as string) ?? '');
+                const children = (rowsByAccountId[accountId] ?? []).filter((child) => {
+                    const ch = child as Record<string, unknown>;
+                    const idMo = normalizeAccountMoextra(ch.idMoextra ?? ch.idmoextra);
+                    return ACCOUNT_ALLOWED_MOEXTRA.has(idMo);
+                });
+
+                if (start + 2 < colIds.length) {
+                    const subHdr = blankRow();
+                    subHdr[colIds[start]] = fMe?.BrowNombre ?? 'Cod.ME';
+                    subHdr[colIds[start + 1]] = fGr?.BrowNombre ?? 'Grupo';
+                    subHdr[colIds[start + 2]] = fVi?.BrowNombre ?? 'Vida util';
+                    const subHdrRow = worksheet.addRow(subHdr);
+                    applyExcelHeaderStyle(subHdrRow, EXCEL_FILL_CTAVID_HEADER);
+
+                    for (const child of children) {
+                        const cr = blankRow();
+                        const ch = child as Record<string, unknown>;
+                        const idMo = normalizeAccountMoextra(ch.idMoextra ?? ch.idmoextra);
+                        cr[colIds[start]] = fmtSec(fMe, idMo);
+                        cr[colIds[start + 1]] = fmtSec(fGr, ch.idGrupo ?? ch.idgrupo);
+                        cr[colIds[start + 2]] = fmtSec(fVi, ch.vidautil ?? ch.Vidautil);
+                        worksheet.addRow(cr);
+                    }
+                }
+            }
+        } else {
+            rows.forEach(row => {
+                const rowData: { [key: string]: unknown } = {};
+                visibleColumns.forEach(col => {
+                    rowData[col.id] = row.getValue(col.id);
+                });
+                worksheet.addRow(rowData);
+            });
+        }
+
+        applyExcelHeaderStyle(worksheet.getRow(1), EXCEL_FILL_CUENTAS_HEADER);
+
+        const secondaryExport = !accountExcelNested ? (getSecondaryExportData?.() ?? null) : null;
         if (secondaryExport && secondaryExport.rows.length > 0) {
             const safeSheetName = (secondaryExport.sheetName || "Secundaria").slice(0, 31);
             const secondaryWorksheet = workbook.addWorksheet(safeSheetName);
@@ -309,6 +404,7 @@ export default function MainTable<TData>({
                 });
                 secondaryWorksheet.addRow(rowData);
             });
+            applyExcelHeaderStyle(secondaryWorksheet.getRow(1), EXCEL_FILL_CTAVID_HEADER);
         }
 
         const buffer = await workbook.xlsx.writeBuffer();
@@ -324,12 +420,12 @@ export default function MainTable<TData>({
     return (
         <div className="bg-gabu-100 border border-gabu-900 p-3 w-full">
             <div className="flex w-full justify-between mb-2">
-                <div className="flex bg-gabu-500 rounded-md my-0.5 px-3 gap-2 items-center">
-                    <Search style="h-[15px] w-[15px] stroke-gabu-100"/>
+                <div className="flex bg-gabu-500 rounded-md my-0.5 px-2 py-0.5 gap-1.5 items-center">
+                    <Search style="!h-3 !w-3 shrink-0 stroke-gabu-100"/>
                     <input type="text" placeholder="Buscar..." className="focus:outline-none text-gabu-100 w-full flex items-center text-sm" onInput={handleSearch}/>
                 </div>
-                <div className="bg-gabu-500 rounded-md p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100">
-                    <Excel style="fill-current text-gabu-100 h-[20px] w-[20px]" onClick={exportToExcel}/>
+                <div className="bg-gabu-500 rounded-md p-1 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center justify-center">
+                    <Excel style="fill-current text-gabu-100 !h-3.5 !w-3.5 shrink-0" onClick={exportToExcel}/>
                 </div>
             </div>
             <div className="w-full overflow-auto table-container grid">

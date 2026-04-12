@@ -4,8 +4,9 @@ import Processes, { type ProcessTableRow } from "@/lib/models/processes/Processe
 type ErrorResponse = { message: string; status: number };
 
 type UserPostRequest =
-    | { petition: "GetRows"; client: string; data: {} }
+    | { petition: "GetRows"; client: string; data: { simulationOnly?: boolean } }
     | { petition: "RunCalculoAmortizacion"; client: string; data: { row: ProcessTableRow } }
+    | { petition: "RunGeneracionAsientos"; client: string; data: { row: ProcessTableRow } }
     | { petition: "FinalizeCalculoAmortizacion"; client: string; data: {} }
     | { petition: "RunCierreMensual"; client: string; data: { row: ProcessTableRow } }
     | { petition: "RunCierreEjercicio"; client: string; data: { row: ProcessTableRow } };
@@ -23,11 +24,17 @@ export async function POST(
 
         switch (petition) {
             case "GetRows":
-                return NextResponse.json(await processes.getProcessRows());
+                return NextResponse.json(await processes.getProcessRows(Boolean(data?.simulationOnly)));
             case "RunCalculoAmortizacion": {
                 const row = data?.row;
                 if (!row) return NextResponse.json({ message: "row is required", status: 400 }, { status: 400 });
                 await processes.runCalculoAmortizacion(row);
+                return NextResponse.json({ ok: true });
+            }
+            case "RunGeneracionAsientos": {
+                const row = data?.row;
+                if (!row) return NextResponse.json({ message: "row is required", status: 400 }, { status: 400 });
+                await processes.runGeneracionAsientos(row);
                 return NextResponse.json({ ok: true });
             }
             case "FinalizeCalculoAmortizacion":

@@ -31,11 +31,11 @@ export default function NavigationContainer({children} : {children : React.React
             <>
                 <aside className="h-full w-[20%] bg-gabu-900 flex flex-col min-h-0">
                     <div className="w-full flex justify-center py-3 flex-none">
-                        <img src="../assets/gabu_logo.png" alt="gabu_logo" className="brightness-200 h-[80px] w-[80px] btn-home cursor-pointer" onClick={() => router.push('/home')}/>
+                        <img src="/assets/gabu_logo.png" alt="gabu_logo" className="brightness-200 h-[80px] w-[80px] btn-home cursor-pointer" onClick={() => router.push('/home')}/>
                     </div>
                     <NavigationMenu/>
                 </aside>
-                <div className="flex flex-col flex-grow-0 w-full h-full min-h-0">
+                <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
                     <Header/>
                     {children}
                 </div>

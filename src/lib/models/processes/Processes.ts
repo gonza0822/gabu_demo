@@ -56,28 +56,30 @@ class Processes {
         return clave || fallbackName;
     }
 
-    async getProcessRows(): Promise<ProcessTableRow[]> {
-        const [parametros, moextras] = await Promise.all([
-            this.prisma.parametros.findMany({
-                where: { idmoextra: { not: "03" } },
-                select: {
-                    idmoextra: true,
-                    fecini: true,
-                    fecpro: true,
-                    fecant: true,
-                    procesa: true,
-                    alterna: true,
-                },
-                orderBy: { idmoextra: "asc" },
-            }),
-            this.prisma.moextra.findMany({
-                select: {
-                    idMoextra: true,
-                    Descripcion: true,
-                    clave: true,
-                },
-            }),
-        ]);
+    async getProcessRows(simulationOnly = false): Promise<ProcessTableRow[]> {
+        const moextras = await this.prisma.moextra.findMany({
+            where: simulationOnly ? { simula: true } : undefined,
+            select: {
+                idMoextra: true,
+                Descripcion: true,
+                clave: true,
+            },
+        });
+        const allowedMoextraIds = new Set(moextras.map((m) => m.idMoextra));
+        const parametros = await this.prisma.parametros.findMany({
+            where: simulationOnly
+                ? { idmoextra: { in: Array.from(allowedMoextraIds) } }
+                : { idmoextra: { not: "03" } },
+            select: {
+                idmoextra: true,
+                fecini: true,
+                fecpro: true,
+                fecant: true,
+                procesa: true,
+                alterna: true,
+            },
+            orderBy: { idmoextra: "asc" },
+        });
 
         const moextraById = new Map(
             moextras.map((m) => [
@@ -118,6 +120,19 @@ class Processes {
         const usaOtro = row.alterna ? 1 : 0;
         await this.prisma.$executeRawUnsafe(
             `EXEC dbo.sp_calculoamortizacion @Tabla='${this.escapeSqlString(tabla)}', @Fecini='${fecini}', @Fecpro='${fecpro}', @Fecant='${fecant}', @Usaotro=${usaOtro}`
+        );
+    }
+
+    async runGeneracionAsientos(row: ProcessTableRow): Promise<void> {
+        const tabla = this.resolveTableNameForSP(row.clave, row.nombretabla);
+        const fecini = this.dateToSQL(row.fecini ? new Date(`${row.fecini.slice(0, 4)}-${row.fecini.slice(4, 6)}-01`) : null);
+        const fecpro = this.dateToSQL(row.fecpro ? new Date(`${row.fecpro.slice(0, 4)}-${row.fecpro.slice(4, 6)}-01`) : null);
+        const fecant = this.dateToSQL(row.fecant ? new Date(`${row.fecant.slice(0, 4)}-${row.fecant.slice(4, 6)}-01`) : null);
+        if (!tabla || !fecini || !fecpro || !fecant) {
+            throw new Error("Faltan datos para ejecutar generacion de asientos");
+        }
+        await this.prisma.$executeRawUnsafe(
+            `EXEC dbo.PR_ASIENTOS @TablaOrigen='${this.escapeSqlString(tabla)}', @FECPRO='${fecpro}', @FECINI='${fecini}', @FECANT='${fecant}'`
         );
     }
 

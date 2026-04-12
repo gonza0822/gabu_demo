@@ -3,14 +3,25 @@ import { navActions, Submenu } from "@/store/navSlice";
 import { useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "@/store";
+import { overlayActions } from "@/store/overlaySlice";
 
 export default function SubmenuItem({submenuItem, submenuId, menuId} : {submenuItem: Submenu, submenuId: number, menuId: number}) : ReactElement {
 
     const router = useRouter();
     const dispatch = useDispatch();
     const client : string = useSelector((state : RootState) => state.authorization.client);
+    const isSupervisor : boolean = useSelector((state : RootState) => state.authorization.supervisor);
     
     function handleClick(e : React.MouseEvent<HTMLLIElement>) {
+        if (submenuItem.table === "UsersTable" && !isSupervisor) {
+            return;
+        }
+        if (submenuItem.modalOnly) {
+            if (submenuItem.table === "RestartSimulationPage") {
+                dispatch(overlayActions.openRestartSimulation());
+            }
+            return;
+        }
         dispatch(navActions.openPage({
             client,
             menuId,

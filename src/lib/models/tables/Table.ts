@@ -24,7 +24,9 @@ export type SecondaryTable<TTwo> = TTwo[];
 export type AllData<TOne> = {
     table: TOne[],
     fieldsManage: FieldsWithRelation[],
-    secondaryTable?: SecondaryTableFields
+    secondaryTable?: SecondaryTableFields,
+    /** Cuentas: filas de ctaVidautil por IdActivo para export Excel con bloque Cod.ME / Grupo / Vida útil bajo cada cuenta */
+    secondaryRowsByMainId?: Record<string, Record<string, unknown>[]>,
 };
 
 export type ReOrderData = {

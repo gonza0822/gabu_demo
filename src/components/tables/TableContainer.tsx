@@ -395,7 +395,25 @@ export default function TableContainer<T>({connPath}: {connPath: string }) : Rea
             <div className="flex flex-col w-full h-full">
                 <div className="main-content w-full h-full flex flex-col p-8 pb-4 pr-4 overflow-y-auto">
                     <div className="p-5 bg-gabu-500 flex rounded-md border border-gabu-900">
-                        {data && <MainTable data={data.table} fields={data.fieldsManage} client={client} connPath={connPath} onRowSelect={setSelectedRow} record={selectedRow} getSecondaryExportData={getSecondaryExportData}/>}
+                        {data && (
+                            <MainTable
+                                data={data.table}
+                                fields={data.fieldsManage}
+                                client={client}
+                                connPath={connPath}
+                                onRowSelect={setSelectedRow}
+                                record={selectedRow}
+                                getSecondaryExportData={getSecondaryExportData}
+                                accountExcelNested={
+                                    connPath.includes('accounts') && data.secondaryRowsByMainId && data.secondaryTable
+                                        ? {
+                                            rowsByAccountId: data.secondaryRowsByMainId,
+                                            secondaryFields: data.secondaryTable.fieldsManage,
+                                        }
+                                        : undefined
+                                }
+                            />
+                        )}
                         {loading && <div className="w-full"><Skeleton count={5} height={20} highlightColor="var(--color-gabu-700)" baseColor="var(--color-gabu-300)" className="mb-1"/></div>}
                     </div>
                     <div className="flex flex-col xl:flex-row p-7 gap-7">
@@ -404,20 +422,20 @@ export default function TableContainer<T>({connPath}: {connPath: string }) : Rea
                     {loading && <div className="w-full"><Skeleton count={10} height={30} highlightColor="var(--color-gabu-700)" baseColor="var(--color-gabu-300)" className="mb-1"/></div>}
                     </div> 
                 </div>
-                <div className="sticky w-full h-15 bg-gabu-500 flex justify-end gap-5 p-3">
+                <div className="sticky w-full bg-gabu-500 flex justify-end items-center flex-wrap gap-1.5 sm:gap-2 px-2 py-1.5 sm:px-2.5 sm:py-2">
                     <Button text="Revertir" type="button" handleClick={() => {
                         setResetFormKey(prev => prev + 1);
                         setResetSecondaryTableKey(prev => prev + 1);
-                    }} style="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300"/>
+                    }} style="font-normal text-[10px] sm:text-[11px] md:text-xs text-gabu-900 w-18 sm:w-22 md:w-24 lg:w-24 xl:w-[10%] h-6 sm:h-7 bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300"/>
                     { selectedRow && (
                         <>
-                            <Button text="Alta" type="button" handleClick={() => setSelectedRow(null)} style="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300"/>
-                            <Button text="Eliminar" type="button" handleClick={handleRemove} style="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300"/>
-                            <Button text="Guardar" type="button" handleClick={() => formRef.current?.requestSubmit()} style="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300"/>
+                            <Button text="Alta" type="button" handleClick={() => setSelectedRow(null)} style="font-normal text-[10px] sm:text-[11px] md:text-xs text-gabu-900 w-18 sm:w-22 md:w-24 lg:w-24 xl:w-[10%] h-6 sm:h-7 bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300"/>
+                            <Button text="Eliminar" type="button" handleClick={handleRemove} style="font-normal text-[10px] sm:text-[11px] md:text-xs text-gabu-900 w-18 sm:w-22 md:w-24 lg:w-24 xl:w-[10%] h-6 sm:h-7 bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300"/>
+                            <Button text="Guardar" type="button" handleClick={() => formRef.current?.requestSubmit()} style="font-normal text-[10px] sm:text-[11px] md:text-xs text-gabu-900 w-18 sm:w-22 md:w-24 lg:w-24 xl:w-[10%] h-6 sm:h-7 bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300"/>
                         </>
                     )}
                     { !selectedRow && (
-                        <Button text="Agregar" type="button" handleClick={() => formRef.current?.requestSubmit()} style="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300"/>
+                        <Button text="Agregar" type="button" handleClick={() => formRef.current?.requestSubmit()} style="font-normal text-[10px] sm:text-[11px] md:text-xs text-gabu-900 w-18 sm:w-22 md:w-24 lg:w-24 xl:w-[10%] h-6 sm:h-7 bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300"/>
                     )}
                 </div>
             </div>

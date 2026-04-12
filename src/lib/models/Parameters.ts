@@ -48,6 +48,32 @@ class Parameters {
         return parameters;
     }
 
+    async getAllBySimula(simula: boolean): Promise<Omit<ParametrosModel, 'fecrev'>[]> {
+        const moextraRows = await this.prisma.moextra.findMany({
+            where: { simula },
+            select: { idMoextra: true },
+            orderBy: { idMoextra: "asc" },
+        });
+        const moextraIds = moextraRows.map((row) => row.idMoextra);
+        if (moextraIds.length === 0) return [];
+
+        return this.prisma.parametros.findMany({
+            where: {
+                idmoextra: { in: moextraIds },
+            },
+            select: {
+                idmoextra: true,
+                fecini: true,
+                fecpro: true,
+                fecant: true,
+                procesa: true,
+                IdTipoAmortizacion: true,
+                alterna: true,
+            },
+            orderBy: { idmoextra: "asc" },
+        });
+    }
+
     async update(idmoextra: string, data: {
         fecini?: Date | null;
         fecpro?: Date | null;
@@ -77,8 +103,9 @@ class Parameters {
         });
     }
 
-    async getMoextra(): Promise<{ idMoextra: string; Descripcion: string | null }[]> {
+    async getMoextra(simulationOnly = false): Promise<{ idMoextra: string; Descripcion: string | null }[]> {
         return this.prisma.moextra.findMany({
+            where: simulationOnly ? { simula: true } : undefined,
             select: { idMoextra: true, Descripcion: true }
         });
     }

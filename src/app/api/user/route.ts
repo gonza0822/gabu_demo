@@ -10,7 +10,8 @@ type UserPostRequest = {
 }
 
 type UserPostResponse = {
-    user: string
+    user: string,
+    supervisor: boolean
 }
 
 type ErrorResponse = {
@@ -28,13 +29,14 @@ export async function POST(request: Request) : Promise<NextResponse<UserPostResp
         } else {
             const user : User = new User(userName, password, client);
 
-            const loginRes : { result : boolean, token : string} = await user.login();
+            const loginRes : { result : boolean, token : string, supervisor: boolean} = await user.login();
 
             if(loginRes.result){
                 await setSessionStore('token', loginRes.token, 60 * 60 * 24);
 
                 return  NextResponse.json({
-                    user: userName
+                    user: userName,
+                    supervisor: loginRes.supervisor,
                 })
             } else {
                 throw new Error("Credenciales invalidas para el cliente "+client+".");

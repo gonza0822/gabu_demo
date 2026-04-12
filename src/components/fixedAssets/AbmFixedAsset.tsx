@@ -90,21 +90,25 @@ const selectOptionHandler = (e: React.MouseEvent<HTMLLIElement>, ref: React.RefO
     }
 };
 
-type AbmFixedAssetProps = { bienId?: string; consultMode?: boolean; cloneMode?: boolean; altaAgregadoMode?: boolean };
+type AbmFixedAssetProps = { bienId?: string; consultMode?: boolean; cloneMode?: boolean; altaAgregadoMode?: boolean; simulationOnly?: boolean };
 
-function shouldFetchBienDataFromApi(data: Record<string, unknown> | null): boolean {
+function shouldFetchBienDataFromApi(data: Record<string, unknown> | null, simulationOnly: boolean): boolean {
     if (!data) return true;
+    // La grilla de simulación no trae el mismo shape que GetBienById (libros, distribución, aliases); siempre refrescar.
+    if (simulationOnly) return true;
     // La fila de la grilla ya contiene muchos campos de cabecera/libros; solo pedimos DB
     // cuando faltan datos extendidos necesarios para edición completa (ej: distribución detallada).
     const hasDistribucion = Array.isArray(data._distribucion);
     return !hasDistribucion;
 }
 
-export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgregadoMode }: AbmFixedAssetProps) : React.ReactElement {
+export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cloneMode, altaAgregadoMode, simulationOnly = false }: AbmFixedAssetProps) : React.ReactElement {
     const router = useRouter();
     const pathname = usePathname();
+    const consultMode = Boolean(consultModeProp || pathname.includes("/consult/"));
     const dispatch = useDispatch();
     const client = useSelector((state: RootState) => state.authorization.client);
+    const cacheClientKey = simulationOnly ? `${client}::simulacion` : client;
     const clientMenu = useSelector((state: RootState) => state.nav.find((m: Menu) => m.client === client));
     const [datosGenerales, setDatosGenerales] = useState<AbmDatosGeneralesData | null>(null);
     const [datosGeneralesLoading, setDatosGeneralesLoading] = useState(true);
@@ -120,7 +124,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
         if (!client) return;
         setCabeceraLoading(true);
         try {
-            const cachedCabecera = getCabeceraDataFromCache(client);
+            const cachedCabecera = getCabeceraDataFromCache(cacheClientKey);
             if (cachedCabecera) {
                 setCabeceraData(cachedCabecera);
                 return;
@@ -128,17 +132,17 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
             const res = await fetch("/api/fixedAssets/add", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ petition: "GetCabeceraFormData", client, data: {} }),
+                body: JSON.stringify({ petition: "GetCabeceraFormData", client, data: { simulationOnly } }),
             });
             const data = await res.json();
             if (data && Array.isArray(data.fields)) {
                 setCabeceraData(data);
-                setCabeceraDataInCache(client, data);
+                setCabeceraDataInCache(cacheClientKey, data);
             }
         } finally {
             setCabeceraLoading(false);
         }
-    }, [client]);
+    }, [cacheClientKey, client, simulationOnly]);
 
     useEffect(() => {
         fetchCabeceraData();
@@ -148,7 +152,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
         if (!client) return;
         setLibrosLoading(true);
         try {
-            const cachedLibros = getLibrosDataFromCache(client);
+            const cachedLibros = getLibrosDataFromCache(cacheClientKey);
             if (cachedLibros) {
                 setLibrosData(cachedLibros);
                 return;
@@ -156,63 +160,81 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
             const res = await fetch("/api/fixedAssets/add", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ petition: "GetLibrosFormData", client, data: {} }),
+                body: JSON.stringify({ petition: "GetLibrosFormData", client, data: { simulationOnly } }),
             });
             const data = await res.json();
             if (data && Array.isArray(data.acordeones)) {
                 setLibrosData(data);
-                setLibrosDataInCache(client, data);
+                setLibrosDataInCache(cacheClientKey, data);
             }
         } finally {
             setLibrosLoading(false);
         }
-    }, [client]);
+    }, [cacheClientKey, client, simulationOnly]);
 
     useEffect(() => {
         fetchLibrosData();
     }, [fetchLibrosData]);
 
+    const rowHasUsableValue = (v: unknown): boolean =>
+        v !== undefined && v !== null && v !== '';
+
     const getRowVal = useCallback((row: { [key: string]: unknown }, key: string): unknown => {
         const r = row;
+        const lower = key.toLowerCase();
         const tries = [
             key,
             key.toLowerCase(),
             key.charAt(0).toUpperCase() + key.slice(1).toLowerCase(),
+            key.toUpperCase(),
             `cabecera.${key}`,
             `cabecera.${key.toLowerCase()}`,
         ];
         for (const k of tries) {
-            if (r[k] !== undefined) return r[k];
+            const val = r[k];
+            if (rowHasUsableValue(val)) return val;
         }
-        const lower = key.toLowerCase();
-        const matched = Object.keys(r).find((k) =>
-            k.toLowerCase() === lower || k.toLowerCase().endsWith('.' + lower) || k.toLowerCase().endsWith('.' + key)
-        );
-        return matched != null ? r[matched] : undefined;
-    }, []);
+        const matchedKey = Object.keys(r).find((k) => {
+            const val = r[k];
+            if (!rowHasUsableValue(val)) return false;
+            const kl = k.toLowerCase();
+            return (
+                kl === lower ||
+                kl.endsWith('.' + lower) ||
+                kl.endsWith('_' + lower) ||
+                kl.endsWith('.' + key.toLowerCase())
+            );
+        });
+        return matchedKey != null ? r[matchedKey] : undefined;
+    }, [simulationOnly]);
 
     const fetchBienData = useCallback(async () => {
         if (!client || !bienId) return;
-        const cachedFromGrid = getSelectedBienFromGrid(client, bienId);
+        const cachedFromGrid = getSelectedBienFromGrid(cacheClientKey, bienId);
         if (cachedFromGrid) {
             setBienData(cachedFromGrid);
-            if (!shouldFetchBienDataFromApi(cachedFromGrid)) return;
+            if (!shouldFetchBienDataFromApi(cachedFromGrid, simulationOnly)) return;
         }
         setBienDataLoading(true);
         try {
             const res = await fetch("/api/fixedAssets/add", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ petition: "GetBienData", client, data: { bienId } }),
+                body: JSON.stringify({ petition: "GetBienData", client, data: { bienId, simulationOnly } }),
             });
             const data = await res.json();
-            if (data && typeof data === 'object' && !('status' in data)) {
-                setBienData(data);
+            if (
+                res.ok &&
+                data &&
+                typeof data === 'object' &&
+                !('message' in data && 'status' in data)
+            ) {
+                setBienData(data as { [key: string]: unknown });
             }
         } finally {
             setBienDataLoading(false);
         }
-    }, [client, bienId]);
+    }, [cacheClientKey, client, bienId, simulationOnly]);
 
     useEffect(() => {
         if (bienId) fetchBienData();
@@ -222,7 +244,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
         if (!client) return;
         setDatosGeneralesLoading(true);
         try {
-            const cachedDatosGenerales = getDatosGeneralesFromCache(client);
+            const cachedDatosGenerales = getDatosGeneralesFromCache(cacheClientKey);
             if (cachedDatosGenerales) {
                 setDatosGenerales(cachedDatosGenerales);
                 return;
@@ -236,12 +258,12 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
             const data = await res.json();
             if (data && Array.isArray(data.plants) && Array.isArray(data.zonas) && Array.isArray(data.costCenters)) {
                 setDatosGenerales(data);
-                setDatosGeneralesInCache(client, data);
+                setDatosGeneralesInCache(cacheClientKey, data);
             }
         } finally {
             setDatosGeneralesLoading(false);
         }
-    }, [client]);
+    }, [cacheClientKey, client]);
 
     useEffect(() => {
         fetchDatosGenerales();
@@ -254,105 +276,6 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
             setDatosCencos((c) => c || (datosGenerales.defaultCencos ?? ''));
         }
     }, [datosGenerales, bienId]);
-
-    useEffect(() => {
-        if (!bienData || !cabeceraData || !librosData) return;
-        const r = bienData;
-        const gv = (key: string) => {
-            const v = getRowVal(r, key);
-            return v != null ? String(v) : '';
-        };
-        const formatDate = (val: unknown): string => {
-            if (val == null || val === '') return '';
-            if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)) {
-                const d = new Date(val);
-                if (!isNaN(d.getTime())) {
-                    return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-                }
-            }
-            return String(val);
-        };
-        setDescripcion(altaAgregadoMode ? `Adicional ${gv('descripcion')}`.trim() : gv('descripcion'));
-        setDatosPlanta(gv('idPlanta'));
-        setDatosZona(gv('idZona'));
-        setDatosCencos(gv('idCencos'));
-        const activo = gv('idActivo');
-        if (activo) setCabeceraCuenta(activo);
-        const initial: Record<string, string> = {
-            IDDESCRIPCION: gv('idDescripcion'),
-            IDSITUACION: gv('idSituacion'),
-            CANTIDAD: gv('cantidad') || '1',
-            IDFACTURA: gv('idFactura'),
-            IDUNEGOCIO: gv('idUnegocio'),
-            IDENTIFICACION: gv('identificacion'),
-            IDACTIVO: activo,
-            TRFECACTIVO: formatDate(getRowVal(r, 'trFecActivo')),
-            IDMODELO: gv('idModelo'),
-            TRIDACTIVO: gv('tridActivo'),
-            IDORDENCOMPRA: gv('idOrdenCompra'),
-            TRFECPROYECTO: formatDate(getRowVal(r, 'trFecProyecto')),
-            IDORIGEN: gv('idOrigen'),
-            TRFECUNEGOCIO: formatDate(getRowVal(r, 'trFecUNegocio')),
-            IDPROVEEDOR: gv('idProveedor'),
-            ESENCIAL: (getRowVal(r, 'escencial') === true || getRowVal(r, 'escencial') === 'true') ? '1' : '0',
-            IDFABRICANTE: gv('idFabricante'),
-            NUEVO: (getRowVal(r, 'nuevo') === true || getRowVal(r, 'nuevo') === 'true') ? '1' : '0',
-            IDPROYECTO: gv('idProyecto'),
-        };
-        cabeceraValuesRef.current = initial;
-        setCabeceraInitialValues(initial);
-        const dist = (r._distribucion as { idCencos: string; porcentaje: number }[]) ?? [];
-        if (dist.length > 0) {
-            setDistribucionRows(dist.map((d, i) => ({
-                id: Date.now() + i,
-                cencos: d.idCencos ?? '',
-                porcentaje: String(d.porcentaje ?? 0),
-            })));
-        }
-        const rawVal = altaAgregadoMode ? 0 : parseFloat(String(getRowVal(r, 'Valori') ?? getRowVal(r, 'valori') ?? 0).replace(',', '.'));
-        setValorOrigenGral(isNaN(rawVal) ? '0' : String(rawVal));
-        const fecoriMap: Record<string, string> = {};
-        const tipoAmorMap: Record<string, string> = {};
-        const vidautilMap: Record<string, string> = {};
-        const valoriMap: Record<string, string> = {};
-        const tryLibroVal = (prefijo: string, campo: string): unknown => {
-            for (const k of [`${prefijo}.${campo}`, `${prefijo.toLowerCase()}.${campo}`, `me01.${campo}`, campo]) {
-                const v = getRowVal(r, k);
-                if (v != null && v !== '') return v;
-            }
-            return undefined;
-        };
-        const getIdMonedaForPrefijo = (prefijo: string): string => {
-            if (prefijo.toUpperCase() === 'MONEDALOCAL' || prefijo.toLowerCase() === 'impuestos') return '01';
-            const m = prefijo.match(/^ME(\d+)$/i);
-            return m ? m[1].padStart(2, '0') : '01';
-        };
-        librosData.acordeones.forEach((ac) => {
-            const vFec = tryLibroVal(ac.prefijo, 'FecOri');
-            const vTipo = tryLibroVal(ac.prefijo, 'idTipoAmortizacion');
-            const vVu = tryLibroVal(ac.prefijo, 'vidaUtil');
-            const vVal = tryLibroVal(ac.prefijo, 'Valori');
-            if (cloneMode || altaAgregadoMode) {
-                const fecPro = librosData.defaultsByMoneda[getIdMonedaForPrefijo(ac.prefijo)]?.FECORI ?? '';
-                if (fecPro) fecoriMap[ac.prefijo] = fecPro;
-            } else if (vFec != null && vFec !== '') {
-                fecoriMap[ac.prefijo] = formatDate(vFec);
-            }
-            if (vTipo != null && vTipo !== '') tipoAmorMap[ac.prefijo] = String(vTipo);
-            if (vVu != null && vVu !== '') vidautilMap[ac.prefijo] = String(vVu);
-            if (altaAgregadoMode) {
-                valoriMap[ac.prefijo] = '0';
-            } else if (vVal != null && vVal !== '') {
-                const num = parseFloat(String(vVal).replace(',', '.'));
-                valoriMap[ac.prefijo] = isNaN(num) ? '0' : String(num);
-            }
-        });
-        setLibrosFecori((prev) => ({ ...prev, ...fecoriMap }));
-        setLibrosTipoAmor((prev) => ({ ...prev, ...tipoAmorMap }));
-        setLibrosVidautil((prev) => ({ ...prev, ...vidautilMap }));
-        setLibrosValori((prev) => ({ ...prev, ...valoriMap }));
-        setFormKey((k) => k + 1);
-    }, [bienData, cabeceraData, librosData, getRowVal, cloneMode, altaAgregadoMode]);
 
     // Per-accordion reactive state for calculated fields
     const [librosFecori, setLibrosFecori] = useState<Record<string, string>>({});
@@ -424,6 +347,118 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
     type DistribucionRow = { id: number; cencos: string; porcentaje: string };
     const [distribucionRows, setDistribucionRows] = useState<DistribucionRow[]>([]);
     const [ccostosOptions, setCcostosOptions] = useState<{ key: string; value: string }[]>([]);
+
+    /** Hidrata formulario desde bienData (debe ir después de los useState que actualiza). */
+    useEffect(() => {
+        if (!bienData || !cabeceraData || !librosData) return;
+        const r = bienData;
+        const gv = (key: string) => {
+            const v = getRowVal(r, key);
+            return v != null ? String(v) : '';
+        };
+        const formatDate = (val: unknown): string => {
+            if (val == null || val === '') return '';
+            if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)) {
+                const d = new Date(val);
+                if (!isNaN(d.getTime())) {
+                    return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                }
+            }
+            return String(val);
+        };
+        setDescripcion(altaAgregadoMode ? `Adicional ${gv('descripcion')}`.trim() : gv('descripcion'));
+        setDatosPlanta(gv('idPlanta'));
+        setDatosZona(gv('idZona'));
+        setDatosCencos(gv('idCencos'));
+        const activo = gv('idActivo');
+        if (activo) setCabeceraCuenta(activo);
+        const initial: Record<string, string> = {
+            IDDESCRIPCION: gv('idDescripcion'),
+            IDSITUACION: gv('idSituacion'),
+            CANTIDAD: gv('cantidad') || '1',
+            IDFACTURA: gv('idFactura'),
+            IDUNEGOCIO: gv('idUnegocio'),
+            IDENTIFICACION: gv('identificacion'),
+            IDACTIVO: activo,
+            TRFECACTIVO: formatDate(getRowVal(r, 'trFecActivo')),
+            IDMODELO: gv('idModelo'),
+            TRIDACTIVO: gv('tridActivo'),
+            IDORDENCOMPRA: gv('idOrdenCompra'),
+            TRFECPROYECTO: formatDate(getRowVal(r, 'trFecProyecto')),
+            IDORIGEN: gv('idOrigen'),
+            TRFECUNEGOCIO: formatDate(getRowVal(r, 'trFecUNegocio')),
+            IDPROVEEDOR: gv('idProveedor'),
+            ESENCIAL: (getRowVal(r, 'escencial') === true || getRowVal(r, 'escencial') === 'true') ? '1' : '0',
+            IDFABRICANTE: gv('idFabricante'),
+            NUEVO: (getRowVal(r, 'nuevo') === true || getRowVal(r, 'nuevo') === 'true') ? '1' : '0',
+            IDPROYECTO: gv('idProyecto'),
+        };
+        cabeceraValuesRef.current = initial;
+        setCabeceraInitialValues(initial);
+        const dist = (r._distribucion as { idCencos: string; porcentaje: number }[]) ?? [];
+        if (dist.length > 0) {
+            setDistribucionRows(dist.map((d, i) => ({
+                id: Date.now() + i,
+                cencos: d.idCencos ?? '',
+                porcentaje: String(d.porcentaje ?? 0),
+            })));
+        }
+        const rawVal = altaAgregadoMode ? 0 : parseFloat(String(getRowVal(r, 'Valori') ?? getRowVal(r, 'valori') ?? 0).replace(',', '.'));
+        setValorOrigenGral(isNaN(rawVal) ? '0' : String(rawVal));
+        const fecoriMap: Record<string, string> = {};
+        const tipoAmorMap: Record<string, string> = {};
+        const vidautilMap: Record<string, string> = {};
+        const valoriMap: Record<string, string> = {};
+        const tryLibroVal = (prefijo: string, campo: string): unknown => {
+            const fallbacks = simulationOnly
+                ? [
+                    `${prefijo}.${campo}`,
+                    `${prefijo.toLowerCase()}.${campo}`,
+                    `${prefijo.toUpperCase()}.${campo.toUpperCase()}`,
+                    `me03.${campo}`,
+                    `ME03.${campo}`,
+                    `me01.${campo}`,
+                    campo,
+                    campo.toUpperCase(),
+                ]
+                : [`${prefijo}.${campo}`, `${prefijo.toLowerCase()}.${campo}`, `me01.${campo}`, campo, campo.toUpperCase()];
+            for (const k of fallbacks) {
+                const v = getRowVal(r, k);
+                if (rowHasUsableValue(v)) return v;
+            }
+            return undefined;
+        };
+        const getIdMonedaForPrefijo = (prefijo: string): string => {
+            if (prefijo.toUpperCase() === 'MONEDALOCAL' || prefijo.toLowerCase() === 'impuestos') return '01';
+            const m = prefijo.match(/^ME(\d+)$/i);
+            return m ? m[1].padStart(2, '0') : '01';
+        };
+        librosData.acordeones.forEach((ac) => {
+            const vFec = tryLibroVal(ac.prefijo, 'FecOri');
+            const vTipo = tryLibroVal(ac.prefijo, 'idTipoAmortizacion');
+            const vVu = tryLibroVal(ac.prefijo, 'vidaUtil');
+            const vVal = tryLibroVal(ac.prefijo, 'Valori');
+            if (cloneMode || altaAgregadoMode) {
+                const fecPro = librosData.defaultsByMoneda[getIdMonedaForPrefijo(ac.prefijo)]?.FECORI ?? '';
+                if (fecPro) fecoriMap[ac.prefijo] = fecPro;
+            } else if (vFec != null && vFec !== '') {
+                fecoriMap[ac.prefijo] = formatDate(vFec);
+            }
+            if (vTipo != null && vTipo !== '') tipoAmorMap[ac.prefijo] = String(vTipo);
+            if (vVu != null && vVu !== '') vidautilMap[ac.prefijo] = String(vVu);
+            if (altaAgregadoMode) {
+                valoriMap[ac.prefijo] = '0';
+            } else if (rowHasUsableValue(vVal) || (typeof vVal === 'number' && !Number.isNaN(vVal))) {
+                const num = parseFloat(String(vVal).replace(',', '.'));
+                valoriMap[ac.prefijo] = isNaN(num) ? '0' : String(num);
+            }
+        });
+        setLibrosFecori((prev) => ({ ...prev, ...fecoriMap }));
+        setLibrosTipoAmor((prev) => ({ ...prev, ...tipoAmorMap }));
+        setLibrosVidautil((prev) => ({ ...prev, ...vidautilMap }));
+        setLibrosValori((prev) => ({ ...prev, ...valoriMap }));
+        setFormKey((k) => k + 1);
+    }, [bienData, cabeceraData, librosData, getRowVal, cloneMode, altaAgregadoMode, simulationOnly]);
 
     const fetchCCostos = useCallback(async () => {
         if (!client) return;
@@ -671,8 +706,8 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
                     handleRevert();
                     const newBienId = (data?.bienId ?? (data?.idCodigo ? `${data.idCodigo}-${data?.idSubien ?? '000'}-0-0` : undefined)) as string | undefined;
                     if (client && newBienId) {
-                        const tableName = `AbmFixedAssetConsult-${newBienId}`;
-                        const path = `/fixedAssets/consult/${newBienId}`;
+                        const tableName = simulationOnly ? `AbmSimulationFixedAssetConsult-${newBienId}` : `AbmFixedAssetConsult-${newBienId}`;
+                        const path = simulationOnly ? `/simulations/consult/${newBienId}` : `/fixedAssets/consult/${newBienId}`;
                         // Cerrar el tab actual (alta pura, clonar o alta agregado) al abrir el de consulta
                         if (clientMenu) {
                             const menuId = clientMenu.menu.findIndex((menu) => menu.submenu.some((s) => s.path === pathname));
@@ -704,7 +739,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
         } finally {
             setSaving(false);
         }
-    }, [client, clientMenu, pathname, descripcion, datosPlanta, datosZona, datosCencos, distribucionRows, cabeceraCuenta, datosGenerales, librosData, librosValori, handleRevert, bienId, cloneMode, altaAgregadoMode, dispatch, router]);
+    }, [client, clientMenu, pathname, descripcion, datosPlanta, datosZona, datosCencos, distribucionRows, cabeceraCuenta, datosGenerales, librosData, librosValori, handleRevert, bienId, cloneMode, altaAgregadoMode, dispatch, router, simulationOnly]);
     const [horizontalTabCabecera, setHorizontalTabCabecera] = useState<'distribucion' | 'notas' | 'fotos' | 'documentos' | 'tecnica'>('distribucion');
 
     const horizontalTabsCabecera = [
@@ -712,7 +747,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
         { id: 'notas' as const, label: 'NOTAS' },
         { id: 'fotos' as const, label: 'FOTOS' },
         { id: 'documentos' as const, label: 'DOCUMENTOS' },
-        { id: 'tecnica' as const, label: 'P. TECNICA' },
+        { id: 'tecnica' as const, label: 'CARGOS' },
     ];
 
     const librosHorizontalTabs = [
@@ -912,6 +947,17 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
     const LIBRO_SELECT_FIELDS = new Set(['IDACTIVO', 'IDTIPOAMORTIZACION', 'IDINDACT', 'IDTIPOPROCESO', 'IDCODAMO', 'ESTCON', 'IDMONEDA']);
     const LIBRO_DISABLED_FIELDS = new Set(['FECBASE', 'FECBAJ', 'TIPOBAJA', 'PRECIOVENTA', 'VIDATRANSCURRIDA', 'VIDARESTANTE', 'VALORRESIDUAL', 'INDICE', 'FECPRO', 'CAMBIOEJERCICIO', 'FECDIAPROCESO']);
 
+    /** En simulación, etiquetas desde ConverField (IdTabla simulacion, cabecera.*) — BrowNombre. */
+    const cabFieldLabel = useCallback(
+        (campo: string, fallback: string) => {
+            if (!simulationOnly || !cabeceraData?.fields) return fallback;
+            const lc = campo.toLowerCase();
+            const hit = cabeceraData.fields.find((f) => f.idCampo.toLowerCase() === lc);
+            return (hit?.browNombre && String(hit.browNombre).trim()) || fallback;
+        },
+        [simulationOnly, cabeceraData]
+    );
+
     return (
         <form ref={formRef} onSubmit={(e) => { e.preventDefault(); if (!consultMode) handleGuardar(); }} className="flex flex-col w-full h-full">
             <div key={formKey} className="flex flex-col w-full h-full pl-10 pr-5 overflow-y-auto main-content">
@@ -921,7 +967,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
                         <Excel style="absolute -right-5 mr-10 cursor-pointer h-6 w-6 fill-current text-gabu-300" onClick={() => {}} />
                     </div>
                     <div className="flex flex-col gap-1 w-full px-5 mb-5 relative">
-                        <label className="text-gabu-100 text-xs font-normal">Descripcion</label>
+                        <label className="text-gabu-100 text-xs font-normal">{cabFieldLabel('descripcion', 'Descripcion')}</label>
                         <textarea
                             rows={1}
                             readOnly={consultMode}
@@ -967,7 +1013,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
                                 <div className="h-10 bg-gabu-300 rounded-md animate-pulse" />
                             ) : (
                                 <Select
-                                    label="Planta"
+                                    label={cabFieldLabel('idPlanta', 'Planta')}
                                     hasLabel={true}
                                     isLogin={false}
                                     variant="abm"
@@ -985,7 +1031,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
                                 <div className="h-10 bg-gabu-300 rounded-md animate-pulse" />
                             ) : (
                                 <Select
-                                    label="Zona"
+                                    label={cabFieldLabel('idZona', 'Zona')}
                                     hasLabel={true}
                                     isLogin={false}
                                     variant="abm"
@@ -1003,7 +1049,7 @@ export default function AbmFixedAsset({ bienId, consultMode, cloneMode, altaAgre
                                 <div className="h-10 bg-gabu-300 rounded-md animate-pulse" />
                             ) : (
                                 <Select
-                                    label="Centro de costos"
+                                    label={cabFieldLabel('idCencos', 'Centro de costos')}
                                     hasLabel={true}
                                     isLogin={false}
                                     variant="abm"

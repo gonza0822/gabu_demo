@@ -46,14 +46,6 @@
     gap: .9rem;
   }
 
-  .home-doughnut-chart {
-    width: 45%;
-  }
-
-  .home-doughnut-chart-inner {
-    height: 72%;
-  }
-
   .home-doughnut-legend {
     gap: 1rem;
   }

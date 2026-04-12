@@ -116,11 +116,33 @@ class QuotationME extends Table<
     }
 
     async updateOne(data: QuotationMEWithStringDate) : Promise<QuotationMEWithStringDate> {
+        const parsedDate = parseDateString(data.Fecha);
+        const monthStart = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), 1);
+        const nextMonthStart = new Date(parsedDate.getFullYear(), parsedDate.getMonth() + 1, 1);
+
+        const existingQuotation = await this.prisma.cotextranjera.findFirst({
+            where: {
+                idMoextra: data.idMoextra,
+                Fecha: {
+                    gte: monthStart,
+                    lt: nextMonthStart,
+                },
+            },
+            select: {
+                Fecha: true,
+                idMoextra: true,
+            },
+        });
+
+        if (!existingQuotation) {
+            throw new Error("No se encontró el registro a actualizar para la moneda y período seleccionados.");
+        }
+
         const updatedQuotation = await this.prisma.cotextranjera.update({
             where: {
                 Fecha_idMoextra: {
-                    Fecha: parseDateString(data.Fecha),
-                    idMoextra: data.idMoextra
+                    Fecha: existingQuotation.Fecha,
+                    idMoextra: existingQuotation.idMoextra,
                 }
             },
             data: {

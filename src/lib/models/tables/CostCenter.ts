@@ -17,23 +17,58 @@ class CostCenter extends Table<
     }
 
     async getAll() : Promise<CostCenterData> {
-        const costCenters : CCostosModel[] = await this.prisma.cCostos.findMany();
-        const fieldsManage : ConverFieldModel[] = await this.prisma.converField.findMany({
-            where: {
-                IdTabla: 'CCostos',
-                listShow: true,
-                OR: [
-                    { idusuario: this.client },
-                    { idusuario: 'default' }
-                ]
-            },
-            orderBy: {
-                lisordencampos: 'asc'
-            }
-        });
+        const [costCenters, fieldsManage, zones, accounts] = await Promise.all([
+            this.prisma.cCostos.findMany(),
+            this.prisma.converField.findMany({
+                where: {
+                    IdTabla: 'CCostos',
+                    listShow: true,
+                    OR: [
+                        { idusuario: this.client },
+                        { idusuario: 'default' }
+                    ]
+                },
+                orderBy: {
+                    lisordencampos: 'asc'
+                }
+            }),
+            this.prisma.zonas.findMany({
+                select: {
+                    idZona: true,
+                    descripcion: true,
+                },
+                orderBy: { idZona: 'asc' },
+            }),
+            this.prisma.cuentas.findMany({
+                select: {
+                    IdActivo: true,
+                    Descripcion: true,
+                    IdTipo: true,
+                },
+                orderBy: { IdActivo: 'asc' },
+            }),
+        ]);
+
+        const zoneRelations = [
+            { id: "", description: "Ninguna" as string | null },
+            ...zones.map((z) => ({
+                id: z.idZona ?? "",
+                description: (z.descripcion ?? z.idZona) ?? "",
+            })),
+        ];
+        const resultAccountRelations = [
+            { id: "", description: "Ninguna" as string | null },
+            ...accounts
+                .filter((acc) => String(acc.IdTipo ?? "").trim() !== "0")
+                .map((acc) => ({
+                    id: acc.IdActivo ?? "",
+                    description: (acc.Descripcion ?? acc.IdActivo) ?? "",
+                })),
+        ];
         return {
             table: costCenters,
             fieldsManage: fieldsManage.map(field => {
+                const fieldId = String(field.IdCampo ?? "").toLowerCase();
                 if(field.IdCampo === 'IdCencos'){
                     return {
                         ...field,
@@ -54,6 +89,18 @@ class CostCenter extends Table<
                         }
                     };
                 }
+                if (fieldId === "idzona") {
+                    return {
+                        ...field,
+                        relation: zoneRelations,
+                    };
+                }
+                if (fieldId === "idresultado") {
+                    return {
+                        ...field,
+                        relation: resultAccountRelations,
+                    };
+                }
                 return {
                     ...field,
                     relation: []
@@ -70,24 +117,51 @@ class CostCenter extends Table<
         });
     }
 
+    private normalizeProductivo(value: unknown): boolean {
+        if (typeof value === "boolean") return value;
+        if (typeof value === "number") return value !== 0;
+        if (typeof value === "string") {
+            const normalized = value.trim().toLowerCase();
+            if (["true", "1", "si", "sí", "y", "yes", "on"].includes(normalized)) return true;
+            if (["false", "0", "no", "n", "off", ""].includes(normalized)) return false;
+        }
+        return false;
+    }
+
+    private normalizePayload(data: CCostosModel): CCostosModel {
+        const normalizeNullableRef = (value: unknown): string | null => {
+            const v = String(value ?? "").trim();
+            if (v === "" || v === "0") return null;
+            return v;
+        };
+        return {
+            ...data,
+            Productivo: this.normalizeProductivo((data as unknown as Record<string, unknown>).Productivo),
+            IdResultado: normalizeNullableRef((data as unknown as Record<string, unknown>).IdResultado),
+            idZona: normalizeNullableRef((data as unknown as Record<string, unknown>).idZona),
+        };
+    }
+
     async insertOne(data: CCostosModel) : Promise<CCostosModel> {
+        const payload = this.normalizePayload(data);
         return await this.prisma.cCostos.create({
-            data
+            data: payload
         });
     }
 
     async updateOne(data: CCostosModel) : Promise<CCostosModel> {
+        const payload = this.normalizePayload(data);
         return await this.prisma.cCostos.update({
             where: {
-                IdCencos: data.IdCencos
+                IdCencos: payload.IdCencos
             },
             data: {
-                Descripcion: data.Descripcion ?? null,
-                IdResultado: data.IdResultado ?? null,
-                IdAmajuste: data.IdAmajuste ?? null,
-                Productivo: data.Productivo ?? null,
-                idZona: data.idZona ?? null,
-                codcia: data.codcia ?? null,
+                Descripcion: payload.Descripcion ?? null,
+                IdResultado: payload.IdResultado ?? null,
+                IdAmajuste: payload.IdAmajuste ?? null,
+                Productivo: payload.Productivo,
+                idZona: payload.idZona ?? null,
+                codcia: payload.codcia ?? null,
             }
         });
     }

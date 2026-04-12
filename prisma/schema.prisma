@@ -892,6 +892,53 @@ model cabecera {
   @@id([idCodigo, idSubien, idSubtra, idSufijo], map: "PK_cabecera", clustered: false)
 }
 
+/// Cabecera de bienes en simulación (misma forma que cabecera; reinicio: TRUNCATE vía DELETE + INSERT desde cabecera).
+model cabesimu {
+  idCodigo       String    @db.NVarChar(6)
+  idSubien       String    @db.NVarChar(3)
+  idSubtra       String    @db.NVarChar(3)
+  idSufijo       String    @db.NVarChar(3)
+  idDescripcion  String?   @db.NVarChar(6)
+  cantidad       Float?    @db.Real
+  descripcion    String?   @db.NText
+  idUnegocio     String?   @db.NVarChar(6)
+  idActivo       String?   @db.NVarChar(15)
+  idZona         String?   @db.NVarChar(15)
+  idPlanta       String?   @db.NVarChar(5)
+  idCencos       String?   @db.NVarChar(5)
+  idModelo       String?   @db.NVarChar(5)
+  idOrdenCompra  String?   @db.NVarChar(50)
+  idOrigen       String?   @db.NVarChar(2)
+  idProveedor    String?   @db.NVarChar(15)
+  idFabricante   String?   @db.NVarChar(50)
+  idProyecto     String?   @db.NVarChar(8)
+  idSituacion    String?   @db.NVarChar(2)
+  idFactura      String?   @db.NVarChar(30)
+  identificacion String?   @db.NVarChar(15)
+  plidPoliza     String?   @db.NVarChar(30)
+  plFecini       DateTime? @db.DateTime
+  plFecfin       DateTime? @db.DateTime
+  plidNaturaleza String?   @db.NVarChar(5)
+  plidPrima      String?   @db.NVarChar(5)
+  plarticulo     String?   @db.NVarChar(50)
+  trFecActivo    DateTime? @db.DateTime
+  tridActivo     String?   @db.NVarChar(15)
+  trFecCencos    DateTime? @db.DateTime
+  tridCencos     String?   @db.NVarChar(5)
+  trFecProyecto  DateTime? @db.DateTime
+  tridProyecto   String?   @db.NVarChar(8)
+  trFecUNegocio  DateTime? @db.DateTime
+  tridUNegocio   String?   @db.NVarChar(5)
+  trFecEmpresa   DateTime? @db.DateTime
+  tridEmpresa    String?   @db.NVarChar(5)
+  marcaSeleccion Boolean?
+  escencial      Boolean?
+  nuevo          Boolean?
+  fecpro         String?   @db.NVarChar(6)
+
+  @@id([idCodigo, idSubien, idSubtra, idSufijo], map: "PK_cabesimu", clustered: false)
+}
+
 model CAMPOS {
   campo    String? @db.NVarChar(25)
   nombre   String? @db.NVarChar(30)

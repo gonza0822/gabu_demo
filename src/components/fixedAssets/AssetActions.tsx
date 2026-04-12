@@ -73,6 +73,7 @@ type Props = {
   triggerRect: TriggerRect | null;
   rowId: string | null;
   onAction?: (rowId: string, actionId: ActionId) => void;
+  allowedActions?: ActionId[];
 };
 
 export default function AssetActions({
@@ -81,7 +82,12 @@ export default function AssetActions({
   triggerRect,
   rowId,
   onAction,
+  allowedActions,
 }: Props) {
+  const visibleActions = allowedActions?.length
+    ? ACTIONS.filter(({ id }) => allowedActions.includes(id))
+    : ACTIONS;
+
   const popupRef = useRef<HTMLDivElement>(null);
   const [exitingRect, setExitingRect] = useState<TriggerRect | null>(null);
 
@@ -140,7 +146,7 @@ export default function AssetActions({
           Acciones
         </p>
         <div className="flex flex-col w-full gap-1 my-1 flex-1 overflow-y-auto">
-          {ACTIONS.map(({ id, label }) => (
+          {visibleActions.map(({ id, label }) => (
             <button
               key={id}
               type="button"

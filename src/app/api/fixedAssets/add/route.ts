@@ -5,11 +5,11 @@ export type ErrorResponse = { message: string; status: number };
 
 type UserPostRequest =
     | { petition: "GetFormData"; client: string; data: {} }
-    | { petition: "GetCabeceraFormData"; client: string; data: {} }
-    | { petition: "GetLibrosFormData"; client: string; data: {} }
+    | { petition: "GetCabeceraFormData"; client: string; data: { simulationOnly?: boolean } }
+    | { petition: "GetLibrosFormData"; client: string; data: { simulationOnly?: boolean } }
     | { petition: "GetCCostosOptions"; client: string; data: {} }
     | { petition: "Add"; client: string; data: Record<string, unknown> }
-    | { petition: "GetBienData"; client: string; data: { bienId: string } }
+    | { petition: "GetBienData"; client: string; data: { bienId: string; simulationOnly?: boolean } }
     | { petition: "Update"; client: string; data: { bienId: string } & Record<string, unknown> };
 
 export async function POST(
@@ -29,17 +29,19 @@ export async function POST(
             case "GetFormData":
                 return NextResponse.json(await fixedAssetModel.getAbmDatosGenerales());
             case "GetCabeceraFormData":
-                return NextResponse.json(await fixedAssetModel.getAbmCabeceraData());
+                return NextResponse.json(
+                    await fixedAssetModel.getAbmCabeceraData(Boolean((body as { data?: { simulationOnly?: boolean } }).data?.simulationOnly))
+                );
             case "GetLibrosFormData":
-                return NextResponse.json(await fixedAssetModel.getAbmLibrosData());
+                return NextResponse.json(await fixedAssetModel.getAbmLibrosData(Boolean((body as { data?: { simulationOnly?: boolean } }).data?.simulationOnly)));
             case "GetCCostosOptions":
                 return NextResponse.json(await fixedAssetModel.getCCostosOptions());
             case "GetBienData": {
-                const data = (body as { data?: { bienId: string } }).data;
+                const data = (body as { data?: { bienId: string; simulationOnly?: boolean } }).data;
                 if (!data?.bienId) {
                     return NextResponse.json({ message: "bienId is required", status: 400 }, { status: 400 });
                 }
-                const bien = await fixedAssetModel.getBienById(data.bienId);
+                const bien = await fixedAssetModel.getBienById(data.bienId, { simulationOnly: Boolean(data.simulationOnly) });
                 if (!bien) {
                     return NextResponse.json({ message: "Bien no encontrado", status: 404 }, { status: 404 });
                 }

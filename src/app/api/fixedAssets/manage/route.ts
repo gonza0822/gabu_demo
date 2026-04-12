@@ -29,6 +29,7 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
 
     type UserPostRequest =
         | { petition: "Get"; client: string; data: {} }
+        | { petition: "GetSimulacion"; client: string; data: {} }
         | { petition: "UpdateOrder"; client: string; data: ReOrderData }
         | { petition: "SetListShow"; client: string; data: SetListShowData }
         | { petition: "Baja"; client: string; data: BajaData }
@@ -43,6 +44,8 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
         switch (petition) {
             case "Get":
                 return NextResponse.json(await fixedAssetsModel.getAll());
+            case "GetSimulacion":
+                return NextResponse.json(await fixedAssetsModel.getAllSimulacion());
             case "UpdateOrder":
                 return NextResponse.json(await fixedAssetsModel.changeOrder(data as ReOrderData));
             case "SetListShow": {

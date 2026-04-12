@@ -8,7 +8,9 @@ export type Submenu = {
     isOpen: boolean,
     active: boolean,
     order: number,
-    hiddenFromSidebar?: boolean
+    hiddenFromSidebar?: boolean,
+    /** Si true: no abre pestaña ni navega; dispara overlay (p. ej. modal). */
+    modalOnly?: boolean,
 }
 
 export type Menu = {

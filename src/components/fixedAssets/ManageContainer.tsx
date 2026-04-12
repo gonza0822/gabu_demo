@@ -43,7 +43,14 @@ const PAGE_SIZE_OPTIONS = [
     { key: "15", value: "15" },
 ] as const;
 
-export default function ManageContainer() : React.ReactElement {
+const COMPACT_PAGE_MEDIA = "(max-width: 1280px), (max-height: 620px)";
+
+function readViewportCompact(): boolean {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(COMPACT_PAGE_MEDIA).matches;
+}
+
+export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "activo-fijo" | "simulacion" }) : React.ReactElement {
     const router = useRouter();
     const dispatch = useDispatch();
     const client : string = useSelector((state : RootState) => state.authorization.client);
@@ -52,21 +59,22 @@ export default function ManageContainer() : React.ReactElement {
     const options: RequestInit = useMemo(() => ({
         method: 'POST',
         body: JSON.stringify({
-            petition: "Get",
+            petition: mode === "simulacion" ? "GetSimulacion" : "Get",
             client: client,
             data: {}
         }),
         headers: {
             'Content-Type': 'application/json'
         }
-    }), [client]);
+    }), [client, mode]);
 
-    const cachedManageData = useMemo(() => getManageDataFromCache(client), [client]);
+    const manageCacheKey = useMemo(() => `${client}::${mode}`, [client, mode]);
+    const cachedManageData = useMemo(() => getManageDataFromCache(manageCacheKey), [manageCacheKey]);
     const fetchConfig = useMemo(() => ({
         initialData: cachedManageData,
         skipInitialFetch: cachedManageData != null,
-        onData: (nextData: FixedAssetsData) => setManageDataInCache(client, nextData),
-    }), [cachedManageData, client]);
+        onData: (nextData: FixedAssetsData) => setManageDataInCache(manageCacheKey, nextData),
+    }), [cachedManageData, manageCacheKey]);
 
     const { data:fixedAssetsData, error, loading, setData, refetch } = useFetch<FixedAssetsData>("/api/fixedAssets/manage", options, fetchConfig);
 
@@ -76,10 +84,11 @@ export default function ManageContainer() : React.ReactElement {
 
     const [dataTable, setDataTable] = React.useState<FixedAssets[]>(fixedAssetsData?.fixedAssets || []);
 
-    const [pagination, setPagination] = useState({
+    const [viewportCompact, setViewportCompact] = useState(() => readViewportCompact());
+    const [pagination, setPagination] = useState(() => ({
         pageIndex: 0,
         pageSize: 10,
-    });
+    }));
 
     const [sorting, setSorting] = useState<SortingState>([]);
 
@@ -135,7 +144,12 @@ export default function ManageContainer() : React.ReactElement {
 
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const bottomScrollbarRef = useRef<HTMLDivElement | null>(null);
+    const tableHorizontalRef = useRef<HTMLDivElement | null>(null);
+    const scrollSyncLockRef = useRef(false);
     const SEARCH_DEBOUNCE_MS = 350;
+    const isSimulationMode = mode === "simulacion";
+    const fixedAssetsContextKey = isSimulationMode ? `${client}::simulacion` : client;
 
     useEffect(() => {
         setDataTable(fixedAssetsData?.fixedAssets || []);
@@ -158,6 +172,23 @@ export default function ManageContainer() : React.ReactElement {
             if (transferAlertTimeoutRef.current) clearTimeout(transferAlertTimeoutRef.current);
         };
     }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const mq = window.matchMedia(COMPACT_PAGE_MEDIA);
+        const sync = () => setViewportCompact(mq.matches);
+        sync();
+        mq.addEventListener("change", sync);
+        return () => mq.removeEventListener("change", sync);
+    }, []);
+
+    useEffect(() => {
+        setPagination((prev) => {
+            const allowed = [5, 10, 15];
+            if (allowed.includes(prev.pageSize)) return prev;
+            return { pageIndex: 0, pageSize: 10 };
+        });
+    }, [viewportCompact]);
 
     /** Solo formatea a MM/YYYY si el valor es una fecha (Date o string tipo 2002-03-01 00:00:00.000). No toca números ni otros textos. */
     function formatCellDate(value: unknown): string | number {
@@ -197,8 +228,17 @@ export default function ManageContainer() : React.ReactElement {
         return isNaN(d.getTime()) ? null : d.getTime();
     }
 
+    function getFieldValue(row: FixedAssets, fieldId: string): unknown {
+        const record = row as Record<string, unknown>;
+        if (record[fieldId] !== undefined) return record[fieldId];
+        const lower = fieldId.toLowerCase();
+        const byLower = Object.keys(record).find((k) => k.toLowerCase() === lower);
+        if (byLower) return record[byLower];
+        return undefined;
+    }
+
     const columns = useMemo(() => [
-        ...(fixedAssetsData?.fieldsManage ?? []).map(field => columnHelper.accessor((row : FixedAssets) => row[field.IdCampo as keyof FixedAssets], {
+        ...(fixedAssetsData?.fieldsManage ?? []).map(field => columnHelper.accessor((row : FixedAssets) => getFieldValue(row, field.IdCampo), {
             id: field.IdCampo,
             size: 200,
             header: field.BrowNombre ?? '',
@@ -474,7 +514,7 @@ export default function ManageContainer() : React.ReactElement {
         const valueLower = value.toLowerCase();
         const filteredData = base.filter((item) =>
             fields.some((field) => {
-                const fieldValue = item[field.IdCampo as keyof FixedAssets];
+                const fieldValue = getFieldValue(item, field.IdCampo);
                 return fieldValue != null && String(fieldValue).toLowerCase().includes(valueLower);
             })
         );
@@ -621,6 +661,28 @@ export default function ManageContainer() : React.ReactElement {
         }
     }
 
+    const syncFromBottomScrollbar = useCallback(() => {
+        if (!bottomScrollbarRef.current || !tableHorizontalRef.current) return;
+        if (scrollSyncLockRef.current) return;
+        scrollSyncLockRef.current = true;
+        tableHorizontalRef.current.scrollLeft = bottomScrollbarRef.current.scrollLeft;
+        requestAnimationFrame(() => {
+            scrollSyncLockRef.current = false;
+        });
+    }, []);
+
+    const syncFromTableScrollbar = useCallback(() => {
+        if (!bottomScrollbarRef.current || !tableHorizontalRef.current) return;
+        if (scrollSyncLockRef.current) return;
+        scrollSyncLockRef.current = true;
+        bottomScrollbarRef.current.scrollLeft = tableHorizontalRef.current.scrollLeft;
+        requestAnimationFrame(() => {
+            scrollSyncLockRef.current = false;
+        });
+    }, []);
+
+    const pageSizeOptions = PAGE_SIZE_OPTIONS;
+
     async function exportToExcel() {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Data');
@@ -764,6 +826,7 @@ export default function ManageContainer() : React.ReactElement {
                 }}
                 triggerRect={actionsTriggerRect}
                 rowId={actionsOpenRowId}
+                allowedActions={isSimulationMode ? ['consultar'] : undefined}
                 onAction={(rowId, actionId) => {
                     const row = table.getPrePaginationRowModel().rows.find((r) => String(r.id) === String(rowId));
                     if (!row) return;
@@ -775,8 +838,24 @@ export default function ManageContainer() : React.ReactElement {
                     });
                     const id = idParts.join('-');
                     if (!id || id === '---') return;
+                    if (isSimulationMode) {
+                        if (actionId !== 'consultar') return;
+                        setSelectedBienFromGrid(fixedAssetsContextKey, id, rowData as Record<string, unknown>);
+                        const tableName = `AbmSimulationFixedAssetConsult-${id}`;
+                        const path = `/simulations/consult/${id}`;
+                        dispatch(navActions.addDynamicSubmenu({
+                            client,
+                            path,
+                            submenuTitle: `Consultar bien ${id}`,
+                            table: tableName,
+                            hiddenFromSidebar: true,
+                        }));
+                        dispatch(openPagesActions.addOpenPage({ page: tableName }));
+                        router.push(path);
+                        return;
+                    }
                     if (actionId === 'modificar' || actionId === 'consultar' || actionId === 'clonar' || actionId === 'alta-agregado') {
-                        setSelectedBienFromGrid(client, id, rowData as Record<string, unknown>);
+                        setSelectedBienFromGrid(fixedAssetsContextKey, id, rowData as Record<string, unknown>);
                     }
                     if (actionId === 'modificar') {
                         const tableName = `AbmFixedAssetModify-${id}`;
@@ -866,62 +945,66 @@ export default function ManageContainer() : React.ReactElement {
                 onVisibilityChange={handleVisibilityChange}
                 client={client}
             />
-            <div className="border-b-4 border-gabu-300 h-[12%] flex items-end p-2 justify-between gap-3 px-4 xl:p-3 xl:px-6 xl:gap-4 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:h-auto [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-h-[3.15rem] [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:items-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:mb-1.5">
-                <div className="flex justify-start gap-2 xl:gap-3 min-w-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1.5">
-                    <div className="flex bg-gabu-700 rounded-md py-1 px-2 gap-1.5 xl:py-1.5 xl:px-3 xl:gap-2 items-center min-w-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:h-8 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:w-[11rem]">
-                        <Search style="stroke-gabu-100 h-[14px] w-[14px] xl:h-[17px] xl:w-[17px] shrink-0"/>
-                        <input ref={searchInputRef} type="text" placeholder="Buscar..." className="focus:outline-none text-gabu-100 w-full bg-transparent text-xs xl:text-sm [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]" onInput={handleSearch}/>
+            <div className="mt-2 border-bottom border-gabu-300 h-[12%] flex items-end p-1.5 justify-between gap-2 px-3 xl:mt-2.5 xl:p-2 xl:px-5 xl:gap-3 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:mt-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:h-auto [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-h-[2.8rem] [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:items-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:mb-1">
+                <div className="d-flex flex justify-start gap-1.5 xl:gap-2 min-w-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1">
+                    <div className="input-group input-group-sm flex bg-gabu-700 rounded-md py-0.5 px-2 gap-1 xl:py-1 xl:px-2 xl:gap-1.5 items-center min-w-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:h-7 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:w-[10.25rem]">
+                        <Search style="stroke-gabu-100 !h-[9px] !w-[9px] xl:!h-[12px] xl:!w-[12px] shrink-0"/>
+                        <input ref={searchInputRef} type="text" placeholder="Buscar..." className="form-control form-control-sm focus:outline-none text-gabu-100 w-full bg-transparent text-[11px] xl:text-xs [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[10px]" onInput={handleSearch}/>
                     </div>
-                    <div className={`flex bg-gabu-700 items-center pr-1.5 xl:pr-2 gap-1 xl:gap-2 shrink-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:pr-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:h-8 ${isEntriesSelectOpen ? 'rounded-t-md rounded-b-none' : 'rounded-md'}`} id="select-entries-cont">
+                    <div className={`d-flex flex bg-gabu-700 items-center pr-1 xl:pr-1.5 gap-1 xl:gap-1.5 shrink-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:pr-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:h-7 ${isEntriesSelectOpen ? 'rounded-t-md rounded-b-none' : 'rounded-md'}`} id="select-entries-cont">
                     <Select
+                        key={`manage-entries-${viewportCompact ? "compact" : "full"}-${pagination.pageSize}`}
                         label=""
                         hasLabel={false}
                         isLogin={false}
                         variant="entriesPerPage"
                         controlClassName="[@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:pl-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:pr-1.5"
                         onListOpenChange={setIsEntriesSelectOpen}
-                        options={PAGE_SIZE_OPTIONS.map((o) => ({ key: o.key, value: o.value }))}
-                        defaultValue={PAGE_SIZE_OPTIONS.some((o) => o.key === String(pagination.pageSize)) ? String(pagination.pageSize) : PAGE_SIZE_OPTIONS[0].key}
+                        options={pageSizeOptions.map((o) => ({ key: o.key, value: o.value }))}
+                        defaultValue={pageSizeOptions.some((o) => o.key === String(pagination.pageSize)) ? String(pagination.pageSize) : pageSizeOptions[0].key}
                         chooseOptionHandler={handleChoosePageSize}
                     />
-                    <p className="text-gabu-100 whitespace-nowrap text-xs xl:text-sm [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">Entradas por pagina</p>
+                    <p className="text-gabu-100 whitespace-nowrap text-[11px] xl:text-xs [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[10px]">Entradas por pagina</p>
                     </div>
                 </div>
-                <div className="flex justify-end gap-2 xl:gap-4 shrink-0 flex-wrap [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-2">
-                    <div className="bg-gabu-700 rounded-md p-1 xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-w-8 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:flex [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:justify-center" onClick={() => refetch()} title="Recargar tabla">
-                        <Reload style="h-5 w-5 xl:h-6 xl:w-6 fill-current text-gabu-100"/>
+                <div className="d-flex flex justify-end gap-1.5 xl:gap-2.5 shrink-0 flex-wrap [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1">
+                    <div className="btn btn-sm bg-gabu-700 rounded-md p-1 xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center justify-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-w-7 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-h-7" onClick={() => refetch()} title="Recargar tabla">
+                        <Reload style="!h-3.5 !w-3.5 xl:!h-4 xl:!w-4 shrink-0 fill-current text-gabu-100"/>
                     </div>
-                    <div className="bg-gabu-700 rounded-md p-1 xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-w-8 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:flex [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:justify-center">
-                        <Excel style="h-5 w-5 xl:h-6 xl:w-6 fill-current text-gabu-100" onClick={exportToExcel}/>
+                    <div className="btn btn-sm bg-gabu-700 rounded-md p-1 xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center justify-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-w-7 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-h-7">
+                        <Excel style="!h-3.5 !w-3.5 xl:!h-4 xl:!w-4 shrink-0 fill-current text-gabu-100" onClick={exportToExcel}/>
                     </div>
-                    <div className="bg-gabu-700 rounded-md py-1 px-3 xl:py-1.5 xl:px-6 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center gap-1 xl:gap-2 relative filter-button [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2.5" onClick={() => setIsFilterModalOpen(true)}>
-                        <Filter style="h-5 w-5 xl:h-6 xl:w-6 stroke-current text-gabu-100 shrink-0"/>
-                    <p className="text-gabu-100 text-xs xl:text-sm [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">Filtrar</p>
+                    <div className="btn btn-sm bg-gabu-700 rounded-md py-0.5 px-2.5 xl:py-1 xl:px-4 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center gap-1 xl:gap-1.5 relative filter-button [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2" onClick={() => setIsFilterModalOpen(true)}>
+                        <Filter style="h-4 w-4 xl:h-5 xl:w-5 stroke-current text-gabu-100 shrink-0"/>
+                    <p className="text-gabu-100 text-[11px] xl:text-xs [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[10px]">Filtrar</p>
                     </div>
-                    <div className="bg-gabu-700 rounded-md py-1 px-3 xl:py-1.5 xl:px-6 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center gap-1 xl:gap-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2.5" onClick={removeAllFilters} title="Remover todos los filtros">
-                        <RemoveFilter style="h-5 w-5 xl:h-6 xl:w-6 stroke-current text-gabu-100 shrink-0"/>
-                        <p className="text-gabu-100 text-xs xl:text-sm [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">Remover filtros</p>
+                    <div className="btn btn-sm bg-gabu-700 rounded-md py-0.5 px-2.5 xl:py-1 xl:px-4 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center gap-1 xl:gap-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2" onClick={removeAllFilters} title="Remover todos los filtros">
+                        <RemoveFilter style="h-4 w-4 xl:h-5 xl:w-5 stroke-current text-gabu-100 shrink-0"/>
+                        <p className="text-gabu-100 text-[11px] xl:text-xs [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[10px]">Remover filtros</p>
                     </div>
+                    {!isSimulationMode && (
                     <div
-                        className="bg-gabu-900 rounded-md py-1 px-4 xl:py-1.5 xl:px-7 cursor-pointer hover:bg-gabu-700 transition-colors duration-100 flex items-center gap-1 xl:gap-2 btn-add-fixed-asset [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-3"
+                        className="btn btn-sm bg-gabu-900 rounded-md py-0.5 px-3 xl:py-1 xl:px-5 cursor-pointer hover:bg-gabu-700 transition-colors duration-100 flex items-center gap-1 xl:gap-1.5 btn-add-fixed-asset [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2"
                         onClick={() => {
+                            const targetPath = "/fixedAssets/add";
                             const found = clientMenu?.menu?.flatMap((m, menuId) =>
                                 m.submenu.map((s, submenuId) => ({ s, menuId, submenuId }))
-                            )?.find(({ s }) => s.path === "/fixedAssets/add");
+                            )?.find(({ s }) => s.path === targetPath);
                             if (found) {
                                 dispatch(navActions.openPage({ client, menuId: found.menuId, submenuId: found.submenuId }));
-                                router.push('/fixedAssets/add');
+                                router.push(targetPath);
                             }
                         }}
                     >
-                    <svg className="h-5 w-5 xl:h-6 xl:w-6 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg className="h-4 w-4 xl:h-5 xl:w-5 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="#CDD5D8"/>
                     </svg>
-                    <p className="text-gabu-100 text-xs xl:text-sm [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">Añadir bien</p>
+                    <p className="text-gabu-100 text-[11px] xl:text-xs [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[10px]">Añadir bien</p>
                     </div>
+                    )}
                 </div>
             </div>
-            <div className="h-[88%] w-full pt-4 xl:pt-10 flex items-center flex-col relative px-4 xl:px-6 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:pt-2.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1.5">
+            <div className="h-[88%] w-full pt-3 xl:pt-8 flex items-center flex-col relative px-3 xl:px-5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:pt-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1">
                 <Alert 
                     message={error ? error.message || "Error al cargar los datos" : null} 
                     type="error" 
@@ -972,9 +1055,14 @@ export default function ManageContainer() : React.ReactElement {
                     </div>
                 )}
                 {!loading && !error && (
-                    <div className="relative w-full max-h-[95%] flex flex-col items-center flex-1 min-w-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:max-h-full">
-                        <div className="h-full w-full overflow-auto table-scroll">
-                            <div className="w-full overflow-auto table-container grid">
+                    <div className="relative w-full max-h-[95%] flex flex-col items-center min-w-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:max-h-full">
+                        <div className="w-full overflow-y-auto overflow-x-hidden table-scroll table-responsive max-h-[58vh] xl:max-h-[64vh] [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:max-h-[47vh]">
+                            <div
+                                ref={tableHorizontalRef}
+                                onScroll={syncFromTableScrollbar}
+                                className="w-full overflow-x-auto overflow-y-hidden table-container grid table-responsive [&::-webkit-scrollbar]:hidden"
+                                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                            >
                                 <div className="min-w-full">
                                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToHorizontalAxis]}>
                                         <table className="border-collapse divide-y-2 divide-gabu-900/25 table-fixed w-full" {...{style: {minWidth: table.getTotalSize()}}}>
@@ -1034,6 +1122,15 @@ export default function ManageContainer() : React.ReactElement {
                                         </table>
                                     </DndContext>
                                 </div>
+                            </div>
+                        </div>
+                        <div className="w-full mt-1 px-1">
+                            <div
+                                ref={bottomScrollbarRef}
+                                onScroll={syncFromBottomScrollbar}
+                                className="w-full overflow-x-auto overflow-y-hidden table-scroll"
+                            >
+                                <div style={{ width: Math.max(table.getTotalSize(), 1), height: 1 }} />
                             </div>
                         </div>
                         {table.getCanNextPage() || table.getCanPreviousPage() ? (

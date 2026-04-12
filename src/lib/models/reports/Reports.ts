@@ -1,7 +1,13 @@
 import { getPrisma } from "@/lib/prisma/prisma";
 import type { PrismaClient } from "@/generated/prisma/client";
 
-export type ReportType = "ANEXO" | "DETALLE_ACTIVO" | "ALTAS_ACTIVO" | "BAJAS_ACTIVO" | "TRANSFERENCIAS_ACTIVO";
+export type ReportType =
+    | "ANEXO"
+    | "DETALLE_ACTIVO"
+    | "ALTAS_ACTIVO"
+    | "BAJAS_ACTIVO"
+    | "TRANSFERENCIAS_ACTIVO"
+    | "ASIENTOS";
 
 export type ReportBookOption = {
     key: string;
@@ -164,11 +170,11 @@ class Reports {
         return [];
     }
 
-    async getConfig(): Promise<ReportsConfig> {
+    async getConfig(simulationOnly = false): Promise<ReportsConfig> {
         const [moextraRows, defaultFromParametros, cierresRows] = await Promise.all([
             this.prisma.moextra.findMany({
                 where: {
-                    simula: false,
+                    simula: simulationOnly ? true : false,
                 },
                 select: {
                     idMoextra: true,
@@ -177,27 +183,37 @@ class Reports {
                 },
                 orderBy: { idMoextra: "asc" },
             }),
-            this.getFecproFromParametrosYYYYMM("ml"),
-            this.prisma.$queryRawUnsafe<Array<{ period: string }>>(`
-                SELECT DISTINCT LEFT(CONVERT(VARCHAR(8), fecpro, 112), 6) AS period
-                FROM cierres
-                WHERE fecpro IS NOT NULL
-                ORDER BY period DESC
-            `),
+            this.getFecproFromParametrosYYYYMM(simulationOnly ? "03" : "ml"),
+            simulationOnly
+                ? this.prisma.$queryRawUnsafe<Array<{ period: string }>>(`
+                    SELECT DISTINCT LEFT(CONVERT(VARCHAR(8), fecpro, 112), 6) AS period
+                    FROM cierres
+                    WHERE fecpro IS NOT NULL
+                      AND LTRIM(RTRIM(idmoextra)) = '03'
+                    ORDER BY period DESC
+                `)
+                : this.prisma.$queryRawUnsafe<Array<{ period: string }>>(`
+                    SELECT DISTINCT LEFT(CONVERT(VARCHAR(8), fecpro, 112), 6) AS period
+                    FROM cierres
+                    WHERE fecpro IS NOT NULL
+                    ORDER BY period DESC
+                `),
         ]);
 
         const booksMap = new Map<string, ReportBookOption>();
 
-        booksMap.set("ml", {
-            key: "ml",
-            value: "Moneda local",
-            tableName: "monedalocal",
-        });
-        booksMap.set("im", {
-            key: "im",
-            value: "Impuestos",
-            tableName: "impuestos",
-        });
+        if (!simulationOnly) {
+            booksMap.set("ml", {
+                key: "ml",
+                value: "Moneda local",
+                tableName: "monedalocal",
+            });
+            booksMap.set("im", {
+                key: "im",
+                value: "Impuestos",
+                tableName: "impuestos",
+            });
+        }
 
         for (const row of moextraRows) {
             const id = (row.idMoextra ?? "").trim();
@@ -229,6 +245,106 @@ class Reports {
         };
     }
 
+    private normalizeConverFieldKey(idCampo: string): string {
+        return idCampo
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, "")
+            .replace(/[_\-.]/g, "");
+    }
+
+    private resolveAsientosModel(bookKey: string, bookTableName: string): {
+        delegate: "asientosml" | "asientos01" | "asientos02";
+        prefixLabel: string;
+        idTabla: string;
+    } {
+        const key = bookKey.trim().toLowerCase();
+        const table = bookTableName.trim().toUpperCase();
+
+        if (key === "im" || table === "IMPUESTOS") {
+            throw new Error("El reporte Asientos no está disponible para Impuestos.");
+        }
+
+        if (table === "MONEDALOCAL" || key === "ml") {
+            return { delegate: "asientosml", prefixLabel: "Moneda local", idTabla: "asientosml" };
+        }
+        if (table === "ME01") {
+            return { delegate: "asientos01", prefixLabel: "ME01", idTabla: "asientos01" };
+        }
+        if (table === "ME02") {
+            return { delegate: "asientos02", prefixLabel: "ME02", idTabla: "asientos02" };
+        }
+
+        throw new Error("Libro no soportado para Asientos (use Moneda local, ME01 o ME02).");
+    }
+
+    /** BrowNombre por campo (clave normalizada como en la grilla) desde ConverField.IdTabla. */
+    async getAsientosConverFieldLabels(bookKey: string, bookTableName: string): Promise<Record<string, string>> {
+        const normalizedBook = this.normalizeBookKey(bookKey);
+        const normalizedBookTableName = this.normalizeBookTableName(bookTableName || bookKey);
+        const { idTabla } = this.resolveAsientosModel(normalizedBook, normalizedBookTableName);
+
+        const rows = await this.prisma.converField.findMany({
+            where: { IdTabla: idTabla },
+            orderBy: { lisordencampos: "asc" },
+            select: { IdCampo: true, BrowNombre: true },
+        });
+
+        const out: Record<string, string> = {};
+        for (const r of rows) {
+            const campo = (r.IdCampo ?? "").trim();
+            if (!campo) continue;
+            const nk = this.normalizeConverFieldKey(campo);
+            out[nk] = (r.BrowNombre ?? "").trim() || campo;
+        }
+        return out;
+    }
+
+    async runAsientosReport(book: string, bookTableName: string): Promise<Record<string, unknown>[]> {
+        const normalizedBook = this.normalizeBookKey(book);
+        const normalizedBookTableName = this.normalizeBookTableName(bookTableName || book);
+        const { delegate, prefixLabel } = this.resolveAsientosModel(normalizedBook, normalizedBookTableName);
+
+        const orderBy = [{ idAsiento: "asc" as const }, { idcodigo: "asc" as const }];
+        const rawRows =
+            delegate === "asientosml"
+                ? await this.prisma.asientosml.findMany({ orderBy })
+                : delegate === "asientos01"
+                  ? await this.prisma.asientos01.findMany({ orderBy })
+                  : await this.prisma.asientos02.findMany({ orderBy });
+
+        return rawRows.map((row: (typeof rawRows)[number]) => {
+            const tipo = String(row.tipoimporte ?? "")
+                .trim()
+                .toUpperCase();
+            const imp = typeof row.importe === "number" && Number.isFinite(row.importe) ? row.importe : 0;
+            const debe = tipo === "D" ? imp : 0;
+            const haber = tipo === "H" ? imp : 0;
+            const idAsiento = row.idAsiento ?? "";
+            const referencia = `${prefixLabel} - ${idAsiento}`;
+
+            return {
+                referencia,
+                idAsiento: row.idAsiento,
+                FechaProceso: row.FechaProceso,
+                idMoneda: row.idMoneda,
+                idGrupo: row.idGrupo,
+                idEmpresa: row.idEmpresa,
+                idUnegocio: row.idUnegocio,
+                idActivo: row.idActivo,
+                idCencos: row.idCencos,
+                idProyecto: row.idProyecto,
+                idZona: row.idZona,
+                idPlanta: row.idPlanta,
+                descripcion: row.descripcion,
+                tipoimporte: row.tipoimporte,
+                impdol: row.impdol,
+                debe,
+                haber,
+            };
+        });
+    }
+
     async runReport(params: {
         reportType: ReportType;
         book: string;
@@ -239,6 +355,11 @@ class Reports {
         const normalizedBook = this.normalizeBookKey(book);
         const normalizedBookTableName = this.normalizeBookTableName(bookTableName || book);
         if (!normalizedBook || !normalizedBookTableName) throw new Error("El libro es obligatorio");
+
+        if (reportType === "ASIENTOS") {
+            return this.runAsientosReport(normalizedBook, normalizedBookTableName);
+        }
+
         if (!this.isValidYYYYMM(period)) throw new Error("El período debe tener formato YYYYMM");
 
         const resolvedTableName = await this.resolveTableNameForPeriod(
@@ -256,14 +377,14 @@ class Reports {
             );
         }
 
-        const tipoPeriodoByReport: Record<Exclude<ReportType, "ANEXO">, "T" | "A" | "B" | "F"> = {
+        const tipoPeriodoByReport: Record<Exclude<ReportType, "ANEXO" | "ASIENTOS">, "T" | "A" | "B" | "F"> = {
             DETALLE_ACTIVO: "T",
             ALTAS_ACTIVO: "A",
             BAJAS_ACTIVO: "B",
             TRANSFERENCIAS_ACTIVO: "F",
         };
 
-        const tipoPeriodo = tipoPeriodoByReport[reportType as Exclude<ReportType, "ANEXO">];
+        const tipoPeriodo = tipoPeriodoByReport[reportType as Exclude<ReportType, "ANEXO" | "ASIENTOS">];
         const strictTableOnly = resolvedTableName !== normalizedBookTableName;
         return this.executeDetWithFallback(
             normalizedBook,

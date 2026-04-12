@@ -12,6 +12,8 @@ type ParametrosEditable = {
     procesa?: boolean;
     IdTipoAmortizacion?: string | null;
     alterna?: boolean;
+    /** Si true, viene de "parámetros de simulación": permite editar idmoextra 03. */
+    simulationOnly?: boolean;
 };
 
 type ParametrosField = { IdCampo: string; BrowNombre: string | null };
@@ -19,10 +21,10 @@ type ParametrosField = { IdCampo: string; BrowNombre: string | null };
 type MoextraItem = { idMoextra: string; Descripcion: string | null };
 
 type UserPostRequest =
-    | { petition: "Get"; client: string; data: {} }
+    | { petition: "Get"; client: string; data: { simulationOnly?: boolean } }
     | { petition: "GetTipAmor"; client: string; data: {} }
     | { petition: "GetParametrosFields"; client: string; data: {} }
-    | { petition: "GetMoextra"; client: string; data: {} }
+    | { petition: "GetMoextra"; client: string; data: { simulationOnly?: boolean } }
     | { petition: "Update"; client: string; data: ParametrosEditable };
 
 export async function POST(
@@ -34,6 +36,9 @@ export async function POST(
 
         switch (petition) {
             case "Get":
+                if (data?.simulationOnly) {
+                    return NextResponse.json(await parametersModel.getAllBySimula(true));
+                }
                 return NextResponse.json(await parametersModel.getAllExcept("03"));
             case "GetTipAmor": {
                 const list = await parametersModel.getTipAmorOptions();
@@ -47,10 +52,10 @@ export async function POST(
             case "GetParametrosFields":
                 return NextResponse.json(await parametersModel.getParametrosFields());
             case "GetMoextra":
-                return NextResponse.json(await parametersModel.getMoextra());
+                return NextResponse.json(await parametersModel.getMoextra(Boolean(data?.simulationOnly)));
             case "Update": {
                 const payload = data as ParametrosEditable;
-                if (payload.idmoextra === "03") {
+                if (payload.idmoextra === "03" && !payload.simulationOnly) {
                     return NextResponse.json(
                         { message: "No se puede editar el registro con idmoextra 03", status: 400 },
                         { status: 400 }

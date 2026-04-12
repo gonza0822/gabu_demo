@@ -24,19 +24,24 @@ type ProcessRow = {
     alterna: boolean;
 };
 
-type ProcessMode = "amortizacion" | "cierre-mensual" | "cierre-ejercicio";
+type ProcessMode = "amortizacion" | "generacion-asientos" | "cierre-mensual" | "cierre-ejercicio";
 
 const modeConfig: Record<
     ProcessMode,
     {
         title: string;
-        petition: "RunCalculoAmortizacion" | "RunCierreMensual" | "RunCierreEjercicio";
+        petition: "RunCalculoAmortizacion" | "RunGeneracionAsientos" | "RunCierreMensual" | "RunCierreEjercicio";
         shouldProcessRow: (row: ProcessRow) => boolean;
     }
 > = {
     amortizacion: {
         title: "Calculo de amortizaciones",
         petition: "RunCalculoAmortizacion",
+        shouldProcessRow: (row) => row.procesa,
+    },
+    "generacion-asientos": {
+        title: "Generacion de asientos",
+        petition: "RunGeneracionAsientos",
         shouldProcessRow: (row) => row.procesa,
     },
     "cierre-mensual": {
@@ -58,7 +63,7 @@ function formatYYYYMMToMMYYYY(value: string | null): string {
     return `${str.slice(4, 6)}/${str.slice(0, 4)}`;
 }
 
-export default function ProcessRunner({ mode }: { mode: ProcessMode }): React.ReactElement {
+export default function ProcessRunner({ mode, simulationOnly = false }: { mode: ProcessMode; simulationOnly?: boolean }): React.ReactElement {
     const dispatch = useDispatch();
     const pathname = usePathname();
     const client = useSelector((state: RootState) => state.authorization.client);
@@ -86,12 +91,17 @@ export default function ProcessRunner({ mode }: { mode: ProcessMode }): React.Re
             const res = await fetch("/api/processes", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ petition: "GetRows", client, data: {} }),
+                body: JSON.stringify({ petition: "GetRows", client, data: { simulationOnly } }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data?.message ?? "Error cargando parámetros del proceso");
             if (!Array.isArray(data)) throw new Error("Respuesta inválida del servidor");
-            const list = data as ProcessRow[];
+            const list = (data as ProcessRow[]).filter((row) => {
+                if (mode !== "generacion-asientos") return true;
+                const clave = (row.clave ?? "").trim().toLowerCase();
+                const idMoextra = (row.idMoextra ?? "").trim().toLowerCase();
+                return clave !== "im" && idMoextra !== "im";
+            });
             setRows(list);
             setInitialRows(list);
             const nextStates: Record<string, Estado> = {};
@@ -102,7 +112,7 @@ export default function ProcessRunner({ mode }: { mode: ProcessMode }): React.Re
         } finally {
             setLoading(false);
         }
-    }, [client, getRowKey]);
+    }, [client, getRowKey, mode, simulationOnly]);
 
     const closeCurrentProcessPage = useCallback(() => {
         if (!clientMenu) return;
@@ -265,12 +275,12 @@ export default function ProcessRunner({ mode }: { mode: ProcessMode }): React.Re
                     setSuccessMessage(null);
                 }}
             />
-            <div className="p-5 pt-2 m-4 bg-gabu-500 flex flex-1 flex-col rounded-md border border-gabu-900 overflow-hidden">
-                <div className="flex w-full justify-between items-center mb-2">
-                    <p className="text-gabu-100 text-lg">{cfg.title}</p>
+            <div className="m-1.5 sm:m-2.5 lg:m-3.5 rounded-md border border-gabu-900 bg-gabu-500 p-1.5 pt-1 sm:p-2.5 sm:pt-1.5 lg:p-4 lg:pt-1.5 flex flex-1 flex-col overflow-hidden">
+                <div className="mb-0.5 sm:mb-1 lg:mb-1.5 flex w-full items-center justify-between">
+                    <p className="text-gabu-100 text-xs sm:text-sm lg:text-base">{cfg.title}</p>
                 </div>
 
-                <div className="bg-gabu-100 flex-1 min-h-0 border border-gabu-900 p-3 overflow-auto">
+                <div className="bg-gabu-100 flex-1 min-h-0 border border-gabu-900 p-1 sm:p-1.5 lg:p-2.5 overflow-auto">
                     {loading ? (
                         <div className="min-w-full">
                             <Skeleton count={10} height={20} highlightColor="var(--color-gabu-700)" baseColor="var(--color-gabu-300)" className="mb-1" />
@@ -280,8 +290,8 @@ export default function ProcessRunner({ mode }: { mode: ProcessMode }): React.Re
                             <thead>
                                 <tr>
                                     {renderHeaders.map((h) => (
-                                        <th key={h} className="text-start py-2 px-2 text-gabu-900 whitespace-nowrap overflow-x-hidden">
-                                            <p className="text-sm">{h}</p>
+                                        <th key={h} className="text-start py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 whitespace-nowrap overflow-x-hidden">
+                                            <p className="text-[11px] sm:text-xs">{h}</p>
                                         </th>
                                     ))}
                                 </tr>
@@ -293,32 +303,32 @@ export default function ProcessRunner({ mode }: { mode: ProcessMode }): React.Re
                                     if (mode === "cierre-ejercicio") {
                                         return (
                                             <tr key={key}>
-                                                <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{row.nombretabla}</td>
-                                                <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{formatYYYYMMToMMYYYY(row.fecant)}</td>
-                                                <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{state}</td>
+                                                <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{row.nombretabla}</td>
+                                                <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{formatYYYYMMToMMYYYY(row.fecant)}</td>
+                                                <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{state}</td>
                                             </tr>
                                         );
                                     }
                                     if (mode === "cierre-mensual") {
                                         return (
                                             <tr key={key}>
-                                                <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{row.nombretabla}</td>
-                                                <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{formatYYYYMMToMMYYYY(row.fecini)}</td>
-                                                <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{formatYYYYMMToMMYYYY(row.fecpro)}</td>
-                                                <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{formatYYYYMMToMMYYYY(row.fecant)}</td>
-                                                <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{state}</td>
+                                                <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{row.nombretabla}</td>
+                                                <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{formatYYYYMMToMMYYYY(row.fecini)}</td>
+                                                <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{formatYYYYMMToMMYYYY(row.fecpro)}</td>
+                                                <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{formatYYYYMMToMMYYYY(row.fecant)}</td>
+                                                <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{state}</td>
                                             </tr>
                                         );
                                     }
                                     return (
                                         <tr key={key}>
-                                            <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{row.nombretabla}</td>
-                                            <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{formatYYYYMMToMMYYYY(row.fecini)}</td>
-                                            <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{formatYYYYMMToMMYYYY(row.fecpro)}</td>
-                                            <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{formatYYYYMMToMMYYYY(row.fecant)}</td>
-                                            <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{row.procesa ? "SI" : "NO"}</td>
-                                            <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{row.alterna ? "SI" : "NO"}</td>
-                                            <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">{state}</td>
+                                            <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{row.nombretabla}</td>
+                                            <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{formatYYYYMMToMMYYYY(row.fecini)}</td>
+                                            <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{formatYYYYMMToMMYYYY(row.fecpro)}</td>
+                                            <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{formatYYYYMMToMMYYYY(row.fecant)}</td>
+                                            <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{row.procesa ? "SI" : "NO"}</td>
+                                            <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{row.alterna ? "SI" : "NO"}</td>
+                                            <td className="py-1 px-1.5 sm:py-1.5 sm:px-2 text-gabu-900 text-[10px] sm:text-[11px] whitespace-nowrap">{state}</td>
                                         </tr>
                                     );
                                 })}
@@ -327,11 +337,11 @@ export default function ProcessRunner({ mode }: { mode: ProcessMode }): React.Re
                     )}
                 </div>
             </div>
-            <div className="sticky w-full h-15 bg-gabu-500 flex justify-end gap-5 p-3">
+            <div className="sticky w-full bg-gabu-500 flex justify-end gap-1.5 sm:gap-2.5 lg:gap-4 px-1.5 py-1 sm:px-2.5 sm:py-1.5">
                 {mode !== "cierre-ejercicio" && (
                     <button
                         type="button"
-                        className="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="font-normal text-gabu-900 min-w-[5rem] sm:min-w-[6rem] lg:min-w-[7rem] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300 disabled:opacity-60 disabled:cursor-not-allowed text-[11px] sm:text-xs px-2.5 py-0.5 sm:px-3.5 sm:py-1"
                         onClick={() => void handleRevert()}
                         disabled={running || loading}
                     >
@@ -340,7 +350,7 @@ export default function ProcessRunner({ mode }: { mode: ProcessMode }): React.Re
                 )}
                 <button
                     type="button"
-                    className="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="font-normal text-gabu-900 min-w-[5rem] sm:min-w-[6rem] lg:min-w-[7rem] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300 disabled:opacity-60 disabled:cursor-not-allowed text-[11px] sm:text-xs px-2.5 py-0.5 sm:px-3.5 sm:py-1"
                     onClick={() => void runProcess()}
                     disabled={running || loading}
                 >

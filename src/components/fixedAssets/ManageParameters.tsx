@@ -54,7 +54,7 @@ const MOEXTRA_LABELS_HARDCODED: Record<string, string> = {
     ml: "Moneda local",
 };
 
-export default function ManageParameters(): React.ReactElement {
+export default function ManageParameters({ simulationOnly = false }: { simulationOnly?: boolean }): React.ReactElement {
     const client = useSelector((state: RootState) => state.authorization.client);
     const [rows, setRows] = useState<ParametroRow[]>([]);
     const [loading, setLoading] = useState(true);
@@ -72,7 +72,7 @@ export default function ManageParameters(): React.ReactElement {
             const res = await fetch("/api/fixedAssets/parameters", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ petition: "Get", client, data: {} }),
+                body: JSON.stringify({ petition: "Get", client, data: { simulationOnly } }),
             });
             const data = await res.json();
             if (Array.isArray(data)) {
@@ -91,7 +91,7 @@ export default function ManageParameters(): React.ReactElement {
         } finally {
             setLoading(false);
         }
-    }, [client]);
+    }, [client, simulationOnly]);
 
     const fetchTipAmorOptions = useCallback(async () => {
         if (!client) return;
@@ -127,7 +127,7 @@ export default function ManageParameters(): React.ReactElement {
         const res = await fetch("/api/fixedAssets/parameters", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ petition: "GetMoextra", client, data: {} }),
+            body: JSON.stringify({ petition: "GetMoextra", client, data: { simulationOnly } }),
         });
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -139,7 +139,7 @@ export default function ManageParameters(): React.ReactElement {
             }
             setMoextraById(map);
         }
-    }, [client]);
+    }, [client, simulationOnly]);
 
     useEffect(() => {
         if (client) fetchData();
@@ -227,6 +227,7 @@ export default function ManageParameters(): React.ReactElement {
                         petition: "Update",
                         client,
                         data: {
+                            simulationOnly,
                             idmoextra: row.idmoextra,
                             fecini: parseToISOOrNull(feciniStr),
                             fecpro: parseToISOOrNull(fecproStr),
@@ -247,7 +248,7 @@ export default function ManageParameters(): React.ReactElement {
         } finally {
             setSavingAll(false);
         }
-    }, [client, rows, fetchData, validateAllDates]);
+    }, [client, rows, fetchData, validateAllDates, simulationOnly]);
 
     const handleRevert = useCallback(() => {
         setFieldErrors({});

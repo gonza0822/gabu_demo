@@ -59,7 +59,8 @@ function configPrisma(dbUser : string, dbPassword : string, dbName : string, ser
     options: {
       encrypt: true, // for azure
       trustServerCertificate: true, // change to true for local dev / self-signed certs
-      requestTimeout: 300000 // timeout de consulta (5 min) para SP pesados de procesos
+      // Reinicio simulación y SP pesados: 15 min (antes 5 min cortaba el batch masivo).
+      requestTimeout: 900000
     }
   }
 }

@@ -9,6 +9,8 @@ import "react-loading-skeleton/dist/skeleton.css";
 import type { ReportType } from "@/lib/models/reports/Reports";
 import Select from "@/components/ui/Select";
 import Excel from "@/components/svg/Excel";
+import CollapseAllIcon from "@/components/svg/CollapseAllIcon";
+import ExpandAllIcon from "@/components/svg/ExpandAllIcon";
 import ExcelJS from "exceljs";
 
 type ReportBookOption = {
@@ -29,6 +31,7 @@ const REPORTS: { key: ReportType; label: string }[] = [
     { key: "ALTAS_ACTIVO", label: "Altas activo" },
     { key: "BAJAS_ACTIVO", label: "Bajas activo" },
     { key: "TRANSFERENCIAS_ACTIVO", label: "Transferencias activo" },
+    { key: "ASIENTOS", label: "Asientos" },
 ];
 
 const REPORT_HEADERS: Record<ReportType, string[]> = {
@@ -146,6 +149,33 @@ const REPORT_HEADERS: Record<ReportType, string[]> = {
         "neto",
         "Amort.Periodo",
     ],
+    ASIENTOS: [
+        "referencia",
+        "idAsiento",
+        "FechaProceso",
+        "idMoneda",
+        "idGrupo",
+        "idEmpresa",
+        "idUnegocio",
+        "idActivo",
+        "idCencos",
+        "idProyecto",
+        "idZona",
+        "idPlanta",
+        "descripcion",
+        "tipoimporte",
+        "impdol",
+        "debe",
+        "haber",
+    ],
+};
+
+/** Solo columnas que no vienen de ConverField (referencia, debe, haber). */
+const ASIENTOS_FALLBACK_LABELS: Record<string, string> = {
+    referencia: "Referencia",
+    tipoimporte: "Tipo importe",
+    debe: "Debe",
+    haber: "Haber",
 };
 
 const ANEXO_COLUMN_LABELS: Record<string, string> = {
@@ -251,6 +281,13 @@ function getDetailHeaderLabel(column: string): string {
     return column;
 }
 
+function getAsientosHeaderLabel(column: string, browNombreByField: Record<string, string>): string {
+    const n = normalizeColumnKey(column);
+    const fromDb = browNombreByField[n];
+    if (fromDb) return fromDb;
+    return ASIENTOS_FALLBACK_LABELS[n] ?? getDetailHeaderLabel(column);
+}
+
 function normalizeColumnKey(column: string): string {
     return column.trim().toLowerCase().replace(/\s+/g, "").replace(/[_\-.]/g, "");
 }
@@ -304,16 +341,86 @@ function formatPeriodToMMYYYY(period: string): string {
 function isSummaryCell(value: unknown): boolean {
     if (typeof value !== "string") return false;
     const normalized = value.trim().toLowerCase();
-    return normalized.startsWith("subtotal ") || normalized === "total general";
+    return normalized.startsWith("subtotal ") || normalized.startsWith("total ");
 }
 
 function isSummaryRow(row: Record<string, unknown>): boolean {
     return Object.values(row).some((value) => isSummaryCell(value));
 }
 
+type SubtotalAcc = {
+    sumByColumn: Record<string, number>;
+    hasNumericByColumn: Record<string, boolean>;
+};
+
+function createEmptySubtotalAcc(detailTotalColumns: Set<string>): SubtotalAcc {
+    const sumByColumn: Record<string, number> = {};
+    const hasNumericByColumn: Record<string, boolean> = {};
+    for (const column of detailTotalColumns) {
+        sumByColumn[column] = 0;
+        hasNumericByColumn[column] = false;
+    }
+    return { sumByColumn, hasNumericByColumn };
+}
+
+function resetSubtotalAcc(acc: SubtotalAcc, detailTotalColumns: Set<string>): void {
+    for (const column of detailTotalColumns) {
+        acc.sumByColumn[column] = 0;
+        acc.hasNumericByColumn[column] = false;
+    }
+}
+
+function addRowToSubtotalAcc(acc: SubtotalAcc, row: Record<string, unknown>, detailTotalColumns: Set<string>): void {
+    for (const column of detailTotalColumns) {
+        const numeric = toNumericValue(row[column]);
+        if (numeric == null) continue;
+        acc.sumByColumn[column] += numeric;
+        acc.hasNumericByColumn[column] = true;
+    }
+}
+
+/** `level`: 0 = primera columna de agrupación, 1 = segunda, etc. La etiqueta va en esa columna (como Excel). */
+function buildHierarchicalSubtotalRow(
+    columns: string[],
+    subtotalGroupColumns: string[],
+    detailTotalColumns: Set<string>,
+    level: number,
+    prefixValues: string[],
+    acc: SubtotalAcc
+): Record<string, unknown> {
+    const subtotalRow: Record<string, unknown> = {};
+    const labelCol = subtotalGroupColumns[level];
+    const label = `Total ${(prefixValues[level] ?? "").trim()}`;
+    for (const column of columns) {
+        if (column === labelCol) {
+            subtotalRow[column] = label;
+            continue;
+        }
+        if (subtotalGroupColumns.includes(column)) {
+            subtotalRow[column] = "";
+            continue;
+        }
+        if (!detailTotalColumns.has(column)) {
+            subtotalRow[column] = "";
+            continue;
+        }
+        subtotalRow[column] = acc.hasNumericByColumn[column] ? acc.sumByColumn[column] : "";
+    }
+    return subtotalRow;
+}
+
+function nestedCollapseKey(level: number, prefixValues: string[]): string {
+    return `${level}:${prefixValues.join("||")}`;
+}
+
 type RenderRowMeta = {
     kind: "data" | "subtotal" | "total";
+    /** Clave para subtotales / compat. Asientos */
     groupKey?: string;
+    /** Si alguna está colapsada, la fila de detalle se oculta (reportes con subtotales anidados). */
+    nestedGroupKeys?: string[];
+    /** Nivel de esquema en Excel (0 = total / exterior; mayores = más anidado). */
+    outlineLevel?: number;
 };
 
 type RenderModel = {
@@ -322,7 +429,7 @@ type RenderModel = {
     groupKeys: string[];
 };
 
-export default function ReportsEmission(): React.ReactElement {
+export default function ReportsEmission({ simulationOnly = false }: { simulationOnly?: boolean }): React.ReactElement {
     const client = useSelector((state: RootState) => state.authorization.client);
     const [reportType, setReportType] = useState<ReportType>("ANEXO");
     const [generatedReportType, setGeneratedReportType] = useState<ReportType>("ANEXO");
@@ -345,7 +452,12 @@ export default function ReportsEmission(): React.ReactElement {
     const tableHorizontalRef = useRef<HTMLDivElement | null>(null);
     const scrollSyncLockRef = useRef(false);
     const [tableScrollWidth, setTableScrollWidth] = useState(0);
+    const [asientosBrowLabels, setAsientosBrowLabels] = useState<Record<string, string>>({});
 
+    const enabledReports = useMemo(
+        () => (simulationOnly ? REPORTS.filter((r) => r.key === "ANEXO" || r.key === "DETALLE_ACTIVO") : REPORTS),
+        [simulationOnly]
+    );
     const selectedBook = useMemo(
         () => books.find((book) => book.key === selectedBookKey) ?? null,
         [books, selectedBookKey]
@@ -361,6 +473,80 @@ export default function ReportsEmission(): React.ReactElement {
             return { rows, meta: rows.map(() => ({ kind: "data" })), groupKeys: [] };
         }
 
+        if (displayedReportType === "ASIENTOS") {
+            const renderedRows: Record<string, unknown>[] = [];
+            const renderedMeta: RenderRowMeta[] = [];
+            const groupKeysSet = new Set<string>();
+
+            let prevAsiento: string | null = null;
+            let accDebe = 0;
+            let accHaber = 0;
+
+            const asientoLabelCol = columns.includes("idAsiento") ? "idAsiento" : "referencia";
+
+            const pushGroupSubtotal = (asientoKey: string, debe: number, haber: number) => {
+                const subtotalRow: Record<string, unknown> = {};
+                for (const column of columns) {
+                    if (column === asientoLabelCol) {
+                        subtotalRow[column] = `Total ${asientoKey}`;
+                    } else if (column === "debe") {
+                        subtotalRow[column] = debe;
+                    } else if (column === "haber") {
+                        subtotalRow[column] = haber;
+                    } else {
+                        subtotalRow[column] = "";
+                    }
+                }
+                const gk = nestedCollapseKey(0, [asientoKey]);
+                renderedRows.push(subtotalRow);
+                renderedMeta.push({ kind: "subtotal", groupKey: gk, outlineLevel: 0 });
+                groupKeysSet.add(gk);
+            };
+
+            for (const row of rows) {
+                const ida = normalizeCellValue(row.idAsiento);
+                if (prevAsiento !== null && ida !== prevAsiento) {
+                    pushGroupSubtotal(prevAsiento, accDebe, accHaber);
+                    accDebe = 0;
+                    accHaber = 0;
+                }
+                prevAsiento = ida;
+                renderedRows.push(row);
+                const nk = nestedCollapseKey(0, [ida]);
+                renderedMeta.push({ kind: "data", groupKey: nk, nestedGroupKeys: [nk], outlineLevel: 1 });
+                accDebe += toNumericValue(row.debe) ?? 0;
+                accHaber += toNumericValue(row.haber) ?? 0;
+            }
+            if (prevAsiento !== null) {
+                pushGroupSubtotal(prevAsiento, accDebe, accHaber);
+            }
+
+            let grandDebe = 0;
+            let grandHaber = 0;
+            for (const row of rows) {
+                grandDebe += toNumericValue(row.debe) ?? 0;
+                grandHaber += toNumericValue(row.haber) ?? 0;
+            }
+            const totalsRow: Record<string, unknown> = {};
+            for (const column of columns) {
+                if (column === asientoLabelCol) {
+                    totalsRow[column] = "Total general";
+                } else if (column === "debe") {
+                    totalsRow[column] = grandDebe;
+                } else if (column === "haber") {
+                    totalsRow[column] = grandHaber;
+                } else {
+                    totalsRow[column] = "";
+                }
+            }
+
+            return {
+                rows: [...renderedRows, totalsRow],
+                meta: [...renderedMeta, { kind: "total", outlineLevel: 0 }],
+                groupKeys: Array.from(groupKeysSet),
+            };
+        }
+
         if (displayedReportType !== "ANEXO") {
             const detailTotalColumns = getDetailTotalColumns(columns);
             const subtotalDepth = Number(subtotalColumns);
@@ -373,71 +559,73 @@ export default function ReportsEmission(): React.ReactElement {
             const groupKeysSet = new Set<string>();
 
             if (subtotalGroupColumns.length > 0) {
-                let currentGroupKey = "";
-                let currentGroupValues: string[] = [];
-                let subtotalSumByColumn: Record<string, number> = {};
-                let subtotalHasNumericByColumn: Record<string, boolean> = {};
-
-                const resetSubtotal = () => {
-                    subtotalSumByColumn = {};
-                    subtotalHasNumericByColumn = {};
-                    for (const column of detailTotalColumns) {
-                        subtotalSumByColumn[column] = 0;
-                        subtotalHasNumericByColumn[column] = false;
-                    }
-                };
+                const D = subtotalGroupColumns.length;
+                const sumsAtLevel: SubtotalAcc[] = Array.from({ length: D }, () => createEmptySubtotalAcc(detailTotalColumns));
 
                 const buildGroupValues = (row: Record<string, unknown>): string[] =>
                     subtotalGroupColumns.map((column) => normalizeCellValue(row[column]));
 
-                const pushSubtotalRow = () => {
-                    if (!currentGroupKey) return;
-                    const subtotalRow: Record<string, unknown> = {};
-                    for (const column of columns) {
-                        if (column === subtotalGroupColumns[0]) {
-                            subtotalRow[column] = `Subtotal ${currentGroupValues.join(" - ")}`;
-                            continue;
-                        }
-                        if (subtotalGroupColumns.includes(column)) {
-                            subtotalRow[column] = "";
-                            continue;
-                        }
-                        if (!detailTotalColumns.has(column)) {
-                            subtotalRow[column] = "";
-                            continue;
-                        }
-                        subtotalRow[column] = subtotalHasNumericByColumn[column] ? subtotalSumByColumn[column] : "";
-                    }
+                const emitLevel = (level: number, keyValues: string[]) => {
+                    const acc = sumsAtLevel[level];
+                    const prefix = keyValues.slice(0, level + 1);
+                    const subtotalRow = buildHierarchicalSubtotalRow(
+                        columns,
+                        subtotalGroupColumns,
+                        detailTotalColumns,
+                        level,
+                        prefix,
+                        acc
+                    );
+                    const gk = nestedCollapseKey(level, prefix);
                     renderedRows.push(subtotalRow);
-                    renderedMeta.push({ kind: "subtotal", groupKey: currentGroupKey });
-                    groupKeysSet.add(currentGroupKey);
+                    renderedMeta.push({
+                        kind: "subtotal",
+                        groupKey: gk,
+                        outlineLevel: level,
+                    });
+                    groupKeysSet.add(gk);
+                    resetSubtotalAcc(acc, detailTotalColumns);
                 };
 
-                resetSubtotal();
+                let prevValues: string[] | null = null;
+
                 for (const row of rows) {
-                    const groupValues = buildGroupValues(row);
-                    const nextGroupKey = groupValues.join("||");
-                    if (currentGroupKey === "") {
-                        currentGroupKey = nextGroupKey;
-                        currentGroupValues = groupValues;
-                    } else if (nextGroupKey !== currentGroupKey) {
-                        pushSubtotalRow();
-                        currentGroupKey = nextGroupKey;
-                        currentGroupValues = groupValues;
-                        resetSubtotal();
+                    const gv = buildGroupValues(row);
+                    if (prevValues !== null) {
+                        let diff = D;
+                        for (let i = 0; i < D; i++) {
+                            if (gv[i] !== prevValues[i]) {
+                                diff = i;
+                                break;
+                            }
+                        }
+                        if (diff < D) {
+                            for (let L = D - 1; L >= diff; L--) {
+                                emitLevel(L, prevValues);
+                            }
+                        }
                     }
 
-                    renderedRows.push(row);
-                    renderedMeta.push({ kind: "data", groupKey: currentGroupKey });
+                    for (let level = 0; level < D; level++) {
+                        addRowToSubtotalAcc(sumsAtLevel[level], row, detailTotalColumns);
+                    }
 
-                    for (const column of detailTotalColumns) {
-                        const numeric = toNumericValue(row[column]);
-                        if (numeric == null) continue;
-                        subtotalSumByColumn[column] += numeric;
-                        subtotalHasNumericByColumn[column] = true;
+                    const nestedKeys = gv.map((_, idx) => nestedCollapseKey(idx, gv.slice(0, idx + 1)));
+                    renderedRows.push(row);
+                    renderedMeta.push({
+                        kind: "data",
+                        nestedGroupKeys: nestedKeys,
+                        outlineLevel: D,
+                    });
+
+                    prevValues = gv;
+                }
+
+                if (prevValues !== null) {
+                    for (let L = D - 1; L >= 0; L--) {
+                        emitLevel(L, prevValues);
                     }
                 }
-                pushSubtotalRow();
             } else {
                 renderedRows.push(...rows);
                 renderedMeta.push(...rows.map(() => ({ kind: "data" as const })));
@@ -468,7 +656,7 @@ export default function ReportsEmission(): React.ReactElement {
 
             return {
                 rows: [...renderedRows, totalsRow],
-                meta: [...renderedMeta, { kind: "total" }],
+                meta: [...renderedMeta, { kind: "total", outlineLevel: 0 }],
                 groupKeys: Array.from(groupKeysSet),
             };
         }
@@ -511,14 +699,30 @@ export default function ReportsEmission(): React.ReactElement {
             groupKeys: [],
         };
     }, [columns, displayedReportType, rows, subtotalColumns]);
+
+    const showOutlineGutter = useMemo(
+        () =>
+            hasGenerated &&
+            displayedReportType !== "ANEXO" &&
+            (displayedReportType === "ASIENTOS" ||
+                (Number(subtotalColumns) > 0 && renderModel.groupKeys.length > 0)),
+        [hasGenerated, displayedReportType, subtotalColumns, renderModel.groupKeys.length]
+    );
+
     const selectedReportLabel = useMemo(
-        () => REPORTS.find((report) => report.key === displayedReportType)?.label ?? "Reporte",
-        [displayedReportType]
+        () => enabledReports.find((report) => report.key === displayedReportType)?.label ?? "Reporte",
+        [displayedReportType, enabledReports]
     );
-    const bookOptions = useMemo(
-        () => books.map((book) => ({ key: book.key, value: book.value })),
-        [books]
-    );
+
+    const reportSelectCompactClass =
+        "min-h-[1.5rem] 2xl:min-h-0 [&_span]:!text-[10px] 2xl:[&_span]:!text-sm !py-0.5 !px-2 2xl:!py-1 2xl:!px-3.5";
+    const bookOptions = useMemo(() => {
+        const list =
+            reportType === "ASIENTOS"
+                ? books.filter((b) => b.key !== "im" && b.tableName?.trim().toLowerCase() !== "impuestos")
+                : books;
+        return list.map((book) => ({ key: book.key, value: book.value }));
+    }, [books, reportType]);
     const periodOptions = useMemo(
         () => periods.map((value) => ({ key: value, value })),
         [periods]
@@ -564,7 +768,7 @@ export default function ReportsEmission(): React.ReactElement {
                     body: JSON.stringify({
                         petition: "GetConfig",
                         client,
-                        data: {},
+                        data: { simulationOnly },
                     }),
                 });
                 const data = (await res.json()) as ReportsConfigResponse | { message?: string };
@@ -590,7 +794,66 @@ export default function ReportsEmission(): React.ReactElement {
         return () => {
             cancelled = true;
         };
-    }, [client]);
+    }, [client, simulationOnly]);
+
+    useEffect(() => {
+        if (reportType === "ASIENTOS") setSubtotalColumns("0");
+    }, [reportType]);
+
+    useEffect(() => {
+        if (reportType !== "ASIENTOS") return;
+        const current = books.find((b) => b.key === selectedBookKey);
+        const invalid =
+            selectedBookKey === "im" || current?.tableName?.trim().toLowerCase() === "impuestos";
+        if (!invalid) return;
+        const first = books.find((b) => b.key !== "im" && b.tableName?.trim().toLowerCase() !== "impuestos");
+        if (first) setSelectedBookKey(first.key);
+    }, [reportType, books, selectedBookKey]);
+
+    const showAsientosUi = reportType === "ASIENTOS" || displayedReportType === "ASIENTOS";
+
+    useEffect(() => {
+        if (!showAsientosUi) {
+            setAsientosBrowLabels({});
+            return;
+        }
+        if (!client || !selectedBook) {
+            setAsientosBrowLabels({});
+            return;
+        }
+        if (selectedBook.key === "im" || selectedBook.tableName?.trim().toLowerCase() === "impuestos") {
+            setAsientosBrowLabels({});
+            return;
+        }
+
+        let cancelled = false;
+        void (async () => {
+            try {
+                const res = await fetch("/api/reports", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        petition: "GetAsientosFieldLabels",
+                        client,
+                        data: { book: selectedBook.key, bookTableName: selectedBook.tableName },
+                    }),
+                });
+                const data = (await res.json()) as { labels?: Record<string, string>; message?: string };
+                if (cancelled) return;
+                if (res.ok && data.labels && typeof data.labels === "object") {
+                    setAsientosBrowLabels(data.labels);
+                } else {
+                    setAsientosBrowLabels({});
+                }
+            } catch {
+                if (!cancelled) setAsientosBrowLabels({});
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [showAsientosUi, client, selectedBook]);
 
     const runReport = useCallback(async () => {
         if (!client || running) return;
@@ -599,9 +862,11 @@ export default function ReportsEmission(): React.ReactElement {
             setShowErrorAlert(true);
             return;
         }
-        if (!isValidYYYYMM(period)) {
-            setPeriodError("El período debe tener formato YYYYMM");
-            return;
+        if (reportType !== "ASIENTOS") {
+            if (!isValidYYYYMM(period)) {
+                setPeriodError("El período debe tener formato YYYYMM");
+                return;
+            }
         }
         setPeriodError(null);
         setRunning(true);
@@ -634,7 +899,7 @@ export default function ReportsEmission(): React.ReactElement {
             setRows(resultRows);
             setGeneratedReportType(reportType);
             setHasGenerated(true);
-            setSuccessMessage(`${REPORTS.find((r) => r.key === reportType)?.label ?? "Reporte"} generado correctamente`);
+            setSuccessMessage(`${enabledReports.find((r) => r.key === reportType)?.label ?? "Reporte"} generado correctamente`);
             setShowSuccessAlert(true);
         } catch (err) {
             setErrorMessage(err instanceof Error ? err.message : String(err));
@@ -642,7 +907,13 @@ export default function ReportsEmission(): React.ReactElement {
         } finally {
             setRunning(false);
         }
-    }, [client, period, reportType, running, selectedBook]);
+    }, [client, enabledReports, period, reportType, running, selectedBook]);
+
+    useEffect(() => {
+        if (!enabledReports.some((report) => report.key === reportType)) {
+            setReportType(enabledReports[0]?.key ?? "ANEXO");
+        }
+    }, [enabledReports, reportType]);
 
     const handleBookSelect = useCallback(
         (e: React.MouseEvent<HTMLLIElement>, ref: React.RefObject<HTMLSpanElement | null>) => {
@@ -754,10 +1025,14 @@ export default function ReportsEmission(): React.ReactElement {
         const worksheet = workbook.addWorksheet(selectedReportLabel || "Reporte");
 
         const headers = columns.map((column) =>
-            displayedReportType === "ANEXO" ? getAnexoHeaderLabel(column) : getDetailHeaderLabel(column)
+            displayedReportType === "ANEXO"
+                ? getAnexoHeaderLabel(column)
+                : displayedReportType === "ASIENTOS"
+                  ? getAsientosHeaderLabel(column, asientosBrowLabels)
+                  : getDetailHeaderLabel(column)
         );
         const colCount = Math.max(headers.length, 1);
-        const periodLabel = formatPeriodToMMYYYY(period);
+        const periodLabel = displayedReportType === "ASIENTOS" ? "—" : formatPeriodToMMYYYY(period);
         const bookLabel = selectedBook?.value ?? "";
 
         worksheet.addRow(["ADMAGRO"]);
@@ -781,15 +1056,41 @@ export default function ReportsEmission(): React.ReactElement {
         headerRow.height = 20;
 
         const sourceRows = rows.length === 0 ? [] : renderModel.rows;
+        const outlineDepth =
+            displayedReportType === "ASIENTOS" ? 1 : Math.max(0, Number(subtotalColumns) || 0);
+        const useExcelRowOutlines =
+            displayedReportType !== "ANEXO" &&
+            renderModel.groupKeys.length > 0 &&
+            sourceRows.length > 0 &&
+            (displayedReportType === "ASIENTOS" || outlineDepth > 0);
 
-        sourceRows.forEach((row) => {
+        if (useExcelRowOutlines) {
+            worksheet.properties.outlineProperties = { summaryBelow: true, summaryRight: true };
+        }
+
+        sourceRows.forEach((row, rowIndex) => {
             const excelRow = worksheet.addRow(columns.map((column) => formatCellValue(row[column], column)));
+            const meta = renderModel.meta[rowIndex];
+            if (useExcelRowOutlines) {
+                if (meta?.kind === "data" && outlineDepth > 0) {
+                    excelRow.outlineLevel = Math.min(7, outlineDepth + 1);
+                } else if (meta?.kind === "subtotal" && meta.outlineLevel != null) {
+                    excelRow.outlineLevel = Math.min(7, meta.outlineLevel + 1);
+                } else if (meta?.kind === "total") {
+                    excelRow.outlineLevel = 0;
+                }
+            }
             columns.forEach((column, index) => {
                 const numeric = toNumericValue(row[column]);
                 if (numeric == null || isIdentifierColumn(column)) return;
                 const cell = excelRow.getCell(index + 1);
                 cell.alignment = { ...(cell.alignment ?? {}), horizontal: "right" };
             });
+            if (meta?.kind === "subtotal") {
+                excelRow.eachCell({ includeEmpty: true }, (cell) => {
+                    cell.font = { ...(cell.font ?? {}), bold: true };
+                });
+            }
         });
 
         worksheet.views = [{ state: "frozen", ySplit: 4 }];
@@ -815,7 +1116,20 @@ export default function ReportsEmission(): React.ReactElement {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-    }, [columns, displayedReportType, hasGenerated, period, renderModel.rows, rows, selectedBook?.value, selectedReportLabel]);
+    }, [
+        columns,
+        displayedReportType,
+        hasGenerated,
+        period,
+        renderModel.groupKeys.length,
+        renderModel.meta,
+        renderModel.rows,
+        rows,
+        selectedBook?.value,
+        selectedReportLabel,
+        subtotalColumns,
+        asientosBrowLabels,
+    ]);
 
     return (
         <div className="w-full h-full overflow-hidden flex flex-col">
@@ -837,16 +1151,16 @@ export default function ReportsEmission(): React.ReactElement {
                     setSuccessMessage(null);
                 }}
             />
-            <div className="w-full h-full p-3 xl:p-4 pb-3 flex flex-col gap-1.5">
-                <div className="bg-gabu-500 rounded-md border border-gabu-900 px-3 py-1.5 xl:px-4 xl:py-2 flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-gabu-100 text-sm xl:text-base">Emision de reportes</p>
-                    <div className="flex flex-wrap items-center gap-2">
-                        {REPORTS.map((report) => (
+            <div className="w-full h-full p-3 pb-3 sm:p-3.5 2xl:p-5 2xl:pb-4 flex flex-col gap-2 2xl:gap-2.5 [@media(max-height:600px)]:gap-1.5 [@media(max-height:600px)]:p-2.5">
+                <div className="bg-gabu-500 rounded-md border border-gabu-900 px-3 py-2 sm:px-3.5 sm:py-2 2xl:px-5 2xl:py-2.5 flex flex-wrap items-center justify-between gap-2.5 2xl:gap-4 [@media(max-height:600px)]:py-1.5 [@media(max-height:600px)]:gap-2 [@media(max-height:600px)]:px-2.5">
+                    <p className="text-gabu-100 text-xs 2xl:text-base pr-2">Emision de reportes</p>
+                    <div className="flex flex-wrap items-center gap-2 2xl:gap-2.5">
+                        {enabledReports.map((report) => (
                             <button
                                 key={report.key}
                                 type="button"
                                 onClick={() => setReportType(report.key)}
-                                className={`h-7 px-3 rounded-md transition-colors duration-150 cursor-pointer text-xs border disabled:opacity-60 disabled:cursor-not-allowed ${
+                                className={`h-6 min-h-[1.5rem] px-2.5 rounded-md transition-colors duration-150 cursor-pointer text-[10px] leading-snug border disabled:opacity-60 disabled:cursor-not-allowed 2xl:h-7 2xl:px-3.5 2xl:text-xs [@media(max-height:600px)]:h-[1.375rem] [@media(max-height:600px)]:px-2 [@media(max-height:600px)]:text-[9px] ${
                                     reportType === report.key
                                         ? "bg-gabu-900 text-gabu-100 border-gabu-900"
                                         : "bg-gabu-700 text-gabu-100 border-gabu-900 hover:bg-gabu-900"
@@ -859,11 +1173,11 @@ export default function ReportsEmission(): React.ReactElement {
                     </div>
                 </div>
 
-                <div className="bg-gabu-500 rounded-md border border-gabu-900 px-3 py-1.5 xl:px-4 xl:py-2 flex items-start justify-between gap-3">
-                    <div className="flex flex-wrap items-start gap-3 xl:gap-4">
-                        <div className="flex items-center gap-2">
-                            <label className="text-gabu-100 text-xs xl:text-sm whitespace-nowrap">Libro</label>
-                            <div className="min-w-[11.5rem] xl:min-w-[13rem]">
+                <div className="bg-gabu-500 rounded-md border border-gabu-900 px-3 py-2 sm:px-3.5 sm:py-2 2xl:px-5 2xl:py-2.5 flex flex-nowrap items-start justify-between gap-2.5 2xl:gap-4 min-w-0 [@media(max-height:600px)]:py-1.5 [@media(max-height:600px)]:gap-2 [@media(max-height:600px)]:px-2.5">
+                    <div className="flex flex-nowrap items-start gap-2.5 2xl:gap-4 shrink-0">
+                        <div className="flex items-center gap-2 2xl:gap-2.5">
+                            <label className="text-gabu-100 text-[10px] 2xl:text-sm whitespace-nowrap shrink-0">Libro</label>
+                            <div className="min-w-[9rem] sm:min-w-[10rem] 2xl:min-w-[11.5rem]">
                                 <Select
                                     label="Libro"
                                     hasLabel={false}
@@ -872,14 +1186,19 @@ export default function ReportsEmission(): React.ReactElement {
                                     options={bookOptions}
                                     defaultValue={selectedBookKey}
                                     chooseOptionHandler={handleBookSelect}
-                                    controlClassName={loadingConfig || running ? "bg-gabu-300 pointer-events-none" : ""}
+                                    controlClassName={[
+                                        loadingConfig || running ? "bg-gabu-300 pointer-events-none" : "",
+                                        reportSelectCompactClass,
+                                    ]
+                                        .filter(Boolean)
+                                        .join(" ")}
                                 />
                             </div>
                         </div>
-                        <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                                <label className="text-gabu-100 text-xs xl:text-sm whitespace-nowrap">Periodo (YYYYMM)</label>
-                                <div className="w-[7.5rem]">
+                        <div className="flex flex-col gap-1 2xl:gap-1.5">
+                            <div className="flex items-center gap-2 2xl:gap-2.5">
+                                <label className="text-gabu-100 text-[10px] 2xl:text-sm whitespace-nowrap shrink-0">Periodo (YYYYMM)</label>
+                                <div className="w-[6.25rem] 2xl:w-[7.5rem]">
                                     <Select
                                         label="Periodo"
                                         hasLabel={false}
@@ -888,15 +1207,22 @@ export default function ReportsEmission(): React.ReactElement {
                                         options={periodOptions}
                                         defaultValue={period}
                                         chooseOptionHandler={handlePeriodSelect}
-                                        controlClassName={loadingConfig || running ? "bg-gabu-300 pointer-events-none" : ""}
+                                        controlClassName={[
+                                            loadingConfig || running || reportType === "ASIENTOS"
+                                                ? "bg-gabu-300 pointer-events-none"
+                                                : "",
+                                            reportSelectCompactClass,
+                                        ]
+                                            .filter(Boolean)
+                                            .join(" ")}
                                     />
                                 </div>
                             </div>
-                            {periodError && <p className="text-xs text-gabu-error">{periodError}</p>}
+                            {periodError && <p className="text-[10px] 2xl:text-xs text-gabu-error">{periodError}</p>}
                         </div>
-                        <div className="flex items-center gap-2">
-                            <label className="text-gabu-100 text-xs xl:text-sm whitespace-nowrap">Subtotales</label>
-                            <div className="w-[4.5rem]">
+                        <div className="flex items-center gap-2 2xl:gap-2.5">
+                            <label className="text-gabu-100 text-[10px] 2xl:text-sm whitespace-nowrap shrink-0">Subtotales</label>
+                            <div className="w-[3.25rem] 2xl:w-[4.5rem]">
                                 <Select
                                     label="Subtotales por columna"
                                     hasLabel={false}
@@ -905,43 +1231,52 @@ export default function ReportsEmission(): React.ReactElement {
                                     options={subtotalOptions}
                                     defaultValue={subtotalColumns}
                                     chooseOptionHandler={handleSubtotalSelect}
-                                    controlClassName={loadingConfig || running ? "bg-gabu-300 pointer-events-none" : ""}
+                                    controlClassName={[
+                                        loadingConfig || running || reportType === "ASIENTOS"
+                                            ? "bg-gabu-300 pointer-events-none"
+                                            : "",
+                                        reportSelectCompactClass,
+                                    ]
+                                        .filter(Boolean)
+                                        .join(" ")}
                                 />
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 2xl:gap-2.5 shrink-0 pl-1">
                         <button
                             type="button"
-                            className="bg-gabu-700 rounded-md h-7 px-3 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 text-gabu-100 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="bg-gabu-700 rounded-md p-1 2xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 text-gabu-100 disabled:opacity-60 disabled:cursor-not-allowed [@media(max-height:600px)]:p-0.5"
                             onClick={collapseAllGroups}
                             disabled={loadingConfig || running || !hasGenerated || renderModel.groupKeys.length === 0}
                             title="Colapsar todos los subtotales"
+                            aria-label="Colapsar todos los subtotales"
                         >
-                            Colapsar todo
+                            <CollapseAllIcon style="stroke-current text-gabu-100 h-4 w-4 2xl:h-5 2xl:w-5" onClick={() => undefined} />
                         </button>
                         <button
                             type="button"
-                            className="bg-gabu-700 rounded-md h-7 px-3 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 text-gabu-100 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="bg-gabu-700 rounded-md p-1 2xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 text-gabu-100 disabled:opacity-60 disabled:cursor-not-allowed [@media(max-height:600px)]:p-0.5"
                             onClick={expandAllGroups}
                             disabled={loadingConfig || running || !hasGenerated || renderModel.groupKeys.length === 0}
                             title="Expandir todos los subtotales"
+                            aria-label="Expandir todos los subtotales"
                         >
-                            Expandir todo
+                            <ExpandAllIcon style="stroke-current text-gabu-100 h-4 w-4 2xl:h-5 2xl:w-5" onClick={() => undefined} />
                         </button>
                         <button
                             type="button"
-                            className="bg-gabu-700 rounded-md p-1 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="bg-gabu-700 rounded-md p-1 2xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 disabled:opacity-60 disabled:cursor-not-allowed [@media(max-height:600px)]:p-0.5"
                             onClick={() => void exportToExcel()}
                             disabled={loadingConfig || running || !hasGenerated}
                             title="Exportar a Excel"
                         >
-                            <Excel style="fill-current text-gabu-100 h-[20px] w-[20px]" />
+                            <Excel style="fill-current text-gabu-100 h-4 w-4 2xl:h-5 2xl:w-5" onClick={() => undefined} />
                         </button>
                         <button
                             type="button"
-                            className="bg-gabu-900 rounded-md h-7 px-3 xl:px-4 cursor-pointer hover:bg-gabu-700 transition-colors duration-150 flex items-center text-gabu-100 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="bg-gabu-900 rounded-md h-6 min-h-[1.5rem] px-3 2xl:h-7 2xl:px-5 cursor-pointer hover:bg-gabu-700 transition-colors duration-150 flex items-center text-gabu-100 text-[10px] 2xl:text-xs disabled:opacity-60 disabled:cursor-not-allowed [@media(max-height:600px)]:h-[1.375rem] [@media(max-height:600px)]:px-2.5 [@media(max-height:600px)]:text-[9px]"
                             onClick={() => void runReport()}
                             disabled={loadingConfig || running}
                         >
@@ -951,14 +1286,14 @@ export default function ReportsEmission(): React.ReactElement {
                 </div>
                 <div className="flex-1 min-h-0 w-full flex items-center flex-col relative">
                     <div className="relative w-full max-h-[95%] flex flex-col items-center flex-1 min-w-0">
-                    <div className="flex-1 min-h-0 w-full overflow-y-auto overflow-x-hidden table-scroll bg-gabu-100 border border-gabu-900 rounded-md pb-8">
-                        <div className="w-full overflow-y-auto overflow-x-hidden table-container grid p-2">
+                    <div className="flex-1 min-h-0 w-full overflow-y-auto overflow-x-hidden table-scroll bg-gabu-100 border border-gabu-900 rounded-md pb-6 2xl:pb-8 [@media(max-height:600px)]:pb-4">
+                        <div className="w-full overflow-y-auto overflow-x-hidden table-container grid p-2 2xl:p-3 [@media(max-height:600px)]:p-1.5">
                             {loadingConfig ? (
                                 <div className="min-w-full">
-                                    <Skeleton count={8} height={20} highlightColor="var(--color-gabu-700)" baseColor="var(--color-gabu-300)" className="mb-1" />
+                                    <Skeleton count={8} height={16} highlightColor="var(--color-gabu-700)" baseColor="var(--color-gabu-300)" className="mb-1 2xl:mb-1.5" />
                                 </div>
                             ) : !hasGenerated ? (
-                                <p className="text-gabu-900 text-sm p-2">Seleccioná un reporte y presioná Generar.</p>
+                                <p className="text-gabu-900 text-xs 2xl:text-sm p-3 2xl:p-4">Seleccioná un reporte y presioná Generar.</p>
                             ) : (
                                 <div
                                     ref={tableHorizontalRef}
@@ -968,10 +1303,30 @@ export default function ReportsEmission(): React.ReactElement {
                                     <table className="border-collapse divide-y-2 divide-gabu-900/25 table-auto min-w-full">
                                         <thead>
                                             <tr>
-                                                {columns.map((column) => (
-                                                    <th key={column} className="text-start py-2 px-3 text-gabu-900 whitespace-nowrap">
-                                                        <p className="text-xs xl:text-sm">
-                                                            {displayedReportType === "ANEXO" ? getAnexoHeaderLabel(column) : getDetailHeaderLabel(column)}
+                                                {showOutlineGutter && (
+                                                    <th
+                                                        scope="col"
+                                                        className="w-8 min-w-[2rem] max-w-[2rem] py-2 px-0.5 2xl:py-2.5 text-center text-gabu-900 [@media(max-height:600px)]:py-1"
+                                                        aria-label="Expandir o contraer grupos"
+                                                    />
+                                                )}
+                                                {columns.map((column, columnIndex) => (
+                                                    <th
+                                                        key={column}
+                                                        className={`text-start py-2 px-2.5 2xl:py-2.5 2xl:px-3.5 text-gabu-900 whitespace-nowrap [@media(max-height:600px)]:py-1 [@media(max-height:600px)]:px-2 ${
+                                                            columnIndex === 0 ? "pl-3 2xl:pl-4 [@media(max-height:600px)]:pl-2" : ""
+                                                        } ${
+                                                            columnIndex === columns.length - 1
+                                                                ? "pr-3 2xl:pr-4 [@media(max-height:600px)]:pr-2"
+                                                                : ""
+                                                        }`}
+                                                    >
+                                                        <p className="text-[10px] leading-snug 2xl:text-sm">
+                                                            {displayedReportType === "ANEXO"
+                                                                ? getAnexoHeaderLabel(column)
+                                                                : displayedReportType === "ASIENTOS"
+                                                                  ? getAsientosHeaderLabel(column, asientosBrowLabels)
+                                                                  : getDetailHeaderLabel(column)}
                                                         </p>
                                                     </th>
                                                 ))}
@@ -980,7 +1335,10 @@ export default function ReportsEmission(): React.ReactElement {
                                         <tbody className="divide-y-2 divide-gabu-900/25">
                                             {rows.length === 0 ? (
                                                 <tr>
-                                                    <td className="py-2 px-2 text-gabu-700 text-xs" colSpan={columns.length || 1}>
+                                                    <td
+                                                        className="py-2 px-2.5 2xl:py-2.5 2xl:px-3 text-gabu-700 text-[10px] 2xl:text-xs"
+                                                        colSpan={(columns.length || 1) + (showOutlineGutter ? 1 : 0)}
+                                                    >
                                                         No hay datos para mostrar para los parámetros seleccionados.
                                                     </td>
                                                 </tr>
@@ -989,25 +1347,86 @@ export default function ReportsEmission(): React.ReactElement {
                                                     const rowMeta = renderModel.meta[index] ?? { kind: "data" as const };
                                                     const isDataHidden =
                                                         rowMeta.kind === "data" &&
-                                                        !!rowMeta.groupKey &&
-                                                        collapsedGroups.has(rowMeta.groupKey);
+                                                        (rowMeta.nestedGroupKeys?.some((k) => collapsedGroups.has(k)) ||
+                                                            (!rowMeta.nestedGroupKeys?.length &&
+                                                                rowMeta.groupKey != null &&
+                                                                collapsedGroups.has(rowMeta.groupKey)));
                                                     if (isDataHidden) return null;
+                                                    const isSubtotalHidden =
+                                                        rowMeta.kind === "subtotal" &&
+                                                        rowMeta.groupKey != null &&
+                                                        (() => {
+                                                            const key = rowMeta.groupKey;
+                                                            const idx = key.indexOf(":");
+                                                            if (idx < 0) return false;
+                                                            const lvl = Number(key.slice(0, idx));
+                                                            const tail = key.slice(idx + 1);
+                                                            const parts = tail.split("||");
+                                                            if (!Number.isInteger(lvl) || parts.length === 0) return false;
+                                                            for (let k = 0; k < lvl; k++) {
+                                                                if (collapsedGroups.has(nestedCollapseKey(k, parts.slice(0, k + 1)))) {
+                                                                    return true;
+                                                                }
+                                                            }
+                                                            return false;
+                                                        })();
+                                                    if (isSubtotalHidden) return null;
                                                     const isSummary = rowMeta.kind !== "data" || isSummaryRow(row);
                                                     return (
                                                         <tr key={`row-${index}`} className={isSummary ? "font-semibold" : ""}>
+                                                            {showOutlineGutter && (
+                                                                <td
+                                                                    className="w-8 min-w-[2rem] max-w-[2rem] align-middle py-2 px-0.5 text-center text-gabu-900 [@media(max-height:600px)]:py-1"
+                                                                    style={
+                                                                        rowMeta.kind === "subtotal" && rowMeta.outlineLevel != null
+                                                                            ? { paddingLeft: `${6 + rowMeta.outlineLevel * 8}px` }
+                                                                            : undefined
+                                                                    }
+                                                                >
+                                                                    {rowMeta.kind === "subtotal" && rowMeta.groupKey != null ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-gabu-900/40 bg-gabu-100 text-xs font-semibold leading-none text-gabu-900 hover:bg-gabu-300"
+                                                                            onClick={() => toggleGroupCollapse(rowMeta.groupKey!)}
+                                                                            title={
+                                                                                collapsedGroups.has(rowMeta.groupKey)
+                                                                                    ? "Expandir grupo"
+                                                                                    : "Contraer grupo"
+                                                                            }
+                                                                            aria-expanded={!collapsedGroups.has(rowMeta.groupKey)}
+                                                                        >
+                                                                            {collapsedGroups.has(rowMeta.groupKey) ? "+" : "−"}
+                                                                        </button>
+                                                                    ) : null}
+                                                                </td>
+                                                            )}
                                                             {columns.map((column, columnIndex) => {
                                                                 const isNumericCell =
                                                                     !isIdentifierColumn(column) && toNumericValue(row[column]) != null;
                                                                 const rawCellText = normalizeCellValue(row[column]);
+                                                                const rawLower = rawCellText.toLowerCase();
                                                                 const canToggleSubtotal =
+                                                                    !showOutlineGutter &&
                                                                     rowMeta.kind === "subtotal" &&
                                                                     rowMeta.groupKey != null &&
                                                                     columnIndex === 0 &&
-                                                                    rawCellText.toLowerCase().startsWith("subtotal ");
+                                                                    (rawLower.startsWith("subtotal ") ||
+                                                                        (rawLower.startsWith("total ") && rawLower !== "total general"));
                                                                 if (canToggleSubtotal) {
                                                                     const isCollapsed = collapsedGroups.has(rowMeta.groupKey!);
                                                                     return (
-                                                                        <td key={`${index}-${column}`} className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">
+                                                                        <td
+                                                                            key={`${index}-${column}`}
+                                                                            className={`py-2 px-2.5 2xl:py-2.5 2xl:px-3 text-gabu-900 text-[10px] 2xl:text-xs whitespace-nowrap [@media(max-height:600px)]:py-1 [@media(max-height:600px)]:px-2 ${
+                                                                                columnIndex === 0
+                                                                                    ? "pl-3 2xl:pl-4 [@media(max-height:600px)]:pl-2"
+                                                                                    : ""
+                                                                            } ${
+                                                                                columnIndex === columns.length - 1
+                                                                                    ? "pr-3 2xl:pr-4 [@media(max-height:600px)]:pr-2"
+                                                                                    : ""
+                                                                            }`}
+                                                                        >
                                                                             <button
                                                                                 type="button"
                                                                                 className="cursor-pointer hover:text-gabu-700 transition-colors duration-100"
@@ -1022,7 +1441,15 @@ export default function ReportsEmission(): React.ReactElement {
                                                                 return (
                                                                     <td
                                                                         key={`${index}-${column}`}
-                                                                        className={`py-2 px-2 text-gabu-900 text-xs whitespace-nowrap ${isNumericCell ? "text-right" : ""}`}
+                                                                        className={`py-2 px-2.5 2xl:py-2.5 2xl:px-3 text-gabu-900 text-[10px] 2xl:text-xs whitespace-nowrap ${isNumericCell ? "text-right" : ""} [@media(max-height:600px)]:py-1 [@media(max-height:600px)]:px-2 ${
+                                                                            columnIndex === 0
+                                                                                ? "pl-3 2xl:pl-4 [@media(max-height:600px)]:pl-2"
+                                                                                : ""
+                                                                        } ${
+                                                                            columnIndex === columns.length - 1
+                                                                                ? "pr-3 2xl:pr-4 [@media(max-height:600px)]:pr-2"
+                                                                                : ""
+                                                                        }`}
                                                                     >
                                                                         {formatCellValue(row[column], column)}
                                                                     </td>
@@ -1040,7 +1467,7 @@ export default function ReportsEmission(): React.ReactElement {
                     </div>
                 </div>
                     {hasGenerated && columns.length > 0 && (
-                        <div className="absolute bottom-5 2xl:bottom-7 left-0 right-0 px-2 py-1">
+                        <div className="absolute bottom-4 2xl:bottom-7 left-0 right-0 px-2 py-1 2xl:px-3 2xl:py-1.5 [@media(max-height:600px)]:bottom-3">
                             <div
                                 ref={bottomScrollbarRef}
                                 onScroll={syncFromBottomScrollbar}
@@ -1050,11 +1477,11 @@ export default function ReportsEmission(): React.ReactElement {
                             </div>
                         </div>
                     )}
-                    <div className="w-full mt-1.5 px-1 flex items-center justify-between">
-                        <p className="text-[11px] xl:text-xs text-gabu-700">
+                    <div className="w-full mt-2 2xl:mt-2.5 px-1.5 2xl:px-2 flex items-center justify-between gap-3 [@media(max-height:600px)]:mt-1 [@media(max-height:600px)]:px-1">
+                        <p className="text-[10px] 2xl:text-xs text-gabu-700">
                             Reporte seleccionado: {selectedReportLabel}
                         </p>
-                        <p className="text-[11px] xl:text-xs text-gabu-700">
+                        <p className="text-[10px] 2xl:text-xs text-gabu-700">
                             Registros: {rows.length}
                         </p>
                     </div>

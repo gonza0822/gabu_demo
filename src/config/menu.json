@@ -125,14 +125,6 @@
             "order": 0
           },
           {
-            "submenuTitle": "Cambios masivos",
-            "table": "Grupos",
-            "path": "",
-            "isOpen": false,
-            "active": false,
-            "order": 0
-          },
-          {
             "submenuTitle": "Manejo de parametros",
             "table": "ManageParametersTable",
             "path": "/fixedAssets/parameters",
@@ -181,8 +173,8 @@
           },
           {
             "submenuTitle": "Generacion de asientos",
-            "table": "Grupos",
-            "path": "",
+            "table": "GeneracionAsientosPage",
+            "path": "/processes/generacion-asientos",
             "isOpen": false,
             "active": false,
             "order": 0
@@ -211,24 +203,24 @@
         "submenu": [
           {
             "submenuTitle": "Proyectos",
-            "table": "Grupos",
-            "path": "",
+            "table": "InvestmentsProjectsPage",
+            "path": "/investments/projects",
             "isOpen": false,
             "active": false,
             "order": 0
           },
           {
             "submenuTitle": "Ordenes de trabajo",
-            "table": "Grupos",
-            "path": "",
+            "table": "InvestmentsWorkOrdersPage",
+            "path": "/investments/workOrders",
             "isOpen": false,
             "active": false,
             "order": 0
           },
           {
             "submenuTitle": "Cargos",
-            "table": "Grupos",
-            "path": "",
+            "table": "InvestmentsChargesPage",
+            "path": "/investments/charges",
             "isOpen": false,
             "active": false,
             "order": 0
@@ -241,43 +233,53 @@
         "submenu": [
           {
             "submenuTitle": "Administrar",
-            "table": "Grupos",
-            "path": "",
-            "isOpen": false,
-            "active": false,
-            "order": 0
-          },
-          {
-            "submenuTitle": "Cambios masivos",
-            "table": "Grupos",
-            "path": "",
+            "table": "SimulationsManagePage",
+            "path": "/simulations/manage",
             "isOpen": false,
             "active": false,
             "order": 0
           },
           {
             "submenuTitle": "Manejo de parametros",
-            "table": "ManageParametersTable",
-            "path": "/fixedAssets/parameters",
+            "table": "SimulationsParametersPage",
+            "path": "/simulations/parameters",
             "isOpen": false,
             "active": false,
             "order": 0
           },
           {
             "submenuTitle": "Emision de reportes",
-            "table": "Grupos",
-            "path": "",
+            "table": "SimulationsReportsPage",
+            "path": "/simulations/reports",
             "isOpen": false,
             "active": false,
             "order": 0
           },
           {
             "submenuTitle": "Calculo de amort",
-            "table": "Grupos",
-            "path": "",
+            "table": "SimulationsCalculoAmortizacionesPage",
+            "path": "/simulations/calculo-amortizaciones",
             "isOpen": false,
             "active": false,
             "order": 0
+          },
+          {
+            "submenuTitle": "Reiniciar simulación",
+            "table": "RestartSimulationPage",
+            "path": "/simulations/restart",
+            "isOpen": false,
+            "active": false,
+            "order": 0,
+            "modalOnly": true
+          },
+          {
+            "submenuTitle": "Alta bien simulacion",
+            "table": "SimulationsAddPage",
+            "path": "/simulations/add",
+            "isOpen": false,
+            "active": false,
+            "order": 0,
+            "hiddenFromSidebar": true
           }
         ]
       }

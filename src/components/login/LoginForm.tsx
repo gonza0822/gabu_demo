@@ -59,6 +59,7 @@ export default function LoginForm({ children, onLoginError, loginError } : { chi
             void prefetchFixedAssetsBootstrap(client).catch(() => null);
             dispatch(authorizationActions.login({
                 user: data.user,
+                supervisor: !!data.supervisor,
             }));
             router.push('/home');
         } else {
