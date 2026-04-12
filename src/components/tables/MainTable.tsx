@@ -85,6 +85,7 @@ export default function MainTable<TData>({
     ]);
 
     const [selectedRow, setSelectedRow] = useState<string | null>(null);
+    const isUsersGrid = connPath.includes("/api/tables/user");
 
     useEffect(() => {
         setDataTable(data);
@@ -104,7 +105,15 @@ export default function MainTable<TData>({
         ...fields.map(field => columnHelper.accessor((row: TData) => row[field.IdCampo as keyof TData], {
             id: field.IdCampo,
             header: field.BrowNombre ?? '',
-            cell: info => info.getValue(),
+            cell: info => {
+                const isPasswordField = String(field.IdCampo ?? "").toLowerCase() === "clave";
+                if (isUsersGrid && isPasswordField) {
+                    const raw = info.getValue();
+                    const value = String(raw ?? "");
+                    return value.length > 0 ? "*".repeat(Math.min(value.length, 12)) : "";
+                }
+                return info.getValue();
+            },
             sortingFn: "myCustomSorting" as SortingFnOption<TData>,
         }))
     ], [fields, columnHelper]);
