@@ -528,7 +528,11 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                             </button>
                         </div>
                     </div>
-                    <div className="table-container h-fit max-h-[min(65vh,36rem)] w-full min-w-0 shrink-0 overflow-auto">
+                    <div
+                        className={`table-container w-full min-w-0 min-h-0 overflow-auto ${
+                            type === "charges" ? "flex-1" : "h-fit max-h-[min(65vh,36rem)] shrink-0"
+                        }`}
+                    >
                         <div className="min-w-full">
                             {loading ? (
                                 <Skeleton
@@ -607,7 +611,7 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                         </div>
                     </div>
                     {table.getCanNextPage() || table.getCanPreviousPage() ? (
-                        <div className="mt-1 flex justify-center pt-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:mt-1">
+                        <div className="mt-1 flex shrink-0 justify-center pt-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:mt-1">
                             <nav className="flex gap-1 xl:gap-2 items-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1">
                                 <span
                                     className="hover:bg-gabu-300 transition-colors duration-150 cursor-pointer p-1.5 xl:p-2 rounded-2xl inline-flex items-center justify-center [&_svg]:scale-90 xl:[&_svg]:scale-100 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-1"
