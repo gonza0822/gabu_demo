@@ -1,7 +1,7 @@
 'use client';
 
 import { Reorder } from "motion/react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import PinIcon from "../svg/PinIcon";
 import Cross from "../svg/Cross";
 import { Submenu, Menu, MenuObj } from "@/store/navSlice";
@@ -34,6 +34,8 @@ export default function NavItems() : React.ReactElement {
     }, [clientMenu]);
 
     const [pages, setPages] = useState<Submenu[]>(submenus);
+    const tabsScrollRef = useRef<HTMLDivElement>(null);
+    const previousOpenTabsCountRef = useRef<number>(submenus.length);
 
     const actualActiveChanged : string | undefined = submenus.find(submenu => submenu.active === true)?.path
 
@@ -66,11 +68,25 @@ export default function NavItems() : React.ReactElement {
         saveFile();
     }, [submenus.length, actualActiveChanged, clientMenu]);
 
+    useEffect(() => {
+        const prevCount = previousOpenTabsCountRef.current;
+        if (submenus.length > prevCount) {
+            tabsScrollRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
+        }
+        previousOpenTabsCountRef.current = submenus.length;
+    }, [submenus.length]);
+
     function handleClose(page: Submenu) {
         const submenu = pages.find(subItem => subItem.path === page.path)
         if(submenu){
             const isOnlyTab = pages.length === 1;
-            const prevTab = pages.find(p => p.order === submenu.order - 1);
+            const wasActive = submenu.active;
+            const remainingTabs = pages.filter(p => p.path !== submenu.path);
+            const fallbackTab = wasActive
+                ? remainingTabs.find(p => p.order === submenu.order - 1)
+                    ?? remainingTabs.find(p => p.order === submenu.order + 1)
+                    ?? remainingTabs.sort((a, b) => a.order - b.order)[0]
+                : undefined;
             const menuId = clientMenu.menu.findIndex(menu => menu.submenu.some(subItem => subItem.path === page.path));
             const submenuId = menuId >= 0 ? clientMenu.menu[menuId].submenu.findIndex(subItem => subItem.path === page.path) : -1;
             if(menuId >= 0 && submenuId >= 0){
@@ -82,9 +98,9 @@ export default function NavItems() : React.ReactElement {
                     return;
                 }
 
-                if(prevTab){
-                    dispatch(openPagesActions.setActivePage({ page: prevTab.table }));
-                    window.history.replaceState(null, '', prevTab.path);
+                if(fallbackTab){
+                    dispatch(openPagesActions.setActivePage({ page: fallbackTab.table }));
+                    window.history.replaceState(null, '', fallbackTab.path);
                 }
             }
         }
@@ -141,14 +157,16 @@ export default function NavItems() : React.ReactElement {
     }
 
     return (
-        <div className="w-full h-[8%] overflow-auto nav-items">
+        <div ref={tabsScrollRef} className="w-full h-[8%] overflow-auto nav-items">
             <Reorder.Group axis="x" layoutScroll values={pages} onReorder={handleReorder} className="nav-items h-full bg-gabu-300/75 rounded-t-2xl flex">
                 {pages.map((page) => {
                     const parentMenu = menuTitleByPath.get(page.path);
-                    const tabTooltip = parentMenu ? `${page.submenuTitle} — ${parentMenu}` : page.submenuTitle;
+                    const isSimulationTab = parentMenu === 'Simulaciones';
+                    const tabLabel = isSimulationTab ? `${page.submenuTitle} (Simulación)` : page.submenuTitle;
+                    const tabTooltip = parentMenu ? `${tabLabel} — ${parentMenu}` : tabLabel;
                     return (
                     <Reorder.Item key={page.path} value={page} className={`gap-1 shrink-0 min-w-[20%] ${page.active ? 'bg-gabu-100 border-t-2 border-gabu-900 h-full flex justify-between items-center cursor-pointer' : 'bg-gabu-300/75 h-full flex justify-between items-center cursor-pointer group hover:bg-gabu-100/90'} rounded-t-lg`} onClick={() => handleClickItem(page)}>
-                        <p className="font-semibold text-xs xl:text-sm 2xl:text-base text-gabu-700 ml-3 truncate min-w-0 flex-1" title={tabTooltip}>{page.submenuTitle}</p>
+                        <p className="font-semibold text-xs xl:text-sm 2xl:text-base text-gabu-700 ml-3 truncate min-w-0 flex-1" title={tabTooltip}>{tabLabel}</p>
                         <div className={`flex mr-3 gap-1 shrink-0 w-[52px] justify-end ${!page.active ? 'invisible group-hover:visible' : ''}`} onClick={(e : React.MouseEvent<HTMLOrSVGElement>) => e.stopPropagation()}>
                             <PinIcon style={`h-[15px] w-[15px] 2xl:h-[20px] 2xl:w-[20px] ${page.active ? 'hover:bg-gabu-300 hover:border border-gabu-300' : 'hover:bg-gabu-300 hover:border border-gabu-300 rotate-90'}`} onClick={() => handlePin(page)}/>
                             <Cross style="h-[15px] w-[15px] 2xl:h-[20px] 2xl:w-[20px] hover:bg-gabu-300 hover:border border-gabu-300 fill-current text-gabu-900" onClick={() => handleClose(page)}/>

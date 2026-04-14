@@ -66,27 +66,37 @@ const navSlice = createSlice({
             if(menuObj){
                 const submenu : Submenu = menuObj.menu[action.payload.menuId].submenu[action.payload.submenuId];
                 const closedOrder = submenu.order;
+                const wasActive = submenu.active;
 
                 let fallbackTab: Submenu | undefined;
-                if (submenu.active) {
+                if (wasActive) {
                     const openTabs = menuObj.menu
                         .flatMap((item) => item.submenu)
                         .filter((subItem) => subItem.isOpen && subItem.path !== submenu.path);
+                    const sortedOpenTabs = [...openTabs].sort((a, b) => a.order - b.order);
                     fallbackTab = openTabs.find((subItem) => subItem.order === closedOrder - 1)
-                        ?? openTabs.find((subItem) => subItem.order === closedOrder + 1);
+                        ?? openTabs.find((subItem) => subItem.order === closedOrder + 1)
+                        ?? sortedOpenTabs[0];
                 }
 
                 submenu.isOpen = false;
+                submenu.active = false;
                 menuObj.menu.forEach(item => {
                     item.submenu.forEach(subItem => {
                         if(subItem.order > closedOrder){
                             subItem.order = subItem.order - 1
                         }
-                        subItem.active = false;
                     })
                 })
-                if (fallbackTab) {
-                    fallbackTab.active = true;
+                if (wasActive) {
+                    menuObj.menu.forEach(item => {
+                        item.submenu.forEach(subItem => {
+                            subItem.active = false;
+                        })
+                    })
+                    if (fallbackTab) {
+                        fallbackTab.active = true;
+                    }
                 }
                 submenu.order = 0;
                 menuObj.maxOrder = menuObj.maxOrder - 1;

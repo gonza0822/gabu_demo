@@ -29,7 +29,8 @@ ul::-webkit-scrollbar-thumb {
 }
 
 .nav-items::-webkit-scrollbar-thumb {
-  background-color: var(--color-gabu-500);
+  background-color: var(--color-gabu-900);
+  border: none;
   border-radius: 1em;
   cursor: pointer;
 }

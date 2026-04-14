@@ -635,6 +635,15 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
             {type === "charges" ? (
                 <div className="sticky bottom-0 z-10 flex w-full shrink-0 items-center justify-end gap-2 border-t border-gabu-900/40 bg-gabu-500 px-2 py-1.5 sm:gap-3 sm:px-3 sm:py-2 lg:gap-5 [@media(max-height:600px)]:px-2 [@media(max-height:600px)]:py-1">
                     <Button
+                        text="Transferir a simulación"
+                        type="button"
+                        disabled={selectedChargeIds.size === 0}
+                        handleClick={() => {
+                            /* Sin acción por ahora */
+                        }}
+                        style="font-normal text-gabu-900 w-auto min-w-[5.25rem] max-w-[12rem] shrink-0 rounded-md border border-gabu-900/30 bg-gabu-100 px-3 py-1 text-xs transition-colors duration-300 hover:bg-gabu-300 sm:min-w-[7.75rem] sm:px-4 sm:py-1.5 sm:text-sm"
+                    />
+                    <Button
                         text="Transferir"
                         type="button"
                         disabled={selectedChargeIds.size === 0}
