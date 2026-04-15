@@ -119,7 +119,7 @@ class FixedAsset {
             ]);
             const feciniEjercicio = parametros01?.fecini ? parametros01.fecini.toISOString() : null;
             const fecproBajaDefault = parametrosMl?.fecpro
-                ? `${String((parametrosMl.fecpro as Date).getMonth() + 1).padStart(2, '0')}/${(parametrosMl.fecpro as Date).getFullYear()}`
+                ? `${String((parametrosMl.fecpro as Date).getUTCMonth() + 1).padStart(2, '0')}/${(parametrosMl.fecpro as Date).getUTCFullYear()}`
                 : '';
             const serializedFieldsManage = fieldsManage.map(field => ({
                 ...field,
@@ -190,7 +190,7 @@ class FixedAsset {
         const parametroSim = parametrosRows[0];
         const feciniEjercicio = parametroSim?.fecini ? parametroSim.fecini.toISOString() : null;
         const fecproBajaDefault = parametroSim?.fecpro
-            ? `${String((parametroSim.fecpro as Date).getMonth() + 1).padStart(2, '0')}/${(parametroSim.fecpro as Date).getFullYear()}`
+            ? `${String((parametroSim.fecpro as Date).getUTCMonth() + 1).padStart(2, '0')}/${(parametroSim.fecpro as Date).getUTCFullYear()}`
             : '';
         const normalizedFieldsManage = fieldsManage.map(field => {
             const raw = field.IdCampo.toLowerCase();
@@ -461,7 +461,7 @@ class FixedAsset {
         const defaultsByMoneda: Record<string, LibroDefaults> = {};
         for (const p of parametrosRows) {
             const fecpro = p.fecpro
-                ? `${String((p.fecpro as Date).getMonth() + 1).padStart(2, '0')}/${(p.fecpro as Date).getFullYear()}`
+                ? `${String((p.fecpro as Date).getUTCMonth() + 1).padStart(2, '0')}/${(p.fecpro as Date).getUTCFullYear()}`
                 : null;
             defaultsByMoneda[p.idmoextra] = {
                 IDTIPOAMORTIZACION: p.IdTipoAmortizacion ?? null,
@@ -1613,7 +1613,7 @@ class FixedAsset {
         }, { timeout: 60000 });
     }
     private static fecproDateToYyyyMm(d: Date): string {
-        return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+        return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
     }
 
     /**

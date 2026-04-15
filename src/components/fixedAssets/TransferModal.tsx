@@ -346,7 +346,7 @@ export default function TransferModal({
     return (
         <Modal
             isOpen={isOpen}
-            style="w-[50vw] min-w-[600px] max-w-[90vw] fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gabu-100 border border-gabu-900 rounded-2xl p-4 max-h-[90vh] overflow-y-auto"
+            style="asset-modal-scroll w-[92vw] sm:w-[88vw] lg:w-[76vw] xl:w-[62vw] 2xl:w-[50vw] min-w-[320px] max-w-[1400px] fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gabu-100 border border-gabu-900 rounded-2xl p-4 max-h-[90vh] overflow-y-auto"
         >
             <div className="flex justify-end -mt-1 -mr-1">
                 <button type="button" onClick={onClose} className="p-1 rounded hover:bg-gabu-300 transition-colors" aria-label="Cerrar">

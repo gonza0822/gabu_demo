@@ -80,6 +80,17 @@
   border: .12em solid var(--color-gabu-100);
 }
 
+.asset-modal-scroll::-webkit-scrollbar {
+  width: 0.7em;
+  background: var(--color-gabu-100);
+}
+
+.asset-modal-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--color-gabu-700);
+  border-radius: .5em;
+  border: .12em solid var(--color-gabu-100);
+}
+
 .no-native-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
