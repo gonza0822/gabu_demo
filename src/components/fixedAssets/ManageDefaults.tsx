@@ -180,7 +180,7 @@ export default function ManageDefaults(): React.ReactElement {
                             {rows.map((row, i) => (
                                 <tr key={`${row.idcampo}-${revertKey}`}>
                                     <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">
-                                        <span>{row.idcampo}</span>
+                                        <span>{headerLabels[row.idcampo.toLowerCase()] ?? row.idcampo}</span>
                                     </td>
                                     <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap">
                                         <Select

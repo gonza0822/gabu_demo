@@ -59,7 +59,7 @@ class CostCenter extends Table<
         const resultAccountRelations = [
             { id: "", description: "Ninguna" as string | null },
             ...accounts
-                .filter((acc) => String(acc.IdTipo ?? "").trim() !== "0")
+                .filter((acc) => String(acc.IdTipo ?? "").trim() === "0")
                 .map((acc) => ({
                     id: acc.IdActivo ?? "",
                     description: (acc.Descripcion ?? acc.IdActivo) ?? "",

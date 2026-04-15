@@ -104,11 +104,37 @@ class Defaults {
     }
 
     async getDefaultsFields(): Promise<{ IdCampo: string; BrowNombre: string | null }[]> {
-        return this.prisma.converField.findMany({
+        const defaultHeaders = await this.prisma.converField.findMany({
             where: { IdTabla: "defaults" },
             orderBy: { lisordencampos: "asc" },
             select: { IdCampo: true, BrowNombre: true },
         });
+
+        const campoTableMap: Array<{ idCampo: string; idTabla: string }> = [
+            { idCampo: "idActivo", idTabla: "Cuentas" },
+            { idCampo: "idCencos", idTabla: "CCostos" },
+            { idCampo: "idModelo", idTabla: "Produccion" },
+            { idCampo: "idOrigen", idTabla: "Origenes" },
+            { idCampo: "idPlanta", idTabla: "Plantas" },
+            { idCampo: "idProyecto", idTabla: "Proyectos" },
+            { idCampo: "idUnegocio", idTabla: "UNegocio" },
+            { idCampo: "idZona", idTabla: "Zonas" },
+        ];
+
+        const campoRows = await Promise.all(
+            campoTableMap.map(async ({ idCampo, idTabla }) => {
+                const row = await this.prisma.converField.findFirst({
+                    where: { IdCampo: idCampo, IdTabla: idTabla },
+                    select: { IdCampo: true, BrowNombre: true },
+                });
+                return {
+                    IdCampo: idCampo,
+                    BrowNombre: row?.BrowNombre ?? idCampo,
+                };
+            })
+        );
+
+        return [...defaultHeaders, ...campoRows];
     }
 }
 
