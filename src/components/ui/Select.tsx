@@ -30,7 +30,7 @@ export default function Select({
   isLogin: boolean,
   chooseOptionHandler: (e: React.MouseEvent<HTMLLIElement>, ref: React.RefObject<HTMLSpanElement | null>) => void,
   cellId?: string,
-  variant?: 'default' | 'entriesPerPage' | 'filterModal' | 'abm',
+  variant?: 'default' | 'entriesPerPage' | 'filterModal' | 'abm' | 'tableCell',
   onListOpenChange?: (open: boolean) => void,
   controlClassName?: string,
   /** Extra classes for the entries-per-page options panel (e.g. min-width). */
@@ -49,9 +49,12 @@ export default function Select({
             : 'border border-gabu-700 border-t-0';
     const isFilterModal = variant === 'filterModal';
     const isAbm = variant === 'abm';
+    const isTableCell = variant === 'tableCell';
 
     const optionStyle : string = isEntriesPerPage
         ? `px-3 py-1.5 text-gabu-100 text-sm hover:bg-gabu-300 transition-all duration-300 w-full ${entriesOptionBgClass}`
+        : isTableCell
+        ? 'px-2 py-1 text-gabu-900 text-xs leading-snug hover:bg-gabu-300 transition-all duration-300 bg-gabu-100 w-full'
         : isFilterModal || isAbm
         ? 'px-3 py-1 text-gabu-900 text-xs hover:bg-gabu-300 transition-all duration-300 bg-gabu-100 w-full'
         : `${isLogin ? 'text-base border-l-10 border-gabu-900 py-2 pl-3 pr-2' : 'px-2'} hover:bg-gabu-300 transition-all duration-300 bg-gabu-100 w-full`;
@@ -61,6 +64,8 @@ export default function Select({
         ? 'border-0 bg-gabu-100 py-1.5 pl-4 pr-3 w-full flex justify-between items-center cursor-pointer gap-2'
         : isAbm
         ? 'border-0 bg-gabu-100 rounded-md font-normal px-3 py-0.5 w-full flex justify-between items-center cursor-pointer gap-2'
+        : isTableCell
+        ? 'border border-gabu-900 bg-gabu-100 py-1 pl-2 pr-1.5 min-h-0 w-full flex justify-between items-center cursor-pointer gap-1.5 rounded-md'
         : ` ${isLogin ? 'border-l-10 border-2' : 'border'}  border-gabu-900 py-2 pl-3 pr-2 w-full flex justify-between items-center cursor-pointer filter`;
     const optionListStyle: string = isEntriesPerPage
         ? `w-full rounded-b-md ${entriesListBorderClass} overflow-visible options-list ${entriesListBgClass} shadow-md ${entriesListClassName ?? ''}`.trim()
@@ -68,6 +73,8 @@ export default function Select({
           ? "w-full rounded-b-2xl border border-t-0 border-gabu-300 mt-0 overflow-hidden options-list bg-gabu-100 max-h-25 overflow-y-auto shadow-lg"
           : isAbm
             ? "w-full rounded-b-md border border-t-2 border-t-gabu-300 border-x border-b border-gabu-700 mt-0 overflow-hidden options-list bg-gabu-100 max-h-25 overflow-y-auto"
+            : isTableCell
+              ? "w-full border border-t-0 border-gabu-900 rounded-b-md mt-0 overflow-hidden options-list bg-gabu-100 max-h-25 overflow-y-auto"
             : `w-full ${isLogin ? "border-r-2 border-b-2" : "border"} rounded-b-md border-gabu-900 max-h-25 overflow-y-auto options-list`;
     const entriesPortalListClass: string = isEntriesPerPage
         ? `rounded-b-md ${entriesListBorderClass} options-list ${entriesListBgClass} shadow-md ${entriesListClassName ?? ""}`.trim()
@@ -150,21 +157,29 @@ export default function Select({
     const labelClass = hasLabel
         ? isFilterModal
             ? 'text-gabu-100 text-sm font-normal'
-            : isAbm
+            : isAbm || isTableCell
             ? 'text-gabu-100 text-xs font-normal'
             : 'text-gabu-900 text-lg'
         : '';
     const valueSpanClass = isEntriesPerPage
         ? 'text-sm text-gabu-100'
+        : isTableCell
+        ? 'text-xs leading-snug text-gabu-900 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap'
         : isFilterModal || isAbm
         ? 'text-sm text-gabu-700 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap'
         : `${isLogin ? 'text-base' : 'text-xs'} text-gabu-900`;
     const arrowColor = isEntriesPerPage ? 'text-gabu-100' : (isFilterModal || isAbm) ? 'text-gabu-900' : 'text-gabu-900';
-    const borderRadius = isFilterModal ? (isOptionListVisible ? "8px 8px 0 0" : "8px") : isAbm ? (isOptionListVisible ? "6px 6px 0 0" : "6px") : (isOptionListVisible ? "6px 6px 0px 0px" : "6px");
+    const borderRadius = isFilterModal
+        ? (isOptionListVisible ? "8px 8px 0 0" : "8px")
+        : isAbm
+        ? (isOptionListVisible ? "6px 6px 0 0" : "6px")
+        : isTableCell
+        ? (isOptionListVisible ? "6px 6px 0 0" : "6px")
+        : (isOptionListVisible ? "6px 6px 0px 0px" : "6px");
 
     return (
         <div
-            className={`flex cursor-pointer flex-col ${hasLabel ? "gap-1" : isEntriesPerPage ? "h-full min-h-0 gap-0" : "gap-1"}`}
+            className={`flex cursor-pointer flex-col ${hasLabel ? "gap-1" : isEntriesPerPage ? "h-full min-h-0 gap-0" : isTableCell ? "gap-0" : "gap-1"}`}
         >
             {hasLabel && <label className={labelClass}>{label}</label>}
             <div className={`relative ${!hasLabel && isEntriesPerPage ? "flex h-full min-h-0 flex-col" : ""}`} ref={selectRef}>
@@ -177,12 +192,28 @@ export default function Select({
                     transition={{ borderRadius: { duration: 0.1, ease: "easeInOut" } }}
                 >
                     <span className={valueSpanClass} id="select-value" ref={valueSelectedRef} data-key={defaultSelectedOption?.key || ''} data-cellid={cellId}>{defaultSelectedOption?.value || ''}</span>
-                    {isLogin ? <SelectPointerLogin active={isOptionListVisible}/> : <Arrow active={isOptionListVisible} defaultRotation="-rotate-90" activeRotation="rotate-90" height={9} width={9} color={arrowColor}/>}
+                    {isLogin ? (
+                        <SelectPointerLogin active={isOptionListVisible} />
+                    ) : (
+                        <Arrow
+                            active={isOptionListVisible}
+                            defaultRotation="-rotate-90"
+                            activeRotation="rotate-90"
+                            height={isTableCell ? 8 : 9}
+                            width={isTableCell ? 8 : 9}
+                            color={arrowColor}
+                        />
+                    )}
                 </motion.div>
-                <div className="invisible h-0 text-xs pointer-events-none select-none" aria-hidden="true">{longestOption.value}XXXXXXX</div>
+                <div
+                    className="invisible h-0 pointer-events-none select-none text-xs"
+                    aria-hidden="true"
+                >
+                    {longestOption.value}XXXXXXX
+                </div>
                 {!useFixedEntriesList ? (
                     <motion.div
-                        className={`absolute w-full overflow-hidden ${isAbm ? "z-[10001]" : isEntriesPerPage ? "z-[80]" : "z-10"}`}
+                        className={`absolute w-full overflow-hidden ${isAbm || isTableCell ? "z-[10001]" : isEntriesPerPage ? "z-[80]" : "z-10"}`}
                         initial={false}
                         animate={{ height: isOptionListVisible ? "auto" : 0 }}
                         transition={{ duration: 0.1, ease: "easeInOut" }}

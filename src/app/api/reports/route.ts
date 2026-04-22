@@ -8,6 +8,9 @@ type GenerateData = {
     book: string;
     bookTableName: string;
     period: string;
+    /** YYYY-MM-DD; obligatorio para Altas / Bajas / Transferencias. */
+    dateFrom?: string;
+    dateTo?: string;
 };
 
 type UserPostRequest =
@@ -55,6 +58,8 @@ export async function POST(
                         book: payload.book,
                         bookTableName: payload.bookTableName,
                         period,
+                        dateFrom: payload.dateFrom,
+                        dateTo: payload.dateTo,
                     })
                 );
             }

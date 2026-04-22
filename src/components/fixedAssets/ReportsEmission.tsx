@@ -6,12 +6,13 @@ import { RootState } from "@/store";
 import Alert from "@/components/ui/Alert";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import type { ReportType } from "@/lib/models/reports/Reports";
+import type { BookParamBounds, ReportType } from "@/lib/models/reports/Reports";
 import Select from "@/components/ui/Select";
 import Excel from "@/components/svg/Excel";
 import CollapseAllIcon from "@/components/svg/CollapseAllIcon";
 import ExpandAllIcon from "@/components/svg/ExpandAllIcon";
 import ExcelJS from "exceljs";
+import { formatNumberEs } from "@/util/number/formatNumberEs";
 
 type ReportBookOption = {
     key: string;
@@ -23,6 +24,7 @@ type ReportsConfigResponse = {
     books: ReportBookOption[];
     defaultPeriod: string;
     periods: string[];
+    paramBoundsByBook?: Record<string, BookParamBounds>;
 };
 
 const REPORTS: { key: ReportType; label: string }[] = [
@@ -331,10 +333,29 @@ function isIdentifierColumn(column: string): boolean {
     const normalized = column.trim().toLowerCase().replace(/\s+/g, "").replace(/[_\-.]/g, "");
     return (
         normalized.startsWith("id") ||
+        normalized.startsWith("tridactivo") ||
         normalized === "codigo" ||
         normalized === "clase" ||
         normalized === "cantidad"
     );
+}
+
+/** En Excel los números deben ser tipo número (no `formatNumberEs`, que es texto para la UI). */
+function excelExportCellValue(value: unknown, column: string): string | number {
+    if (value == null || value === "") return "";
+    const nCol = normalizeColumnKey(column);
+    if (isIdentifierColumn(column) && nCol !== "cantidad") {
+        return normalizeCellValue(value);
+    }
+    const numeric = toNumericValue(value);
+    if (numeric != null) return numeric;
+    return normalizeCellValue(value);
+}
+
+function excelCellIsNumeric(value: unknown, column: string): boolean {
+    const nCol = normalizeColumnKey(column);
+    if (isIdentifierColumn(column) && nCol !== "cantidad") return false;
+    return toNumericValue(value) != null;
 }
 
 function formatCellValue(value: unknown, column: string): string {
@@ -343,7 +364,7 @@ function formatCellValue(value: unknown, column: string): string {
     if (isIdentifierColumn(column)) return raw;
     const numeric = toNumericValue(value);
     if (numeric == null) return raw;
-    return numeric.toFixed(2);
+    return formatNumberEs(numeric, 2, 2);
 }
 
 function formatPeriodToMMYYYY(period: string): string {
@@ -466,6 +487,10 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
     const scrollSyncLockRef = useRef(false);
     const [tableScrollWidth, setTableScrollWidth] = useState(0);
     const [asientosBrowLabels, setAsientosBrowLabels] = useState<Record<string, string>>({});
+    const [paramBoundsByBook, setParamBoundsByBook] = useState<Record<string, BookParamBounds>>({});
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
+    const [dateRangeError, setDateRangeError] = useState<string | null>(null);
 
     const enabledReports = useMemo(
         () => (simulationOnly ? REPORTS.filter((r) => r.key === "ANEXO" || r.key === "DETALLE_ACTIVO") : REPORTS),
@@ -727,8 +752,13 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
         [displayedReportType, enabledReports]
     );
 
+    const currentBookParamBounds = paramBoundsByBook[selectedBookKey] ?? { fecini: null, fecpro: null };
+
+    const needsReportDateRange =
+        reportType === "ALTAS_ACTIVO" || reportType === "BAJAS_ACTIVO" || reportType === "TRANSFERENCIAS_ACTIVO";
+
     const reportSelectCompactClass =
-        "min-h-[1.5rem] 2xl:min-h-0 [&_span]:!text-[10px] 2xl:[&_span]:!text-sm !py-0.5 !px-2 2xl:!py-1 2xl:!px-3.5";
+        "min-h-[1.5rem] 2xl:min-h-0 [&_span]:!text-[10px] 2xl:[&_span]:!text-sm !py-0.5 !px-1.5 2xl:!py-1 2xl:!px-2";
     const bookOptions = useMemo(() => {
         const list =
             reportType === "ASIENTOS"
@@ -792,6 +822,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                 const config = data as ReportsConfigResponse;
                 setBooks(config.books ?? []);
                 setPeriods(config.periods ?? []);
+                setParamBoundsByBook(config.paramBoundsByBook ?? {});
                 setSelectedBookKey(config.books?.[0]?.key ?? "");
                 setPeriod(config.defaultPeriod ?? "");
             } catch (err) {
@@ -808,6 +839,18 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
             cancelled = true;
         };
     }, [client, simulationOnly]);
+
+    useEffect(() => {
+        const b = paramBoundsByBook[selectedBookKey];
+        if (b?.fecini && b?.fecpro) {
+            setDateFrom(b.fecini);
+            setDateTo(b.fecpro);
+        } else {
+            setDateFrom("");
+            setDateTo("");
+        }
+        setDateRangeError(null);
+    }, [selectedBookKey, paramBoundsByBook]);
 
     useEffect(() => {
         if (reportType === "ASIENTOS") setSubtotalColumns("0");
@@ -882,6 +925,31 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
             }
         }
         setPeriodError(null);
+
+        if (needsReportDateRange) {
+            const bounds = paramBoundsByBook[selectedBookKey];
+            if (!bounds?.fecini || !bounds?.fecpro) {
+                setDateRangeError("No hay fecini y fecpro en parámetros para este libro.");
+                return;
+            }
+            if (!dateFrom.trim() || !dateTo.trim()) {
+                setDateRangeError("Indicá fecha desde y hasta.");
+                return;
+            }
+            if (dateFrom > dateTo) {
+                setDateRangeError("La fecha desde no puede ser posterior a la fecha hasta.");
+                return;
+            }
+            if (dateFrom < bounds.fecini || dateTo > bounds.fecpro) {
+                setDateRangeError(
+                    `Las fechas deben estar entre ${bounds.fecini} y ${bounds.fecpro} (fecini y fecpro de parámetros).`
+                );
+                return;
+            }
+            setDateRangeError(null);
+        } else {
+            setDateRangeError(null);
+        }
         setRunning(true);
         setHasGenerated(false);
         setErrorMessage(null);
@@ -890,18 +958,31 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
         setShowSuccessAlert(false);
         setCollapsedGroups(new Set());
         try {
+            const generatePayload: {
+                reportType: ReportType;
+                book: string;
+                bookTableName: string;
+                period: string;
+                dateFrom?: string;
+                dateTo?: string;
+            } = {
+                reportType,
+                book: selectedBook.key,
+                bookTableName: selectedBook.tableName,
+                period,
+            };
+            if (needsReportDateRange) {
+                generatePayload.dateFrom = dateFrom.trim();
+                generatePayload.dateTo = dateTo.trim();
+            }
+
             const res = await fetch("/api/reports", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     petition: "Generate",
                     client,
-                    data: {
-                        reportType,
-                        book: selectedBook.key,
-                        bookTableName: selectedBook.tableName,
-                        period,
-                    },
+                    data: generatePayload,
                 }),
             });
             const data = (await res.json()) as Record<string, unknown>[] | { message?: string };
@@ -920,7 +1001,19 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
         } finally {
             setRunning(false);
         }
-    }, [client, enabledReports, period, reportType, running, selectedBook]);
+    }, [
+        client,
+        dateFrom,
+        dateTo,
+        enabledReports,
+        needsReportDateRange,
+        paramBoundsByBook,
+        period,
+        reportType,
+        running,
+        selectedBook,
+        selectedBookKey,
+    ]);
 
     useEffect(() => {
         if (!enabledReports.some((report) => report.key === reportType)) {
@@ -1082,7 +1175,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
         }
 
         sourceRows.forEach((row, rowIndex) => {
-            const excelRow = worksheet.addRow(columns.map((column) => formatCellValue(row[column], column)));
+            const excelRow = worksheet.addRow(columns.map((column) => excelExportCellValue(row[column], column)));
             const meta = renderModel.meta[rowIndex];
             if (useExcelRowOutlines) {
                 if (meta?.kind === "data" && outlineDepth > 0) {
@@ -1094,8 +1187,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                 }
             }
             columns.forEach((column, index) => {
-                const numeric = toNumericValue(row[column]);
-                if (numeric == null || isIdentifierColumn(column)) return;
+                if (!excelCellIsNumeric(row[column], column)) return;
                 const cell = excelRow.getCell(index + 1);
                 cell.alignment = { ...(cell.alignment ?? {}), horizontal: "right" };
             });
@@ -1164,7 +1256,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                     setSuccessMessage(null);
                 }}
             />
-            <div className="w-full h-full p-3 pb-3 sm:p-3.5 2xl:p-5 2xl:pb-4 flex flex-col gap-2 2xl:gap-2.5 [@media(max-height:600px)]:gap-1.5 [@media(max-height:600px)]:p-2.5">
+            <div className="flex h-full min-h-0 w-full flex-col gap-2 p-3 pb-3 sm:p-3.5 2xl:gap-2.5 2xl:p-5 2xl:pb-4 [@media(max-height:600px)]:gap-1.5 [@media(max-height:600px)]:p-2.5">
                 <div className="bg-gabu-500 rounded-md border border-gabu-900 px-3 py-2 sm:px-3.5 sm:py-2 2xl:px-5 2xl:py-2.5 flex flex-wrap items-center justify-between gap-2.5 2xl:gap-4 [@media(max-height:600px)]:py-1.5 [@media(max-height:600px)]:gap-2 [@media(max-height:600px)]:px-2.5">
                     <p className="text-gabu-100 text-xs 2xl:text-base pr-2">Emision de reportes</p>
                     <div className="flex flex-wrap items-center gap-2 2xl:gap-2.5">
@@ -1186,11 +1278,11 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                     </div>
                 </div>
 
-                <div className="bg-gabu-500 rounded-md border border-gabu-900 px-3 py-2 sm:px-3.5 sm:py-2 2xl:px-5 2xl:py-2.5 flex flex-nowrap items-start justify-between gap-2.5 2xl:gap-4 min-w-0 [@media(max-height:600px)]:py-1.5 [@media(max-height:600px)]:gap-2 [@media(max-height:600px)]:px-2.5">
-                    <div className="flex flex-nowrap items-start gap-2.5 2xl:gap-4 shrink-0">
-                        <div className="flex items-center gap-2 2xl:gap-2.5">
+                <div className="bg-gabu-500 rounded-md border border-gabu-900 px-3 py-2 sm:px-3.5 sm:py-2 2xl:px-5 2xl:py-2.5 flex flex-nowrap items-center justify-between gap-2.5 2xl:gap-4 min-w-0 [@media(max-height:600px)]:py-1.5 [@media(max-height:600px)]:gap-2 [@media(max-height:600px)]:px-2.5">
+                    <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2.5 2xl:gap-4">
+                        <div className="flex items-center gap-1.5 2xl:gap-2">
                             <label className="text-gabu-100 text-[10px] 2xl:text-sm whitespace-nowrap shrink-0">Libro</label>
-                            <div className="min-w-[9rem] sm:min-w-[10rem] 2xl:min-w-[11.5rem]">
+                            <div className="w-[7.5rem] sm:w-[8rem] 2xl:w-[8.75rem] shrink-0">
                                 <Select
                                     label="Libro"
                                     hasLabel={false}
@@ -1209,9 +1301,9 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                             </div>
                         </div>
                         <div className="flex flex-col gap-1 2xl:gap-1.5">
-                            <div className="flex items-center gap-2 2xl:gap-2.5">
-                                <label className="text-gabu-100 text-[10px] 2xl:text-sm whitespace-nowrap shrink-0">Periodo (YYYYMM)</label>
-                                <div className="w-[6.25rem] 2xl:w-[7.5rem]">
+                            <div className="flex items-center gap-1.5 2xl:gap-2">
+                                <label className="text-gabu-100 text-[10px] 2xl:text-sm whitespace-nowrap shrink-0">Periodo</label>
+                                <div className="w-[5rem] 2xl:w-[5.5rem] shrink-0">
                                     <Select
                                         label="Periodo"
                                         hasLabel={false}
@@ -1233,9 +1325,9 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                             </div>
                             {periodError && <p className="text-[10px] 2xl:text-xs text-gabu-error">{periodError}</p>}
                         </div>
-                        <div className="flex items-center gap-2 2xl:gap-2.5">
+                        <div className="flex items-center gap-1.5 2xl:gap-2">
                             <label className="text-gabu-100 text-[10px] 2xl:text-sm whitespace-nowrap shrink-0">Subtotales</label>
-                            <div className="w-[3.25rem] 2xl:w-[4.5rem]">
+                            <div className="w-[2.625rem] 2xl:w-[2.875rem] shrink-0">
                                 <Select
                                     label="Subtotales por columna"
                                     hasLabel={false}
@@ -1255,6 +1347,63 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                                 />
                             </div>
                         </div>
+                        {needsReportDateRange && (
+                            <div
+                                className="flex flex-col gap-0.5 shrink-0 min-w-0 border-l border-gabu-900/30 pl-2.5 ml-0.5 2xl:pl-3 2xl:ml-1"
+                                title="Altas: F.Origen (fecori). Bajas: F.Baja (fecbaj). Transferencias: fecha de transferencia (trfecactivo)."
+                            >
+                                <div className="flex flex-nowrap items-center gap-1.5 2xl:gap-2">
+                                    <label
+                                        className="text-gabu-100 text-[10px] 2xl:text-sm whitespace-nowrap shrink-0"
+                                        htmlFor="report-date-from"
+                                    >
+                                        Desde
+                                    </label>
+                                    <input
+                                        id="report-date-from"
+                                        type="date"
+                                        value={dateFrom}
+                                        min={currentBookParamBounds.fecini ?? undefined}
+                                        max={currentBookParamBounds.fecpro ?? undefined}
+                                        onChange={(e) => {
+                                            setDateFrom(e.target.value);
+                                            setDateRangeError(null);
+                                        }}
+                                        disabled={loadingConfig || running}
+                                        className="rounded-md border-0 bg-gabu-100 text-gabu-900 px-2 py-0.5 text-[10px] 2xl:text-xs min-h-[1.5rem] 2xl:min-h-[1.75rem] w-[7.25rem] 2xl:w-[8.5rem] shrink-0 disabled:opacity-60 [color-scheme:light]"
+                                    />
+                                    <label
+                                        className="text-gabu-100 text-[10px] 2xl:text-sm whitespace-nowrap shrink-0"
+                                        htmlFor="report-date-to"
+                                    >
+                                        Hasta
+                                    </label>
+                                    <input
+                                        id="report-date-to"
+                                        type="date"
+                                        value={dateTo}
+                                        min={currentBookParamBounds.fecini ?? undefined}
+                                        max={currentBookParamBounds.fecpro ?? undefined}
+                                        onChange={(e) => {
+                                            setDateTo(e.target.value);
+                                            setDateRangeError(null);
+                                        }}
+                                        disabled={loadingConfig || running}
+                                        className="rounded-md border-0 bg-gabu-100 text-gabu-900 px-2 py-0.5 text-[10px] 2xl:text-xs min-h-[1.5rem] 2xl:min-h-[1.75rem] w-[7.25rem] 2xl:w-[8.5rem] shrink-0 disabled:opacity-60 [color-scheme:light]"
+                                    />
+                                </div>
+                                {(!currentBookParamBounds.fecini || !currentBookParamBounds.fecpro) && (
+                                    <span className="text-gabu-error text-[9px] 2xl:text-[10px] leading-tight whitespace-nowrap">
+                                        Sin fecini/fecpro en parámetros.
+                                    </span>
+                                )}
+                                {dateRangeError && (
+                                    <p className="text-[9px] 2xl:text-[10px] text-gabu-error leading-tight max-w-[18rem]">
+                                        {dateRangeError}
+                                    </p>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-1.5 2xl:gap-2.5 shrink-0 pl-1">
@@ -1291,16 +1440,25 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                             type="button"
                             className="bg-gabu-900 rounded-md h-6 min-h-[1.5rem] px-3 2xl:h-7 2xl:px-5 cursor-pointer hover:bg-gabu-700 transition-colors duration-150 flex items-center text-gabu-100 text-[10px] 2xl:text-xs disabled:opacity-60 disabled:cursor-not-allowed [@media(max-height:600px)]:h-[1.375rem] [@media(max-height:600px)]:px-2.5 [@media(max-height:600px)]:text-[9px]"
                             onClick={() => void runReport()}
-                            disabled={loadingConfig || running}
+                            disabled={
+                                loadingConfig ||
+                                running ||
+                                (needsReportDateRange &&
+                                    (!currentBookParamBounds.fecini || !currentBookParamBounds.fecpro))
+                            }
                         >
                             {running ? "Generando..." : "Generar"}
                         </button>
                     </div>
                 </div>
-                <div className="flex-1 min-h-0 w-full flex items-center flex-col relative">
-                    <div className="relative w-full max-h-[95%] flex flex-col items-center flex-1 min-w-0">
-                    <div className="flex-1 min-h-0 w-full overflow-y-auto overflow-x-hidden table-scroll bg-gabu-100 border border-gabu-900 rounded-md pb-6 2xl:pb-8 [@media(max-height:600px)]:pb-4">
-                        <div className="w-full overflow-y-auto overflow-x-hidden table-container grid p-2 2xl:p-3 [@media(max-height:600px)]:p-1.5">
+                <div className="relative flex min-h-0 w-full flex-1 flex-col">
+                    <div className="relative flex min-h-0 w-full flex-1 flex-col items-stretch">
+                    <div
+                        ref={tableHorizontalRef}
+                        onScroll={syncFromTableScrollbar}
+                        className="table-scroll min-h-0 w-full min-w-0 flex-1 overflow-auto rounded-md border border-gabu-900 bg-gabu-100 pb-2 pt-0 2xl:pb-2.5 [@media(max-height:600px)]:pb-1.5"
+                    >
+                        <div className="table-container grid min-h-0 w-full min-w-0 p-2 2xl:p-3 [@media(max-height:600px)]:p-1.5">
                             {loadingConfig ? (
                                 <div className="min-w-full">
                                     <Skeleton count={8} height={16} highlightColor="var(--color-gabu-700)" baseColor="var(--color-gabu-300)" className="mb-1 2xl:mb-1.5" />
@@ -1308,12 +1466,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                             ) : !hasGenerated ? (
                                 <p className="text-gabu-900 text-xs 2xl:text-sm p-3 2xl:p-4">Seleccioná un reporte y presioná Generar.</p>
                             ) : (
-                                <div
-                                    ref={tableHorizontalRef}
-                                    onScroll={syncFromTableScrollbar}
-                                    className="w-full max-w-full overflow-x-auto no-native-scrollbar"
-                                >
-                                    <table className="border-collapse divide-y-2 divide-gabu-900/25 table-auto min-w-full">
+                                <table className="min-w-full border-collapse divide-y-2 divide-gabu-900/25 table-auto">
                                         <thead>
                                             <tr>
                                                 {showOutlineGutter && (
@@ -1473,18 +1626,17 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                                                 })
                                             )}
                                         </tbody>
-                                    </table>
-                                </div>
+                                </table>
                             )}
                         </div>
                     </div>
                 </div>
                     {hasGenerated && columns.length > 0 && (
-                        <div className="absolute bottom-4 2xl:bottom-7 left-0 right-0 px-2 py-1 2xl:px-3 2xl:py-1.5 [@media(max-height:600px)]:bottom-3">
+                        <div className="pointer-events-auto absolute bottom-2 left-0 right-0 z-[1] px-2 py-0 2xl:bottom-3 2xl:px-3 [@media(max-height:600px)]:bottom-1.5">
                             <div
                                 ref={bottomScrollbarRef}
                                 onScroll={syncFromBottomScrollbar}
-                                className="w-full overflow-x-scroll overflow-y-hidden table-scroll"
+                                className="no-native-scrollbar table-scroll h-2.5 w-full overflow-x-auto overflow-y-hidden"
                             >
                                 <div style={{ width: `${Math.max(tableScrollWidth, 1) + 1}px`, height: "1px" }} />
                             </div>

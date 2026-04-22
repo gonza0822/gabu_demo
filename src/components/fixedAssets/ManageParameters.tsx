@@ -49,6 +49,35 @@ function getDateValidationError(value: string): string | null {
 
 const PARAMETROS_COLUMNS = ["idmoextra", "fecini", "fecpro", "fecant", "procesa", "IdTipoAmortizacion", "alterna"] as const;
 
+/**
+ * Siempre compacto: antes `xl:` volvía a tamaños grandes en viewports ≥1280px (muy habitual) y parecía “sin cambios”.
+ */
+const shellOuter = "p-2 pt-1.5 m-1.5 sm:m-2";
+const innerPad = "p-1.5 sm:p-2";
+const titleClass = "text-gabu-100 text-sm font-medium tracking-tight";
+/** `table-auto` reparte el ancho del modal; mínimos evitan columnas demasiado angostas. */
+const tableClass = "w-full min-w-0 border-collapse table-auto";
+const thClass =
+    "text-start py-1 px-1.5 text-gabu-900 whitespace-nowrap overflow-x-hidden overflow-ellipsis leading-snug border-b border-gabu-900/30";
+const thLabel = "text-xs font-semibold tracking-tight";
+const tdClass =
+    "py-1 px-1.5 text-gabu-900 text-xs whitespace-nowrap leading-snug align-middle overflow-hidden";
+/** Anchos mínimos por columna (orden = PARAMETROS_COLUMNS). */
+const colMinWidths = [
+    "min-w-[10rem]", // idmoextra
+    "min-w-[6.75rem]", // fecini
+    "min-w-[6.75rem]", // fecpro
+    "min-w-[6.75rem]", // fecant
+    "min-w-[5.5rem]", // procesa
+    "min-w-[11rem]", // IdTipoAmortización — textos largos
+    "min-w-[8.5rem]", // alterna
+] as const;
+/** Contenedor: `Input`/`Select` usan `variant="tableCell"` (padding y tipografía chicos en el componente). */
+const controlWrap = "min-w-0 w-full max-w-full";
+const footerBar = "sticky w-full bg-gabu-500 flex justify-end gap-1.5 p-1.5 border-t border-gabu-900/40";
+const buttonStyle =
+    "font-normal text-gabu-900 bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300 text-xs px-3 py-1 min-w-[5rem] w-auto sm:max-w-[40%]";
+
 const MOEXTRA_LABELS_HARDCODED: Record<string, string> = {
     im: "Impuestos",
     ml: "Moneda local",
@@ -264,13 +293,13 @@ export default function ManageParameters({ simulationOnly = false }: { simulatio
     if (loading) {
         return (
             <div className="flex flex-col w-full h-full">
-                <div className="p-5 pt-2 m-4 bg-gabu-500 flex flex-1 flex-col rounded-md border border-gabu-900 overflow-hidden">
-                    <div className="flex w-full justify-center mb-2">
-                        <p className="text-gabu-100">Manejo de parámetros</p>
+                <div className={`${shellOuter} bg-gabu-500 flex flex-1 flex-col rounded-md border border-gabu-900 overflow-hidden`}>
+                    <div className="flex w-full justify-center mb-1">
+                        <p className={titleClass}>Manejo de parámetros</p>
                     </div>
-                    <div className="bg-gabu-100 flex-1 min-h-0 border border-gabu-900 p-3 overflow-auto">
-                        <div className="min-w-full">
-                            <Skeleton count={10} height={20} highlightColor="var(--color-gabu-700)" baseColor="var(--color-gabu-300)" className="mb-1" />
+                    <div className={`bg-gabu-100 flex-1 min-h-0 border border-gabu-900 ${innerPad} overflow-auto`}>
+                        <div className="min-w-0 w-full">
+                            <Skeleton count={10} height={12} highlightColor="var(--color-gabu-700)" baseColor="var(--color-gabu-300)" className="mb-0.5" />
                         </div>
                     </div>
                 </div>
@@ -278,34 +307,37 @@ export default function ManageParameters({ simulationOnly = false }: { simulatio
         );
     }
 
-    const buttonStyle = "font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300";
-
     return (
         <div className="flex flex-col w-full h-full">
-            <div className="p-5 pt-2 m-4 bg-gabu-500 flex flex-1 flex-col rounded-md border border-gabu-900 overflow-hidden">
-                <div className="flex w-full justify-center mb-2">
-                    <p className="text-gabu-100">Manejo de parámetros</p>
+            <div className={`${shellOuter} bg-gabu-500 flex flex-1 flex-col rounded-md border border-gabu-900 overflow-hidden`}>
+                <div className="flex w-full justify-center mb-1">
+                    <p className={titleClass}>Manejo de parámetros</p>
                 </div>
-                <div className="bg-gabu-100 flex-1 min-h-0 border border-gabu-900 p-3 overflow-auto">
-                    <table className="border-collapse divide-y-2 divide-gabu-900/25 w-full">
+                <div className={`bg-gabu-100 flex-1 min-h-0 min-w-0 border border-gabu-900 ${innerPad} overflow-auto`}>
+                    <table className={tableClass}>
                         <thead>
                             <tr>
-                                {PARAMETROS_COLUMNS.map((columnId) => (
-                                    <th key={columnId} className="text-start py-2 px-2 text-gabu-900 whitespace-nowrap overflow-x-hidden">
-                                        <div className="flex items-center gap-2">
-                                            <p className="text-sm">{headerLabels[columnId.toLowerCase()] ?? columnId}</p>
+                                {PARAMETROS_COLUMNS.map((columnId, colIdx) => (
+                                    <th key={columnId} className={`${thClass} ${colMinWidths[colIdx] ?? ""}`}>
+                                        <div className="flex min-w-0 items-center gap-0.5">
+                                            <p className={`${thLabel} truncate`}>{headerLabels[columnId.toLowerCase()] ?? columnId}</p>
                                         </div>
                                     </th>
                                 ))}
                             </tr>
                         </thead>
-                        <tbody className="divide-y-2 divide-gabu-900/25 relative">
+                        <tbody className="divide-y divide-gabu-900/15 relative">
                             {rows.map((row, i) => (
                                 <tr key={`${row.idmoextra}-${revertKey}`}>
-                                    <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap ">
-                                        <span>{MOEXTRA_LABELS_HARDCODED[row.idmoextra?.toLowerCase()] ?? moextraById[row.idmoextra] ?? row.idmoextra}</span>
+                                    <td className={`${tdClass} ${colMinWidths[0]}`}>
+                                        <span
+                                            className="block truncate"
+                                            title={MOEXTRA_LABELS_HARDCODED[row.idmoextra?.toLowerCase()] ?? moextraById[row.idmoextra] ?? row.idmoextra}
+                                        >
+                                            {MOEXTRA_LABELS_HARDCODED[row.idmoextra?.toLowerCase()] ?? moextraById[row.idmoextra] ?? row.idmoextra}
+                                        </span>
                                     </td>
-                                    <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap ">
+                                    <td className={`${tdClass} ${colMinWidths[1]}`}>
                                         <Input
                                             label=""
                                             hasLabel={false}
@@ -317,9 +349,11 @@ export default function ManageParameters({ simulationOnly = false }: { simulatio
                                             errorMessage={fieldErrors[i]?.fecini ?? null}
                                             defaultValue={dateToMMYYYY(row.fecini)}
                                             handleInput={() => clearFieldError(i, "fecini")}
+                                            variant="tableCell"
+                                            inputClassName="min-w-0 w-full"
                                         />
                                     </td>
-                                    <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap ">
+                                    <td className={`${tdClass} ${colMinWidths[2]}`}>
                                         <Input
                                             label=""
                                             hasLabel={false}
@@ -331,9 +365,11 @@ export default function ManageParameters({ simulationOnly = false }: { simulatio
                                             errorMessage={fieldErrors[i]?.fecpro ?? null}
                                             defaultValue={dateToMMYYYY(row.fecpro)}
                                             handleInput={() => clearFieldError(i, "fecpro")}
+                                            variant="tableCell"
+                                            inputClassName="min-w-0 w-full"
                                         />
                                     </td>
-                                    <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap ">
+                                    <td className={`${tdClass} ${colMinWidths[3]}`}>
                                         <Input
                                             label=""
                                             hasLabel={false}
@@ -345,37 +381,48 @@ export default function ManageParameters({ simulationOnly = false }: { simulatio
                                             errorMessage={fieldErrors[i]?.fecant ?? null}
                                             defaultValue={dateToMMYYYY(row.fecant)}
                                             handleInput={() => clearFieldError(i, "fecant")}
+                                            variant="tableCell"
+                                            inputClassName="min-w-0 w-full"
                                         />
                                     </td>
-                                    <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap ">
-                                        <Select
-                                            label=""
-                                            hasLabel={false}
-                                            isLogin={false}
-                                            options={BOOLEAN_OPTIONS}
-                                            defaultValue={row.procesa ? "true" : "false"}
-                                            chooseOptionHandler={handleBooleanChange(i, "procesa")}
-                                        />
+                                    <td className={`${tdClass} ${colMinWidths[4]}`}>
+                                        <div className={controlWrap}>
+                                            <Select
+                                                label=""
+                                                hasLabel={false}
+                                                isLogin={false}
+                                                variant="tableCell"
+                                                options={BOOLEAN_OPTIONS}
+                                                defaultValue={row.procesa ? "true" : "false"}
+                                                chooseOptionHandler={handleBooleanChange(i, "procesa")}
+                                            />
+                                        </div>
                                     </td>
-                                    <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap ">
-                                        <Select
-                                            label=""
-                                            hasLabel={false}
-                                            isLogin={false}
-                                            options={tipAmorOptions}
-                                            defaultValue={row.IdTipoAmortizacion ?? ""}
-                                            chooseOptionHandler={handleIdTipoAmortizacionChange(i)}
-                                        />
+                                    <td className={`${tdClass} ${colMinWidths[5]}`}>
+                                        <div className={controlWrap}>
+                                            <Select
+                                                label=""
+                                                hasLabel={false}
+                                                isLogin={false}
+                                                variant="tableCell"
+                                                options={tipAmorOptions}
+                                                defaultValue={row.IdTipoAmortizacion ?? ""}
+                                                chooseOptionHandler={handleIdTipoAmortizacionChange(i)}
+                                            />
+                                        </div>
                                     </td>
-                                    <td className="py-2 px-2 text-gabu-900 text-xs whitespace-nowrap ">
-                                        <Select
-                                            label=""
-                                            hasLabel={false}
-                                            isLogin={false}
-                                            options={BOOLEAN_OPTIONS}
-                                            defaultValue={row.alterna ? "true" : "false"}
-                                            chooseOptionHandler={handleBooleanChange(i, "alterna")}
-                                        />
+                                    <td className={`${tdClass} ${colMinWidths[6]}`}>
+                                        <div className={controlWrap}>
+                                            <Select
+                                                label=""
+                                                hasLabel={false}
+                                                isLogin={false}
+                                                variant="tableCell"
+                                                options={BOOLEAN_OPTIONS}
+                                                defaultValue={row.alterna ? "true" : "false"}
+                                                chooseOptionHandler={handleBooleanChange(i, "alterna")}
+                                            />
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -383,7 +430,7 @@ export default function ManageParameters({ simulationOnly = false }: { simulatio
                     </table>
                 </div>
             </div>
-            <div className="sticky w-full h-15 bg-gabu-500 flex justify-end gap-5 p-3">
+            <div className={footerBar}>
                 <Button
                     text="Revertir"
                     type="button"

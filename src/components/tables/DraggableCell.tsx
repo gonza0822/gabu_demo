@@ -2,6 +2,7 @@ import React from "react";
 import { Cell, flexRender } from "@tanstack/react-table";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { formatNumericDisplayValue } from "@/util/number/formatNumberEs";
 
 export default function DraggableCell<TData>({ cell, index }: { cell: Cell<TData, unknown>; index: number }): React.ReactElement {
     const { setNodeRef, isDragging, transform, transition } = useSortable({
@@ -24,6 +25,15 @@ export default function DraggableCell<TData>({ cell, index }: { cell: Cell<TData
             : stickyLeft
               ? "sticky left-0 z-[24] bg-gabu-100 px-2 text-xs whitespace-nowrap shadow-[4px_0_12px_-8px_rgba(28,53,81,0.12)] relative [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]"
               : "px-2 text-xs whitespace-nowrap text-ellipsis overflow-hidden relative [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]";
+    const renderedCell = flexRender(cell.column.columnDef.cell, cell.getContext());
+    const rawValue = cell.getValue();
+    const formattedRawValue = formatNumericDisplayValue(rawValue, String(cell.column.id));
+    const displayCell =
+        typeof renderedCell === "number" || typeof renderedCell === "string"
+            ? formatNumericDisplayValue(renderedCell, String(cell.column.id))
+            : !React.isValidElement(renderedCell) && (typeof formattedRawValue === "string" || typeof formattedRawValue === "number")
+              ? formattedRawValue
+              : renderedCell;
 
     return (
         <td
@@ -34,7 +44,7 @@ export default function DraggableCell<TData>({ cell, index }: { cell: Cell<TData
             } ${stickyLeft ? "flex justify-center" : ""}`}
             style={stickyLeft ? { ...style, zIndex: isDragging ? 50 : 24 } : style}
         >
-            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            {displayCell}
         </td>
     );
 }

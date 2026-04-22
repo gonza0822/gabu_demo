@@ -15,11 +15,99 @@ export type ReportBookOption = {
     tableName: string;
 };
 
+export type BookParamBounds = {
+    /** Fecha mínima permitida (YYYY-MM-DD), desde `parametros.fecini` del libro. */
+    fecini: string | null;
+    /** Fecha máxima permitida (YYYY-MM-DD), desde `parametros.fecpro` del libro. */
+    fecpro: string | null;
+};
+
 export type ReportsConfig = {
     books: ReportBookOption[];
     defaultPeriod: string;
     periods: string[];
+    /** Límites por `idmoextra` del libro (coincide con `book.key`). */
+    paramBoundsByBook: Record<string, BookParamBounds>;
 };
+
+function parametrosDateToYyyyMmDd(d: Date | null | undefined): string | null {
+    if (!d || Number.isNaN(d.getTime())) return null;
+    return d.toISOString().slice(0, 10);
+}
+
+/** Valor de celda de reporte → YYYY-MM-DD para comparar con el rango. */
+function parseReportRowDateToYyyyMmDd(value: unknown): string | null {
+    if (value == null) return null;
+    if (value instanceof Date) {
+        if (Number.isNaN(value.getTime())) return null;
+        return value.toISOString().slice(0, 10);
+    }
+    const s = String(value).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    if (/^\d{4}-\d{2}-\d{2}[T\s]/.test(s)) return s.slice(0, 10);
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+    if (m) {
+        const day = m[1].padStart(2, "0");
+        const month = m[2].padStart(2, "0");
+        const year = m[3];
+        return `${year}-${month}-${day}`;
+    }
+    return null;
+}
+
+function findRowValueCaseInsensitive(row: Record<string, unknown>, fieldName: string): unknown {
+    if (fieldName in row) return row[fieldName];
+    const lower = fieldName.toLowerCase();
+    const key = Object.keys(row).find((k) => k.toLowerCase() === lower);
+    return key != null ? row[key] : undefined;
+}
+
+function getNestedRowValue(row: Record<string, unknown>, dottedPath: string): unknown {
+    const parts = dottedPath.split(".");
+    let cur: unknown = row;
+    for (const p of parts) {
+        if (cur == null || typeof cur !== "object" || Array.isArray(cur)) return undefined;
+        const obj = cur as Record<string, unknown>;
+        const key = Object.keys(obj).find((k) => k.toLowerCase() === p.toLowerCase());
+        if (!key) return undefined;
+        cur = obj[key];
+    }
+    return cur;
+}
+
+function getReportDateFieldValue(row: Record<string, unknown>, candidates: string[]): unknown {
+    for (const c of candidates) {
+        if (c.includes(".")) {
+            const v = getNestedRowValue(row, c);
+            if (v !== undefined && v !== null && v !== "") return v;
+        } else {
+            const v = findRowValueCaseInsensitive(row, c);
+            if (v !== undefined && v !== null && v !== "") return v;
+        }
+    }
+    return undefined;
+}
+
+const REPORT_DATE_FIELD_CANDIDATES: Record<"ALTAS_ACTIVO" | "BAJAS_ACTIVO" | "TRANSFERENCIAS_ACTIVO", string[]> = {
+    ALTAS_ACTIVO: ["fecori"],
+    BAJAS_ACTIVO: ["fecbaj", "febaja"],
+    TRANSFERENCIAS_ACTIVO: ["trfecactivo", "cabecera.trfecactivo", "cabecera.trFecActivo"],
+};
+
+function filterReportRowsByDateRange(
+    rows: Record<string, unknown>[],
+    reportType: keyof typeof REPORT_DATE_FIELD_CANDIDATES,
+    dateFrom: string,
+    dateTo: string
+): Record<string, unknown>[] {
+    const candidates = REPORT_DATE_FIELD_CANDIDATES[reportType];
+    return rows.filter((row) => {
+        const raw = getReportDateFieldValue(row, candidates);
+        const ymd = parseReportRowDateToYyyyMmDd(raw);
+        if (!ymd) return false;
+        return ymd >= dateFrom && ymd <= dateTo;
+    });
+}
 
 class Reports {
     prisma: PrismaClient;
@@ -171,7 +259,7 @@ class Reports {
     }
 
     async getConfig(simulationOnly = false): Promise<ReportsConfig> {
-        const [moextraRows, defaultFromParametros, cierresRows] = await Promise.all([
+        const [moextraRows, defaultFromParametros, cierresRows, parametrosRows] = await Promise.all([
             this.prisma.moextra.findMany({
                 where: {
                     simula: simulationOnly ? true : false,
@@ -198,7 +286,20 @@ class Reports {
                     WHERE fecpro IS NOT NULL
                     ORDER BY period DESC
                 `),
+            this.prisma.parametros.findMany({
+                select: { idmoextra: true, fecini: true, fecpro: true },
+            }),
         ]);
+
+        const paramBoundsByBook: Record<string, BookParamBounds> = {};
+        for (const p of parametrosRows) {
+            const k = (p.idmoextra ?? "").trim();
+            if (!k) continue;
+            paramBoundsByBook[k] = {
+                fecini: parametrosDateToYyyyMmDd(p.fecini),
+                fecpro: parametrosDateToYyyyMmDd(p.fecpro),
+            };
+        }
 
         const booksMap = new Map<string, ReportBookOption>();
 
@@ -242,6 +343,26 @@ class Reports {
             books: Array.from(booksMap.values()),
             defaultPeriod,
             periods,
+            paramBoundsByBook,
+        };
+    }
+
+    private isValidYyyyMmDd(value: string): boolean {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+        const t = Date.parse(`${value}T12:00:00.000Z`);
+        return !Number.isNaN(t);
+    }
+
+    private async getParamBoundsForBook(bookKey: string): Promise<BookParamBounds> {
+        const id = bookKey.trim();
+        const row = await this.prisma.parametros.findUnique({
+            where: { idmoextra: id },
+            select: { fecini: true, fecpro: true },
+        });
+        if (!row) return { fecini: null, fecpro: null };
+        return {
+            fecini: parametrosDateToYyyyMmDd(row.fecini),
+            fecpro: parametrosDateToYyyyMmDd(row.fecpro),
         };
     }
 
@@ -350,8 +471,11 @@ class Reports {
         book: string;
         bookTableName: string;
         period: string;
+        /** YYYY-MM-DD; obligatorio para Altas, Bajas y Transferencias (filtro sobre FECORI / FEBAJA / TRFECACTIVO). */
+        dateFrom?: string;
+        dateTo?: string;
     }): Promise<Record<string, unknown>[]> {
-        const { reportType, book, bookTableName, period } = params;
+        const { reportType, book, bookTableName, period, dateFrom, dateTo } = params;
         const normalizedBook = this.normalizeBookKey(book);
         const normalizedBookTableName = this.normalizeBookTableName(bookTableName || book);
         if (!normalizedBook || !normalizedBookTableName) throw new Error("El libro es obligatorio");
@@ -361,6 +485,35 @@ class Reports {
         }
 
         if (!this.isValidYYYYMM(period)) throw new Error("El período debe tener formato YYYYMM");
+
+        const needsDateRange =
+            reportType === "ALTAS_ACTIVO" || reportType === "BAJAS_ACTIVO" || reportType === "TRANSFERENCIAS_ACTIVO";
+
+        let dateRangeFilter: { from: string; to: string } | null = null;
+        if (needsDateRange) {
+            const from = (dateFrom ?? "").trim();
+            const to = (dateTo ?? "").trim();
+            if (!from || !to) {
+                throw new Error("Indicá fecha desde y hasta para este reporte.");
+            }
+            if (!this.isValidYyyyMmDd(from) || !this.isValidYyyyMmDd(to)) {
+                throw new Error("Las fechas deben tener formato AAAA-MM-DD.");
+            }
+            if (from > to) {
+                throw new Error("La fecha desde no puede ser posterior a la fecha hasta.");
+            }
+
+            const bounds = await this.getParamBoundsForBook(normalizedBook);
+            if (!bounds.fecini || !bounds.fecpro) {
+                throw new Error("No hay fecini y fecpro definidos en parámetros para este libro.");
+            }
+            if (from < bounds.fecini || to > bounds.fecpro) {
+                throw new Error(
+                    `Las fechas deben estar entre ${bounds.fecini} y ${bounds.fecpro} (límites de parámetros del libro).`
+                );
+            }
+            dateRangeFilter = { from, to };
+        }
 
         const resolvedTableName = await this.resolveTableNameForPeriod(
             normalizedBook,
@@ -386,13 +539,24 @@ class Reports {
 
         const tipoPeriodo = tipoPeriodoByReport[reportType as Exclude<ReportType, "ANEXO" | "ASIENTOS">];
         const strictTableOnly = resolvedTableName !== normalizedBookTableName;
-        return this.executeDetWithFallback(
+        let rows = await this.executeDetWithFallback(
             normalizedBook,
             resolvedTableName,
             period,
             tipoPeriodo,
             strictTableOnly
         );
+
+        if (dateRangeFilter) {
+            rows = filterReportRowsByDateRange(
+                rows,
+                reportType as keyof typeof REPORT_DATE_FIELD_CANDIDATES,
+                dateRangeFilter.from,
+                dateRangeFilter.to
+            );
+        }
+
+        return rows;
     }
 }
 

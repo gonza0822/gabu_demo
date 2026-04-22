@@ -24,6 +24,7 @@ export default function Home() : ReactElement {
 
     const { data } = useFetch<HomeDashboardData>('/api/home', options);
     const stats = data?.stats ?? { totalBienes: 0, altasEjercicio: 0, bajasEjercicio: 0 };
+    const fechaProceso = data?.fechaProceso ?? "-";
     const tabs = data?.tabs ?? [
         { id: 'monedaLocal' as const, title: 'Moneda local', charts: [] },
         { id: 'dolaresHB2' as const, title: 'Dolares HB2', charts: [] },
@@ -43,7 +44,7 @@ export default function Home() : ReactElement {
                 <DoughnutContainer stats={stats}/>
             </div>
             <div className="w-full h-full min-h-0 min-w-0 bg-gabu-100 rounded-lg col-span-2">
-                <ChartsContainer tabs={tabs}/>
+                <ChartsContainer tabs={tabs} fechaProceso={fechaProceso} />
             </div>
         </main>
     );

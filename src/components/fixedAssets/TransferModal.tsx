@@ -12,6 +12,7 @@ import Percentage from "../svg/Percentage";
 import { FixedAssets, type LibroAccordionData } from "@/lib/models/fixedAssets/FixedAsset";
 import { getLibrosFormDataCached, getLibrosFormDataFromCache } from "@/lib/cache/librosFormCache";
 import { parseStringDate, parseDateString } from "@/util/date/parseDate";
+import { formatNumberEs } from "@/util/number/formatNumberEs";
 
 type FieldMeta = { IdCampo: string; BrowNombre: string | null };
 
@@ -52,13 +53,16 @@ function getMonedaLocalVal(row: FixedAssets, field: string): unknown {
         `MONEDALOCAL.${field.toUpperCase()}`,
         `me01.${field}`,
         `me01.${base}`,
+        `me03.${field}`,
+        `me03.${base}`,
+        `ME03.${field}`,
     ];
     for (const k of variants) {
         if (r[k] !== undefined) return r[k];
     }
     const key = Object.keys(r).find((k) => {
         const lower = k.toLowerCase();
-        return (lower.includes('monedalocal') || lower.includes('me01')) && lower.includes(field.toLowerCase());
+        return (lower.includes('monedalocal') || lower.includes('me01') || lower.includes('me03')) && lower.includes(field.toLowerCase());
     });
     return key != null ? r[key] : undefined;
 }
@@ -67,6 +71,7 @@ function getBienCodigo(row: FixedAssets): string {
     const parts = ['idCodigo', 'idSubien', 'idSubtra', 'idSufijo'].map((key) => {
         let v = getRowVal(row, key);
         if (v == null || v === '') v = getRowVal(row, `cabecera.${key}`);
+        if (v == null || v === '') v = getRowVal(row, `cabesimu.${key}`);
         if (v == null || v === '') v = getRowVal(row, key.toLowerCase());
         return String(v ?? '').trim();
     });
@@ -101,8 +106,16 @@ function formatCellValue(value: unknown, columnId: string): React.ReactNode {
     if (value == null || value === '') return '';
     if (typeof value === 'number' && !isNaN(value)) {
         const isIndice = columnId.toLowerCase().includes('indice');
-        if (isIndice) return value.toFixed(7);
-        return value.toFixed(2);
+        if (isIndice) return formatNumberEs(value, 7, 7);
+        return formatNumberEs(value, 2, 2);
+    }
+    if (typeof value === 'string') {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) {
+            const isIndice = columnId.toLowerCase().includes('indice');
+            if (isIndice) return formatNumberEs(parsed, 7, 7);
+            return formatNumberEs(parsed, 2, 2);
+        }
     }
     return formatCellDate(value);
 }
@@ -127,6 +140,7 @@ export default function TransferModal({
     cuentasDestinoOptions = [],
     fecproTransferenciaDefault = '',
     client = '',
+    simulationOnly = false,
     onSuccess,
     onError,
 }: {
@@ -137,6 +151,7 @@ export default function TransferModal({
     cuentasDestinoOptions?: { key: string; value: string }[];
     fecproTransferenciaDefault?: string;
     client?: string;
+    simulationOnly?: boolean;
     onSuccess?: () => void;
     onError?: (message: string) => void;
 }) {
@@ -152,19 +167,19 @@ export default function TransferModal({
 
     const fetchLibrosData = useCallback(async () => {
         if (!client) return;
-        const fromCache = getLibrosFormDataFromCache(client);
+        const fromCache = getLibrosFormDataFromCache(client, simulationOnly);
         if (fromCache) {
             setLibrosContables(fromCache);
             return;
         }
         setLibrosLoading(true);
         try {
-            const acordeones = await getLibrosFormDataCached(client);
+            const acordeones = await getLibrosFormDataCached(client, simulationOnly);
             setLibrosContables(acordeones);
         } finally {
             setLibrosLoading(false);
         }
-    }, [client]);
+    }, [client, simulationOnly]);
 
     useEffect(() => {
         if (isOpen && client) fetchLibrosData();
@@ -326,6 +341,7 @@ export default function TransferModal({
                         fechaTransferencia,
                         cuentaDestino,
                         porcentajeTransferencia,
+                        simulationOnly,
                     },
                 }),
             });

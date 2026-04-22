@@ -41,6 +41,7 @@ export type HomeTabData = {
 
 export type HomeDashboardData = {
     stats: HomeStats;
+    fechaProceso: string;
     tabs: HomeTabData[];
 };
 
@@ -95,6 +96,23 @@ class Home {
              ORDER BY CASE WHEN idmoextra = 'ml' THEN 0 WHEN idmoextra = '01' THEN 1 ELSE 2 END`
         );
         return rows[0]?.fecini ?? new Date("1900-01-01T00:00:00.000Z");
+    }
+
+    private formatDateToMMYYYY(date: Date | null | undefined): string {
+        if (!date) return "-";
+        const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+        const year = date.getUTCFullYear();
+        return `${month}/${year}`;
+    }
+
+    private async getFechaProceso(): Promise<string> {
+        const rows = await this.prisma.$queryRawUnsafe<Array<{ fecpro: Date | null }>>(
+            `SELECT TOP 1 fecpro
+             FROM parametros
+             WHERE idmoextra IN ('ml', '01') AND fecpro IS NOT NULL
+             ORDER BY CASE WHEN idmoextra = 'ml' THEN 0 WHEN idmoextra = '01' THEN 1 ELSE 2 END`
+        );
+        return this.formatDateToMMYYYY(rows[0]?.fecpro);
     }
 
     private async getTableAggregates(tableName: "MONEDALOCAL" | "ME01" | "ME02", fecini: Date): Promise<AggregateRow> {
@@ -178,12 +196,13 @@ class Home {
             charts: [
                 {
                     title: "Comparación totales",
-                    labels: ["Valores", "Am. acum. inicio", "Am. ejercicio", "Am. período"],
+                    labels: ["Valores", "Am. acum. inicio", "Am. ejercicio", "Am. período", "Neto resultante"],
                     data: [
                         toNumber(row.veproeactual_tippro),
                         toNumber(row.amafieactual_tippro),
                         toNumber(row.amefieactual_tippro),
                         toNumber(row.ampefeactual_tippro),
+                        toNumber(row.veproeactual_tippro) - toNumber(row.amafieactual_tippro) - toNumber(row.amefieactual_tippro),
                     ],
                     yScale: "log",
                 },
@@ -213,6 +232,7 @@ class Home {
 
     async getDashboard(): Promise<HomeDashboardData> {
         const fecini = await this.getFecini();
+        const fechaProceso = await this.getFechaProceso();
         const [monedaLocal, me01, me02] = await Promise.all([
             this.getTableAggregates("MONEDALOCAL", fecini),
             this.getTableAggregates("ME01", fecini),
@@ -225,6 +245,7 @@ class Home {
                 altasEjercicio: toNumber(monedaLocal.altasEjercicio),
                 bajasEjercicio: toNumber(monedaLocal.bajasEjercicio),
             },
+            fechaProceso,
             tabs: [
                 this.mapTableToTab(monedaLocal, "monedaLocal", "Moneda local"),
                 this.mapTableToTab(me01, "dolaresHB2", "Dolares HB2"),

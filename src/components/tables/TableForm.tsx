@@ -5,6 +5,7 @@ import HorizontalSelect from "../ui/HorizontalSelect";
 import HorizontalInput from "../ui/HorizontalInput";
 import { useFetch } from "@/hooks/useFetch";
 import { FieldsWithRelationAndErrors } from "./TableContainer";
+import { formatNumericDisplayValue, isLikelyNumericField } from "@/util/number/formatNumberEs";
 
 export default function TableForm<TData>({fields, selectedRow, hasAnotherTable, connPath, client, formRef, onValidationChange, handleSubmit, setErrors}: {fields: FieldsWithRelationAndErrors[], selectedRow: TData | null , hasAnotherTable: boolean, connPath: string, client: string, formRef: React.RefObject<HTMLFormElement | null>, onValidationChange: React.Dispatch<React.SetStateAction<{ field: keyof TData, value: string }[] | null>>, handleSubmit: (e: React.FormEvent) => void, setErrors: () => void}) : React.ReactElement {
 
@@ -170,8 +171,17 @@ export default function TableForm<TData>({fields, selectedRow, hasAnotherTable, 
                             <HorizontalSelect key={field.IdCampo} label={field.BrowNombre || ''} options={field.relation.map(rel => ({key: rel.id, value: rel.description || ''}))} chooseOptionHandler={chooseOptionHandler} colSpan={(hasAnotherTable || (fields.length > 2 && index === 0)) ? 'col-span-2' : 'col-span-1'} hasToBeProportional={!hasAnotherTable && (fields.length > 2 && index === 0)} defaultValue={defualtValue} fieldId={field.IdCampo} disabled={isFieldDisabled(field.IdCampo as keyof TData)} selectedRow={selectedRow}/>
                         );
                     } else {
+                        const isReadOnlyField = field.relation[0]?.description === 'id' && selectedRow ? true : false;
+                        const rawValue = selectedRow
+                            ? selectedRow[field.IdCampo as keyof TData] as string
+                            : (field.options?.defaultValue as string || '');
+                        const displayValue = String(
+                            formatNumericDisplayValue(rawValue, field.IdCampo, {
+                                parseNumericStrings: isLikelyNumericField(field.IdCampo, field.BrowNombre ?? undefined),
+                            }) ?? ''
+                        );
                         return (
-                            <HorizontalInput label={field.BrowNombre || ''} key={field.IdCampo} colSpan={(hasAnotherTable || (fields.length > 2 && index === 0)) ? 'col-span-2' : 'col-span-1'} hasToBeProportional={!hasAnotherTable && (fields.length > 2 && index === 0)} defaultValue={selectedRow ? selectedRow[field.IdCampo as keyof TData] as string : (field.options?.defaultValue as string || '')} readOnly={field.relation[0]?.description === 'id' && selectedRow ? true : false} disabled={isFieldDisabled(field.IdCampo as keyof TData)} fieldId={field.IdCampo} isError={field.errors.isError} errorMessage={field.errors.errorMessage} setErrors={setErrors}/>
+                            <HorizontalInput label={field.BrowNombre || ''} key={field.IdCampo} colSpan={(hasAnotherTable || (fields.length > 2 && index === 0)) ? 'col-span-2' : 'col-span-1'} hasToBeProportional={!hasAnotherTable && (fields.length > 2 && index === 0)} defaultValue={displayValue} readOnly={isReadOnlyField} disabled={isFieldDisabled(field.IdCampo as keyof TData)} fieldId={field.IdCampo} isError={field.errors.isError} errorMessage={field.errors.errorMessage} setErrors={setErrors}/>
                         )
                     }
                 })}

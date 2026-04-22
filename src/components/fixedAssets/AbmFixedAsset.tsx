@@ -23,6 +23,7 @@ import {
     setDatosGeneralesInCache,
     setLibrosDataInCache,
 } from "@/lib/cache/fixedAssetsBootstrapCache";
+import { formatNumberEs } from "@/util/number/formatNumberEs";
 
 type AbmDatosGeneralesData = {
     plants: { key: string; value: string }[];
@@ -38,6 +39,14 @@ const ArrowSvg = ({ open }: { open: boolean }) => (
         <path fillRule="evenodd" clipRule="evenodd" d="M8.90061 5.55547L1.85507 10L0.0939941 8.88906L6.259 5L0.0939941 1.11094L1.85507 0L8.90061 4.44453C9.1341 4.59187 9.26527 4.79167 9.26527 5C9.26527 5.20833 9.1341 5.40813 8.90061 5.55547Z"/>
     </svg>
 );
+
+function parseLocalizedNumber(value: unknown): number {
+    const raw = String(value ?? "").trim();
+    if (!raw) return 0;
+    const normalized = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
 
 const SelectArrowSvg = () => (
     <svg width="9" height="9" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" className="fill-current text-gabu-900 -rotate-90 transition-transform duration-300 select-pointer">
@@ -403,7 +412,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                 porcentaje: String(d.porcentaje ?? 0),
             })));
         }
-        const rawVal = altaAgregadoMode ? 0 : parseFloat(String(getRowVal(r, 'Valori') ?? getRowVal(r, 'valori') ?? 0).replace(',', '.'));
+        const rawVal = altaAgregadoMode ? 0 : parseLocalizedNumber(getRowVal(r, 'Valori') ?? getRowVal(r, 'valori') ?? 0);
         setValorOrigenGral(isNaN(rawVal) ? '0' : String(rawVal));
         const fecoriMap: Record<string, string> = {};
         const tipoAmorMap: Record<string, string> = {};
@@ -449,7 +458,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
             if (altaAgregadoMode) {
                 valoriMap[ac.prefijo] = '0';
             } else if (rowHasUsableValue(vVal) || (typeof vVal === 'number' && !Number.isNaN(vVal))) {
-                const num = parseFloat(String(vVal).replace(',', '.'));
+                const num = parseLocalizedNumber(vVal);
                 valoriMap[ac.prefijo] = isNaN(num) ? '0' : String(num);
             }
         });
@@ -490,7 +499,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
 
     const updateDistribucionPorcentaje = (id: number, newVal: string) => {
         setDistribucionRows((prev) => {
-            const num = parseFloat(String(newVal).replace(',', '.')) || 0;
+            const num = parseLocalizedNumber(newVal);
             const capped = Math.min(100, Math.max(0, num));
             return prev.map((r) => r.id === id ? { ...r, porcentaje: String(capped) } : r);
         });
@@ -627,7 +636,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                 const rawVal = librosValori[ac.prefijo];
                 if (rawVal !== undefined && rawVal !== '') {
                     const cot = getCotizacion(ac.prefijo);
-                    const rawNum = parseFloat(String(rawVal).replace(',', '.')) || 0;
+                    const rawNum = parseLocalizedNumber(rawVal);
                     const valInLibroCurrency = cot !== 0 ? rawNum / cot : rawNum;
                     row['VALORI'] = (Math.round(valInLibroCurrency * 100) / 100).toFixed(2);
                 }
@@ -649,7 +658,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                 const nextErrors: Record<string, string[]> = { ...errors };
                 let hasValoriError = false;
                 Object.entries(libros).forEach(([prefijo, fields]) => {
-                    const valoriNum = parseFloat(String(fields['VALORI'] ?? '').replace(',', '.'));
+                    const valoriNum = parseLocalizedNumber(fields['VALORI'] ?? '');
                     if (!(valoriNum > 0)) {
                         const prev = nextErrors[prefijo] ?? [];
                         if (!prev.some((e) => e.startsWith('VALORI:'))) {
@@ -783,9 +792,9 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
 
     /** Muestra valor / cotizacion. MONEDALOCAL/impuestos cot=1; ME01/ME02... dividen por cot de Cotextranjera */
     const valorConCotizacion = (valor: string, prefijo: string): string => {
-        const num = parseFloat(String(valor).replace(',', '.')) || 0;
+        const num = parseLocalizedNumber(valor);
         const cot = getCotizacion(prefijo);
-        return cot !== 0 ? (num / cot).toFixed(2) : num.toFixed(2);
+        return cot !== 0 ? formatNumberEs(num / cot, 2, 2) : formatNumberEs(num, 2, 2);
     };
 
     const mmYyyyToYyyyMm = (value: string): string => {
@@ -811,8 +820,8 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
 
         const rawValori = librosValori[prefijo];
         const rawValoriNum = rawValori !== undefined && rawValori !== ''
-            ? parseFloat(String(rawValori).replace(',', '.')) || 0
-            : parseFloat(String(valorOrigenGral || '0').replace(',', '.')) || 0; // raw = valor en pesos
+            ? parseLocalizedNumber(rawValori)
+            : parseLocalizedNumber(valorOrigenGral || '0'); // raw = valor en pesos
         switch (campoUp) {
             case 'VALORI':              return valorConCotizacion(String(rawValoriNum), prefijo);
             case 'IDACTIVO':            return cabeceraCuenta || (cabeceraData?.defaultActivo ?? undefined);
@@ -857,7 +866,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
     // Sync valorOrigenGral → librosValori en clonar y alta agregado (mismo comportamiento que alta pura)
     useEffect(() => {
         if (!librosData || !(cloneMode || altaAgregadoMode)) return;
-        const valGral = parseFloat(String(valorOrigenGral || '0').replace(',', '.')) || 0;
+        const valGral = parseLocalizedNumber(valorOrigenGral || '0');
         const valoriMap: Record<string, string> = {};
         librosData.acordeones.forEach((ac) => {
             valoriMap[ac.prefijo] = String(valGral);
@@ -883,7 +892,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                 (v) => v.idMoextra === idMoneda && v.idActivo === activoToUse
             );
             vidautilMap[ac.prefijo] = vuRow ? String(vuRow.meses) : '';
-            const valGral = parseFloat(String(valorOrigenGral || '0').replace(',', '.')) || 0;
+            const valGral = parseLocalizedNumber(valorOrigenGral || '0');
             valoriMap[ac.prefijo] = String(valGral); // raw = valor en pesos (moneda de referencia)
         });
         setLibrosFecori(fecoriMap);
@@ -1355,7 +1364,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                                                         <div className={`flex flex-col gap-2 ${(distribucionInvalid || distribucionDuplicateCencos) ? 'rounded-md border-2 border-gabu-error p-2' : ''}`}>
                                                             {distribucionInvalid && (
                                                                 <p className="text-sm text-gabu-error">
-                                                                    Suma: {distribucionSum.toFixed(1)}% — El conjunto de la distribución tiene que ser un 100%
+                                                                    Suma: {formatNumberEs(distribucionSum, 1, 1)}% — El conjunto de la distribución tiene que ser un 100%
                                                                 </p>
                                                             )}
                                                             {distribucionDuplicateCencos && (
@@ -1540,7 +1549,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                                                         } : campoUp === 'VIDAUTIL' ? (val) => {
                                                             setLibrosVidautil((prev) => ({ ...prev, [acordeon.prefijo]: val }));
                                                         } : campoUp === 'VALORI' ? (val) => {
-                                                            const num = parseFloat(String(val).replace(',', '.')) || 0;
+                                                            const num = parseLocalizedNumber(val);
                                                             const cot = getCotizacion(acordeon.prefijo);
                                                             const raw = cot !== 0 ? num * cot : num; // display = raw/cot, luego raw = display*cot
                                                             setLibrosValori((prev) => ({ ...prev, [acordeon.prefijo]: String(raw) }));
@@ -1588,8 +1597,8 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                                                                         if (isVrepoe) {
                                                                             const fromBien = bienId && bienData ? getRowVal(bienData, fieldId) : undefined;
                                                                             if (fromBien != null && fromBien !== '') {
-                                                                                const num = parseFloat(String(fromBien).replace(',', '.'));
-                                                                                return !isNaN(num) ? num.toFixed(2) : (() => {
+                                                                                const num = parseLocalizedNumber(fromBien);
+                                                                                return !isNaN(num) ? formatNumberEs(num, 2, 2) : (() => {
                                                                                     const r = librosValori[acordeon.prefijo];
                                                                                     const raw = r !== undefined && r !== '' ? r : (valorOrigenGral ?? '0');
                                                                                     return valorConCotizacion(raw || '0', acordeon.prefijo);
@@ -1601,8 +1610,8 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                                                                         }
                                                                         const fromBien = bienId && bienData ? getRowVal(bienData, fieldId) : undefined;
                                                                         if (fromBien != null && fromBien !== '') {
-                                                                            const num = parseFloat(String(fromBien).replace(',', '.'));
-                                                                            return !isNaN(num) ? num.toFixed(2) : '0';
+                                                                            const num = parseLocalizedNumber(fromBien);
+                                                                            return !isNaN(num) ? formatNumberEs(num, 2, 2) : '0';
                                                                         }
                                                                         return '0';
                                                                     })();

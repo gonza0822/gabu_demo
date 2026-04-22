@@ -11,6 +11,7 @@ import ActualizationIndexesTable from "@/app/(main-layout)/(main-nav)/tables/act
 import QuotationsMETable from "@/app/(main-layout)/(main-nav)/tables/quotationsME/page";
 import UsersTable from "@/app/(main-layout)/(main-nav)/tables/users/page";
 import BusinessUnitsTable from "@/app/(main-layout)/(main-nav)/tables/businessUnits/page";
+import CatalogTable from "@/app/(main-layout)/(main-nav)/tables/catalog/page";
 import TaxCoefficientsTable from "@/app/(main-layout)/(main-nav)/tables/taxCoefficients/page";
 import MeasurementUnitsTable from "@/app/(main-layout)/(main-nav)/tables/measurementUnits/page";
 import ManageFixedAssets from "@/app/(main-layout)/(main-nav)/fixedAssets/manage/page";
@@ -42,6 +43,7 @@ const pagesMap = {
     QuotationsMETable,
     UsersTable,
     BusinessUnitsTable,
+    CatalogTable,
     TaxCoefficientsTable,
     MeasurementUnitsTable,
     ManageFixedAssets,

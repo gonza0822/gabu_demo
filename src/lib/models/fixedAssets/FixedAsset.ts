@@ -159,6 +159,58 @@ class FixedAsset {
         return updatedRecords;
     }
 
+    /**
+     * Último segmento de nombre de columna SQL (soporta `me03.FecBaj`, `me03_FecBaj`, `FecBaj`).
+     */
+    private static simulacionColumnSuffix(key: string): string {
+        const s = key.replace(/^\[|\]$/g, '');
+        if (s.includes('.')) {
+            return s.split('.').pop()!.toLowerCase();
+        }
+        const parts = s.split('_');
+        if (parts.length >= 2) {
+            return parts[parts.length - 1]!.toLowerCase();
+        }
+        return s.toLowerCase();
+    }
+
+    /**
+     * Encuentra el valor en una fila de `dbo.simulacion` para un IdCampo ya normalizado (ej. `fecbaj`).
+     * Prefiere columnas del libro simulado `me03` cuando hay más de una coincidencia.
+     */
+    private pickSimulacionColumnValue(row: Record<string, unknown>, fieldIdNormalized: string): unknown {
+        const want = fieldIdNormalized.toLowerCase();
+        const keys = Object.keys(row);
+        const matchKeys = keys.filter((k) => FixedAsset.simulacionColumnSuffix(k) === want);
+        if (matchKeys.length === 0) return undefined;
+        const me03 = matchKeys.find((k) => /^me03[._]/i.test(k));
+        return row[me03 ?? matchKeys[0]!];
+    }
+
+    /**
+     * Grilla simulación: misma hidratación que el ABM (`hydrateFromSimulacionVistaRow`) + alias en minúsculas
+     * para `IdCampo` normalizado (`fecbaj` vs `FecBaj`). Sin esto, ConverField pide `fecbaj` y la fila solo tenía `me03.FecBaj`.
+     */
+    private hydrateSimulacionGridRow(row: Record<string, unknown>, fieldIds: string[]): FixedAssets {
+        const out: Record<string, unknown> = { ...row };
+        this.hydrateFromSimulacionVistaRow(out, row);
+        for (const [k, v] of Object.entries(out)) {
+            const kl = k.toLowerCase();
+            if (kl === k) continue;
+            const cur = out[kl];
+            if (cur === undefined || cur === null || cur === '') {
+                out[kl] = v;
+            }
+        }
+        for (const fid of fieldIds) {
+            const cur = out[fid];
+            if (cur !== undefined && cur !== null && cur !== '') continue;
+            const picked = this.pickSimulacionColumnValue(row, fid);
+            if (picked !== undefined) out[fid] = picked;
+        }
+        return out as FixedAssets;
+    }
+
     async getAllSimulacion() : Promise<FixedAssetsData> {
         const simulaRows = await this.prisma.moextra.findMany({
             where: { simula: true },
@@ -207,12 +259,16 @@ class FixedAsset {
             seenColumns.add(key);
             return true;
         });
+        const fieldIdsGrid = serializedFieldsManage.map((f) => f.IdCampo);
+        const fixedAssetsHydrated = (fixedAssets as Record<string, unknown>[]).map((row) =>
+            this.hydrateSimulacionGridRow(row, fieldIdsGrid)
+        );
         const tipoBajaOptions = internaBajaRows.map((r) => ({
             key: r.IdInterno ?? '',
             value: r.Descripcion ?? r.IdInterno ?? '',
         }));
         return {
-            fixedAssets,
+            fixedAssets: fixedAssetsHydrated,
             fieldsManage: serializedFieldsManage,
             feciniEjercicio,
             tipoBajaOptions,
@@ -764,6 +820,99 @@ class FixedAsset {
         return record[modelName] ?? record[modelName.toLowerCase()] ?? record[prismaKey];
     }
 
+    /** Literal SQL para MSSQL (cabesimu). */
+    private sqlLiteralCabesimu(v: unknown): string {
+        if (v === null || v === undefined) return 'NULL';
+        if (typeof v === 'boolean') return v ? '1' : '0';
+        if (typeof v === 'number') return Number.isFinite(v) ? String(v) : 'NULL';
+        if (v instanceof Date) {
+            const iso = v.toISOString().replace('T', ' ').slice(0, 23);
+            return `'${iso}'`;
+        }
+        return `N'${String(v).replace(/'/g, "''")}'`;
+    }
+
+    /**
+     * Delegado Prisma para `cabesimu` en `tx`, si existe tras `prisma generate`.
+     * Si el cliente no se regeneró, devuelve undefined (no hay propiedad real en runtime).
+     */
+    private getCabesimuDelegateFromTx(tx: object): PrismaClient['cabecera'] | undefined {
+        const r = tx as Record<string, unknown>;
+        const cand =
+            r.cabesimu ??
+            r.Cabesimu ??
+            this.getModelFromRecord(tx as Record<string, PrismaClient['cabecera']>, 'cabesimu');
+        if (cand && typeof (cand as { findUnique?: unknown }).findUnique === 'function') {
+            return cand as PrismaClient['cabecera'];
+        }
+        return undefined;
+    }
+
+    /**
+     * Cabecera en simulación: `cabesimu`. Si Prisma no expone el modelo, opera con SQL sobre `dbo.cabesimu`
+     * (misma idea que `reiniciarSimulacionDesdeLibro`).
+     */
+    private getCabeHeadForTransaction(
+        tx: Pick<PrismaClient, 'cabecera'> & {
+            $queryRawUnsafe: <T>(q: string) => Promise<T>;
+            $executeRawUnsafe: (q: string) => Promise<unknown>;
+        },
+        simulationOnly: boolean
+    ): PrismaClient['cabecera'] {
+        if (!simulationOnly) return tx.cabecera;
+        const prismaDel = this.getCabesimuDelegateFromTx(tx);
+        if (prismaDel) return prismaDel;
+
+        const sqlLit = (v: unknown) => this.sqlLiteralCabesimu(v);
+
+        const delegate = {
+            findUnique: async (args: {
+                where: { idCodigo_idSubien_idSubtra_idSufijo: { idCodigo: string; idSubien: string; idSubtra: string; idSufijo: string } };
+            }) => {
+                const w = args.where.idCodigo_idSubien_idSubtra_idSufijo;
+                const rows = await tx.$queryRawUnsafe<Record<string, unknown>[]>(
+                    `SELECT TOP 1 * FROM dbo.cabesimu WHERE idCodigo=${sqlLit(w.idCodigo)} AND idSubien=${sqlLit(w.idSubien)} AND idSubtra=${sqlLit(w.idSubtra)} AND idSufijo=${sqlLit(w.idSufijo)}`
+                );
+                return (rows[0] ?? null) as Awaited<ReturnType<typeof tx.cabecera.findUnique>>;
+            },
+            findMany: async (args: {
+                where: Record<string, unknown>;
+                select?: { idSufijo?: boolean; idSubtra?: boolean };
+            }) => {
+                const sel = args.select?.idSubtra ? 'idSubtra' : 'idSufijo';
+                const parts: string[] = [];
+                for (const [k, v] of Object.entries(args.where)) {
+                    if (v !== undefined && v !== null) parts.push(`${k}=${sqlLit(v)}`);
+                }
+                const whereSql = parts.length ? `WHERE ${parts.join(' AND ')}` : '';
+                return tx.$queryRawUnsafe<Array<{ idSufijo?: string; idSubtra?: string }>>(
+                    `SELECT ${sel} FROM dbo.cabesimu ${whereSql}`
+                );
+            },
+            create: async (args: { data: Record<string, unknown> }) => {
+                const data = args.data;
+                const cols = Object.keys(data);
+                const vals = cols.map((c) => sqlLit(data[c]));
+                await tx.$executeRawUnsafe(
+                    `INSERT INTO dbo.cabesimu (${cols.join(', ')}) VALUES (${vals.join(', ')})`
+                );
+                return data;
+            },
+            updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+                const sets = Object.entries(args.data)
+                    .map(([k, v]) => `${k}=${sqlLit(v)}`)
+                    .join(', ');
+                const conds = Object.entries(args.where)
+                    .map(([k, v]) => `${k}=${sqlLit(v)}`)
+                    .join(' AND ');
+                const res = await tx.$executeRawUnsafe(`UPDATE dbo.cabesimu SET ${sets} WHERE ${conds}`);
+                const count = typeof res === 'number' ? res : 1;
+                return { count };
+            },
+        };
+        return delegate as unknown as PrismaClient['cabecera'];
+    }
+
     /** Prefijo ConverField -> nombre modelo Prisma (para libros) */
     private prefijoToModel(prefijo: string): string {
         const p = prefijo.toLowerCase();
@@ -880,6 +1029,27 @@ class FixedAsset {
                 setPrefer('ME03.Valori', v);
                 setPrefer('me03.Valori', v);
                 setPrefer('me03.valori', v);
+            }
+            if (kl === 'fecbaj' || kl.endsWith('.fecbaj') || /(^|[._])fecbaj$/.test(kl)) {
+                setPrefer('fecbaj', v);
+                setPrefer('FecBaj', v);
+                setPrefer('me03.FecBaj', v);
+                setPrefer('ME03.FecBaj', v);
+            }
+            if (kl === 'tipobaja' || kl.endsWith('.tipobaja') || /(^|[._])tipobaja$/.test(kl)) {
+                setPrefer('tipobaja', v);
+                setPrefer('TipoBaja', v);
+                setPrefer('me03.TipoBaja', v);
+            }
+            if (kl === 'vrepoeactual' || kl.endsWith('.vrepoeactual') || /(^|[._])vrepoeactual$/.test(kl)) {
+                setPrefer('vrepoeactual', v);
+                setPrefer('VrepoeActual', v);
+                setPrefer('me03.VrepoeActual', v);
+            }
+            if (kl === 'precioventa' || kl.endsWith('.precioventa') || /(^|[._])precioventa$/.test(kl)) {
+                setPrefer('precioventa', v);
+                setPrefer('precioVenta', v);
+                setPrefer('me03.precioVenta', v);
             }
         }
     }
@@ -1226,8 +1396,10 @@ class FixedAsset {
         tipoBaja: string;
         precioVenta: string;
         porcentajeBaja: string;
+        /** Solo tablas de simulación: `cabesimu` y `ME03` (sin `cabecera`, `distribucion` ni otros libros). */
+        simulationOnly?: boolean;
     }): Promise<{ ok: boolean }> {
-        const { selectedAssets, fechaBaja, tipoBaja, precioVenta, porcentajeBaja } = params;
+        const { selectedAssets, fechaBaja, tipoBaja, precioVenta, porcentajeBaja, simulationOnly = false } = params;
         if (!selectedAssets || selectedAssets.length === 0) {
             throw new Error('No hay bienes seleccionados');
         }
@@ -1248,6 +1420,7 @@ class FixedAsset {
             const getVal = (key: string) => {
                 let v = r[key] ?? r[key.toLowerCase()];
                 if (v == null || v === '') v = r[`cabecera.${key}`] ?? r[`cabecera.${key.toLowerCase()}`];
+                if (v == null || v === '') v = r[`cabesimu.${key}`] ?? r[`cabesimu.${key.toLowerCase()}`];
                 return String(v ?? '').trim();
             };
             const parts = ['idCodigo', 'idSubien', 'idSubtra', 'idSufijo'].map(getVal);
@@ -1256,7 +1429,10 @@ class FixedAsset {
 
         const hasFecBaj = (row: FixedAssets): boolean => {
             const r = row as Record<string, unknown>;
-            const keys = ['monedalocal.FecBaj', 'me01.FecBaj', 'me01.fecbaj', 'impuestos.FecBaj', 'FecBaj', 'fecbaj'];
+            const keys = [
+                'monedalocal.FecBaj', 'me01.FecBaj', 'me01.fecbaj', 'me03.FecBaj', 'me03.fecbaj', 'ME03.FecBaj',
+                'impuestos.FecBaj', 'FecBaj', 'fecbaj',
+            ];
             for (const k of keys) {
                 const v = r[k];
                 if (v != null && v !== '') return true;
@@ -1270,15 +1446,22 @@ class FixedAsset {
         };
 
         return this.prisma.$transaction(async (tx) => {
-            const converFields = await tx.converField.findMany({
-                where: { IdTabla: 'actifijo', NOT: { IdCampo: { startsWith: 'cabecera.' } } },
-                select: { IdCampo: true },
-            });
-            const prefixesFromConver = [...new Set(converFields.map((f) => {
-                const idx = f.IdCampo.indexOf('.');
-                return idx >= 0 ? f.IdCampo.substring(0, idx) : null;
-            }).filter(Boolean))] as string[];
-            const prefixes = [...new Set([...prefixesFromConver, 'ME01', 'ME02'])];
+            let prefixes: string[];
+            if (simulationOnly) {
+                prefixes = ['ME03'];
+            } else {
+                const converFields = await tx.converField.findMany({
+                    where: { IdTabla: 'actifijo', NOT: { IdCampo: { startsWith: 'cabecera.' } } },
+                    select: { IdCampo: true },
+                });
+                const prefixesFromConver = [...new Set(converFields.map((f) => {
+                    const idx = f.IdCampo.indexOf('.');
+                    return idx >= 0 ? f.IdCampo.substring(0, idx) : null;
+                }).filter(Boolean))] as string[];
+                prefixes = [...new Set([...prefixesFromConver, 'ME01', 'ME02'])];
+            }
+
+            const cabe = this.getCabeHeadForTransaction(tx, simulationOnly);
 
             for (const asset of selectedAssets) {
                 if (hasFecBaj(asset)) continue;
@@ -1330,38 +1513,40 @@ class FixedAsset {
                         await model.updateMany({ where, data: updateData });
                     }
 
-                    const cabecera = await tx.cabecera.findUnique({
+                    const cabeceraRow = await cabe.findUnique({
                         where: { idCodigo_idSubien_idSubtra_idSufijo: { idCodigo, idSubien: sidSubien, idSubtra, idSufijo } },
                     });
-                    if (!cabecera) continue;
+                    if (!cabeceraRow) continue;
 
-                    const maxSufijo = await tx.cabecera.findMany({
+                    const maxSufijo = await cabe.findMany({
                         where: { idCodigo, idSubien: sidSubien, idSubtra },
                         select: { idSufijo: true },
                     });
-                    const maxVal = maxSufijo.reduce((m, r) => Math.max(m, parseInt(String(r.idSufijo ?? '0'), 10) || 0), 0);
+                    const maxVal = maxSufijo.reduce((m: number, r: { idSufijo: string }) => Math.max(m, parseInt(String(r.idSufijo ?? '0'), 10) || 0), 0);
                     const newSufijo = String(maxVal + 1);
 
-                    const cabData = cabecera as unknown as Record<string, unknown>;
+                    const cabData = cabeceraRow as unknown as Record<string, unknown>;
                     const { idCodigo: _, idSubien: __, idSubtra: ___, idSufijo: ____, ...cabRest } = cabData;
-                    await tx.cabecera.create({
+                    await cabe.create({
                         data: { ...cabRest, idCodigo, idSubien: sidSubien, idSubtra, idSufijo: newSufijo } as Parameters<typeof tx.cabecera.create>[0]['data'],
                     });
 
-                    const distribucion = await tx.distribucion.findMany({
-                        where: { idCodigo, idsubien: sidSubien, idsubtra: idSubtra, idsufijo: idSufijo },
-                    });
-                    for (const d of distribucion) {
-                        await tx.distribucion.create({
-                            data: {
-                                idCodigo,
-                                idsubien: sidSubien,
-                                idsubtra: idSubtra,
-                                idsufijo: newSufijo,
-                                idCencos: d.idCencos,
-                                porcentaje: d.porcentaje,
-                            },
+                    if (!simulationOnly) {
+                        const distribucion = await tx.distribucion.findMany({
+                            where: { idCodigo, idsubien: sidSubien, idsubtra: idSubtra, idsufijo: idSufijo },
                         });
+                        for (const d of distribucion) {
+                            await tx.distribucion.create({
+                                data: {
+                                    idCodigo,
+                                    idsubien: sidSubien,
+                                    idsubtra: idSubtra,
+                                    idsufijo: newSufijo,
+                                    idCencos: d.idCencos,
+                                    porcentaje: d.porcentaje,
+                                },
+                            });
+                        }
                     }
 
                     for (const prefijo of prefixes) {
@@ -1419,8 +1604,10 @@ class FixedAsset {
         fechaTransferencia: string;
         cuentaDestino: string;
         porcentajeTransferencia: string;
+        /** Solo tablas de simulación: `cabesimu` y `ME03`. */
+        simulationOnly?: boolean;
     }): Promise<{ ok: boolean }> {
-        const { selectedAssets, fechaTransferencia, cuentaDestino, porcentajeTransferencia } = params;
+        const { selectedAssets, fechaTransferencia, cuentaDestino, porcentajeTransferencia, simulationOnly = false } = params;
         if (!selectedAssets || selectedAssets.length === 0) {
             throw new Error('No hay bienes seleccionados');
         }
@@ -1441,6 +1628,7 @@ class FixedAsset {
             const getVal = (key: string) => {
                 let v = r[key] ?? r[key.toLowerCase()];
                 if (v == null || v === '') v = r[`cabecera.${key}`] ?? r[`cabecera.${key.toLowerCase()}`];
+                if (v == null || v === '') v = r[`cabesimu.${key}`] ?? r[`cabesimu.${key.toLowerCase()}`];
                 return String(v ?? '').trim();
             };
             const parts = ['idCodigo', 'idSubien', 'idSubtra', 'idSufijo'].map(getVal);
@@ -1448,15 +1636,22 @@ class FixedAsset {
         };
 
         return this.prisma.$transaction(async (tx) => {
-            const converFields = await tx.converField.findMany({
-                where: { IdTabla: 'actifijo', NOT: { IdCampo: { startsWith: 'cabecera.' } } },
-                select: { IdCampo: true },
-            });
-            const prefixesFromConver = [...new Set(converFields.map((f) => {
-                const idx = f.IdCampo.indexOf('.');
-                return idx >= 0 ? f.IdCampo.substring(0, idx) : null;
-            }).filter(Boolean))] as string[];
-            const prefixes = [...new Set([...prefixesFromConver, 'ME01', 'ME02'])];
+            let prefixes: string[];
+            if (simulationOnly) {
+                prefixes = ['ME03'];
+            } else {
+                const converFields = await tx.converField.findMany({
+                    where: { IdTabla: 'actifijo', NOT: { IdCampo: { startsWith: 'cabecera.' } } },
+                    select: { IdCampo: true },
+                });
+                const prefixesFromConver = [...new Set(converFields.map((f) => {
+                    const idx = f.IdCampo.indexOf('.');
+                    return idx >= 0 ? f.IdCampo.substring(0, idx) : null;
+                }).filter(Boolean))] as string[];
+                prefixes = [...new Set([...prefixesFromConver, 'ME01', 'ME02'])];
+            }
+
+            const cabe = this.getCabeHeadForTransaction(tx, simulationOnly);
 
             for (const asset of selectedAssets) {
                 const bienId = getBienId(asset);
@@ -1466,14 +1661,14 @@ class FixedAsset {
                 const sidSubien = idSubien.padStart(3, '0');
                 const where = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
 
-                const cabecera = await tx.cabecera.findUnique({
+                const cabecera = await cabe.findUnique({
                     where: { idCodigo_idSubien_idSubtra_idSufijo: { idCodigo, idSubien: sidSubien, idSubtra, idSufijo } },
                 });
                 if (!cabecera) continue;
                 const idActivoOriginal = (cabecera.idActivo ?? '').trim();
 
                 if (pct >= 100) {
-                    await tx.cabecera.updateMany({
+                    await cabe.updateMany({
                         where,
                         data: {
                             tridActivo: idActivoOriginal || null,
@@ -1523,7 +1718,7 @@ class FixedAsset {
                         await model.updateMany({ where: modelWhere, data: updateData });
                     }
 
-                    await tx.cabecera.updateMany({
+                    await cabe.updateMany({
                         where,
                         data: {
                             tridActivo: null,
@@ -1531,16 +1726,16 @@ class FixedAsset {
                         },
                     });
 
-                    const maxSubtra = await tx.cabecera.findMany({
+                    const maxSubtra = await cabe.findMany({
                         where: { idCodigo, idSubien: sidSubien, idSufijo },
                         select: { idSubtra: true },
                     });
-                    const maxVal = maxSubtra.reduce((m, r) => Math.max(m, parseInt(String(r.idSubtra ?? '0'), 10) || 0), 0);
+                    const maxVal = maxSubtra.reduce((m: number, r: { idSubtra: string }) => Math.max(m, parseInt(String(r.idSubtra ?? '0'), 10) || 0), 0);
                     const newIdSubtra = String(maxVal + 1);
 
                     const cabData = cabecera as unknown as Record<string, unknown>;
                     const { idCodigo: _1, idSubien: _2, idSubtra: _3, idSufijo: _4, ...cabRest } = cabData;
-                    await tx.cabecera.create({
+                    await cabe.create({
                         data: {
                             ...cabRest,
                             idCodigo,
@@ -1553,20 +1748,22 @@ class FixedAsset {
                         } as Parameters<typeof tx.cabecera.create>[0]['data'],
                     });
 
-                    const distribucion = await tx.distribucion.findMany({
-                        where: { idCodigo, idsubien: sidSubien, idsubtra: idSubtra, idsufijo: idSufijo },
-                    });
-                    for (const d of distribucion) {
-                        await tx.distribucion.create({
-                            data: {
-                                idCodigo,
-                                idsubien: sidSubien,
-                                idsubtra: newIdSubtra,
-                                idsufijo: idSufijo,
-                                idCencos: d.idCencos,
-                                porcentaje: d.porcentaje,
-                            },
+                    if (!simulationOnly) {
+                        const distribucion = await tx.distribucion.findMany({
+                            where: { idCodigo, idsubien: sidSubien, idsubtra: idSubtra, idsufijo: idSufijo },
                         });
+                        for (const d of distribucion) {
+                            await tx.distribucion.create({
+                                data: {
+                                    idCodigo,
+                                    idsubien: sidSubien,
+                                    idsubtra: newIdSubtra,
+                                    idsufijo: idSufijo,
+                                    idCencos: d.idCencos,
+                                    porcentaje: d.porcentaje,
+                                },
+                            });
+                        }
                     }
 
                     for (const prefijo of prefixes) {

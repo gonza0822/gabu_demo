@@ -5,6 +5,7 @@ import { Chart } from "react-chartjs-2";
 import getDoughnutChartConfig from "@/util/charts/doughnutChart";
 import useColors from "@/hooks/useColors";
 import { HomeStats } from "@/lib/models/Home";
+import { formatNumberEs } from "@/util/number/formatNumberEs";
 
 export default function DoughnutContainer({ stats }: { stats: HomeStats }) : ReactElement {
 
@@ -35,7 +36,7 @@ export default function DoughnutContainer({ stats }: { stats: HomeStats }) : Rea
                                     Total bienes
                                 </p>
                                 <p className="text-gabu-900 mt-0.5 text-xs font-semibold tabular-nums sm:text-sm xl:text-base 2xl:text-lg [@media(max-height:600px)]:text-xs">
-                                    {stats.totalBienes.toLocaleString("es-AR")}
+                                    {formatNumberEs(stats.totalBienes)}
                                 </p>
                             </div>
                         </div>

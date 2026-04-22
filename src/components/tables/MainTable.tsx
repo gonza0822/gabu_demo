@@ -13,6 +13,7 @@ import { arrayMove, SortableContext, horizontalListSortingStrategy } from "@dnd-
 import DraggableCell from "./DraggableCell";
 import DraggableHeader from "./DraggableHeader";
 import ExcelJS from "exceljs";
+import { formatNumericDisplayValue, isLikelyNumericField } from "@/util/number/formatNumberEs";
 
 /** Encabezado principal (cuentas): cyan */
 const EXCEL_FILL_CUENTAS_HEADER = "FF4DD0E1";
@@ -112,7 +113,9 @@ export default function MainTable<TData>({
                     const value = String(raw ?? "");
                     return value.length > 0 ? "*".repeat(Math.min(value.length, 12)) : "";
                 }
-                return info.getValue();
+                return formatNumericDisplayValue(info.getValue(), String(field.IdCampo), {
+                    parseNumericStrings: isLikelyNumericField(field.IdCampo, field.BrowNombre ?? undefined),
+                });
             },
             sortingFn: "myCustomSorting" as SortingFnOption<TData>,
         }))

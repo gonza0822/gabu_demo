@@ -16,6 +16,7 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
         tipoBaja: string;
         precioVenta: string;
         porcentajeBaja: string;
+        simulationOnly?: boolean;
     };
 
     type TransferData = {
@@ -23,6 +24,7 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
         fechaTransferencia: string;
         cuentaDestino: string;
         porcentajeTransferencia: string;
+        simulationOnly?: boolean;
     };
 
     type BajaFisicaData = { bienId: string };
@@ -63,6 +65,7 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
                     tipoBaja: bajaData.tipoBaja ?? "",
                     precioVenta: bajaData.precioVenta ?? "0",
                     porcentajeBaja: bajaData.porcentajeBaja ?? "100",
+                    simulationOnly: !!bajaData.simulationOnly,
                 });
                 return NextResponse.json(result);
             }
@@ -79,6 +82,7 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
                     fechaTransferencia: transferData.fechaTransferencia ?? "",
                     cuentaDestino: transferData.cuentaDestino ?? "",
                     porcentajeTransferencia: transferData.porcentajeTransferencia ?? "100",
+                    simulationOnly: !!transferData.simulationOnly,
                 });
                 return NextResponse.json(result);
             }

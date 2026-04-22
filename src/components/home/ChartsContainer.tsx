@@ -7,7 +7,7 @@ import useColors from "@/hooks/useColors";
 import getBarChartConfig from "@/util/charts/barChart";
 import { HomeTabData } from "@/lib/models/Home";
 
-export default function ChartsContainer({ tabs }: { tabs: HomeTabData[] }): ReactElement {
+export default function ChartsContainer({ tabs, fechaProceso }: { tabs: HomeTabData[]; fechaProceso: string }): ReactElement {
     const colors = useColors();
     const [activeTab, setActiveTab] = useState<HomeTabData["id"]>("monedaLocal");
 
@@ -30,6 +30,9 @@ export default function ChartsContainer({ tabs }: { tabs: HomeTabData[] }): Reac
                         hasBorderRight={idx < tabs.length - 1 && activeTab !== tabs[idx + 1]?.id}
                     />
                 ))}
+                <div className="ml-auto flex items-center text-gabu-100 text-[11px] xl:text-xs 2xl:text-sm whitespace-nowrap">
+                    Fecha de proceso: {fechaProceso}
+                </div>
             </div>
             <div className="flex h-full min-h-0 w-full overflow-x-auto overflow-y-hidden">
                 <div className="flex h-full min-h-0 min-w-full">

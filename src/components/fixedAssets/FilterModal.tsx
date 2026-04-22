@@ -30,6 +30,7 @@ const BAJA_OPTIONS = [
     { key: '', value: 'Todas' },
     { key: 'bajas-ejercicio', value: 'Bajas ejercicio actual' },
     { key: 'con-baja', value: 'Con baja' },
+    { key: 'solo-activos', value: 'Solo activos' },
 ];
 
 type ApiTableItem = { [key: string]: unknown };

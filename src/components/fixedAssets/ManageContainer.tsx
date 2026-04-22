@@ -36,6 +36,7 @@ import AssetActions, { type ActionId } from "./AssetActions";
 import ManageFieldsPanel from "./ManageFieldsPanel";
 import { parseStringDate, parseDateString } from "@/util/date/parseDate";
 import { getManageDataFromCache, setManageDataInCache, setSelectedBienFromGrid } from "@/lib/cache/fixedAssetsBootstrapCache";
+import { formatNumberEs } from "@/util/number/formatNumberEs";
 
 const PAGE_SIZE_OPTIONS = [
     { key: "5", value: "5" },
@@ -68,7 +69,9 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         }
     }), [client, mode]);
 
-    const manageCacheKey = useMemo(() => `${client}::${mode}`, [client, mode]);
+    /** Versión de forma de datos (hidratar simulación); subir si cambia el API para no servir caché vieja en memoria. */
+    const MANAGE_CACHE_DATA_VER = '3';
+    const manageCacheKey = useMemo(() => `${client}::${mode}::${MANAGE_CACHE_DATA_VER}`, [client, mode]);
     const cachedManageData = useMemo(() => getManageDataFromCache(manageCacheKey), [manageCacheKey]);
     const fetchConfig = useMemo(() => ({
         initialData: cachedManageData,
@@ -204,13 +207,40 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         return parseStringDate(d);
     }
 
+    function isBusinessCodeColumn(columnId: string): boolean {
+        const id = columnId.toLowerCase();
+        return (
+            id.startsWith('id') ||
+            id.includes('tridactivo') ||
+            id.includes('cod') ||
+            id.includes('codigo') ||
+            id.includes('cuenta') ||
+            id.includes('negocio') ||
+            id.includes('planta') ||
+            id.includes('zona') ||
+            id.includes('cencos') ||
+            id.includes('proyecto')
+        );
+    }
+
     /** Formato de celda: fechas MM/YYYY; índices con 7 decimales; resto de números siempre con 2 decimales. */
     function formatCellValue(value: unknown, columnId: string): React.ReactNode {
         if (value == null || value === '') return '';
+        if (isBusinessCodeColumn(columnId)) return formatCellDate(value);
         if (typeof value === 'number' && !isNaN(value)) {
             const isIndice = columnId.toLowerCase().includes('indice');
-            if (isIndice) return value.toFixed(7);
-            return value.toFixed(2);
+            if (isIndice) return formatNumberEs(value, 7, 7);
+            return formatNumberEs(value, 2, 2);
+        }
+        if (typeof value === 'string') {
+            const raw = value.trim();
+            if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return formatCellDate(value);
+            const parsed = Number(raw);
+            if (Number.isFinite(parsed)) {
+                const isIndice = columnId.toLowerCase().includes('indice');
+                if (isIndice) return formatNumberEs(parsed, 7, 7);
+                return formatNumberEs(parsed, 2, 2);
+            }
         }
         return formatCellDate(value);
     }
@@ -228,12 +258,31 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         return isNaN(d.getTime()) ? null : d.getTime();
     }
 
+    /**
+     * Valor para una columna según IdCampo de ConverField.
+     * En simulación, `getAllSimulacion` normaliza `me03.fecbaj` → `fecbaj` pero la vista SQL suele seguir
+     * devolviendo claves con prefijo (`me03.FecBaj`, etc.); hay que enlazar por sufijo y por libro 03.
+     */
     function getFieldValue(row: FixedAssets, fieldId: string): unknown {
         const record = row as Record<string, unknown>;
         if (record[fieldId] !== undefined) return record[fieldId];
         const lower = fieldId.toLowerCase();
         const byLower = Object.keys(record).find((k) => k.toLowerCase() === lower);
         if (byLower) return record[byLower];
+
+        if (isSimulationMode && !fieldId.includes('.')) {
+            const prefijos = ['me03', 'cabesimu', 'cabecera'];
+            for (const p of prefijos) {
+                const candidato = `${p}.${lower}`;
+                const key = Object.keys(record).find((k) => k.toLowerCase() === candidato);
+                if (key != null) return record[key];
+            }
+            const me03PorSufijo = Object.keys(record).find((k) => /^me03\./i.test(k) && k.split('.').pop()?.toLowerCase() === lower);
+            if (me03PorSufijo != null) return record[me03PorSufijo];
+            const cualquierSufijo = Object.keys(record).find((k) => k.split('.').pop()?.toLowerCase() === lower);
+            if (cualquierSufijo != null) return record[cualquierSufijo];
+        }
+
         return undefined;
     }
 
@@ -284,7 +333,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                 </div>
             ),
         }),
-    ], [fixedAssetsData?.fieldsManage, columnHelper, actionsOpenRowId]);
+    ], [fixedAssetsData?.fieldsManage, columnHelper, actionsOpenRowId, isSimulationMode]);
 
     const visibleColumnIds = useMemo(() => {
         const fields = fixedAssetsData?.fieldsManage ?? [];
@@ -369,10 +418,12 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         return matchedKey != null ? r[matchedKey] : undefined;
     }
 
-    /** Valor de FecBaj en actifijo; la columna puede venir como me01.fecbaj desde la vista */
+    /** Valor de FecBaj: actifijo suele usar me01.*; simulación exclusivamente ME03. */
     function getFecBaj(row: FixedAssets): unknown {
         const r = row as Record<string, unknown>;
-        const keys = ['me01.fecbaj', 'me01.FecBaj', 'FecBaj', 'fecbaj'];
+        const keys = isSimulationMode
+            ? ['me03.fecbaj', 'me03.FecBaj', 'ME03.FecBaj', 'fecbaj', 'FecBaj', 'me01.fecbaj', 'me01.FecBaj']
+            : ['me01.fecbaj', 'me01.FecBaj', 'FecBaj', 'fecbaj'];
         for (const k of keys) {
             if (r[k] !== undefined) return r[k];
         }
@@ -382,7 +433,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
 
     function rowPassesColumnFilters(row: FixedAssets): boolean {
         for (const [columnId, filter] of Object.entries(columnFilters)) {
-            const cellVal = getRowVal(row, columnId);
+            const cellVal = getFieldValue(row, columnId);
             const strVal = cellVal != null ? String(cellVal).trim() : '';
             if (filter.type === 'number') {
                 const numVal = strVal !== '' && !isNaN(Number(strVal)) ? Number(strVal) : null;
@@ -439,6 +490,9 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
             if (filters.baja === 'con-baja') {
                 if (toComparableDate(getFecBaj(row)) == null) return false;
             }
+            if (filters.baja === 'solo-activos') {
+                if (toComparableDate(getFecBaj(row)) != null) return false;
+            }
             return true;
         });
         setDataTable(filtered);
@@ -466,6 +520,9 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                 }
                 if (filterValues.baja === 'con-baja') {
                     if (toComparableDate(getFecBaj(row)) == null) return false;
+                }
+                if (filterValues.baja === 'solo-activos') {
+                    if (toComparableDate(getFecBaj(row)) != null) return false;
                 }
                 return true;
             });
@@ -499,6 +556,9 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                 }
                 if (filterValues.baja === 'con-baja') {
                     if (toComparableDate(getFecBaj(row)) == null) return;
+                }
+                if (filterValues.baja === 'solo-activos') {
+                    if (toComparableDate(getFecBaj(row)) != null) return;
                 }
                 filtered.push(row);
             });
@@ -726,6 +786,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                 cuentasDestinoOptions={fixedAssetsData?.cuentasDestinoOptions ?? []}
                 fecproTransferenciaDefault={fixedAssetsData?.fecproTransferenciaDefault ?? ''}
                 client={client}
+                simulationOnly={isSimulationMode}
                 onSuccess={() => {
                     refetch();
                     setShowTransferSuccessAlert(true);
@@ -755,6 +816,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                 tipoBajaOptions={fixedAssetsData?.tipoBajaOptions ?? []}
                 fecproBajaDefault={fixedAssetsData?.fecproBajaDefault ?? ''}
                 client={client}
+                simulationOnly={isSimulationMode}
                 onSuccess={() => {
                     refetch();
                     setShowBajaSuccessAlert(true);
@@ -826,7 +888,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                 }}
                 triggerRect={actionsTriggerRect}
                 rowId={actionsOpenRowId}
-                allowedActions={isSimulationMode ? ['consultar'] : undefined}
+                allowedActions={isSimulationMode ? ['consultar', 'baja', 'transferencia'] : undefined}
                 onAction={(rowId, actionId) => {
                     const row = table.getPrePaginationRowModel().rows.find((r) => String(r.id) === String(rowId));
                     if (!row) return;
@@ -834,12 +896,12 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                     const idParts = ['idCodigo', 'idSubien', 'idSubtra', 'idSufijo'].map((key) => {
                         let v = getRowVal(rowData, key);
                         if (v == null || v === '') v = getRowVal(rowData, `cabecera.${key}`);
+                        if (v == null || v === '') v = getRowVal(rowData, `cabesimu.${key}`);
                         return String(v ?? '');
                     });
                     const id = idParts.join('-');
                     if (!id || id === '---') return;
-                    if (isSimulationMode) {
-                        if (actionId !== 'consultar') return;
+                    if (isSimulationMode && actionId === 'consultar') {
                         setSelectedBienFromGrid(fixedAssetsContextKey, id, rowData as Record<string, unknown>);
                         const tableName = `AbmSimulationFixedAssetConsult-${id}`;
                         const path = `/simulations/consult/${id}`;
@@ -852,6 +914,9 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                         }));
                         dispatch(openPagesActions.addOpenPage({ page: tableName }));
                         router.push(path);
+                        return;
+                    }
+                    if (isSimulationMode && actionId !== 'baja' && actionId !== 'transferencia') {
                         return;
                     }
                     if (actionId === 'modificar' || actionId === 'consultar' || actionId === 'clonar' || actionId === 'alta-agregado') {
@@ -906,21 +971,29 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                         dispatch(openPagesActions.addOpenPage({ page: tableName }));
                         router.push(path);
                     } else if (actionId === 'baja') {
-                        const idCodigoVal = String(getRowVal(rowData, 'idCodigo') ?? getRowVal(rowData, 'cabecera.idcodigo') ?? '').trim();
+                        const idCodigoVal = String(
+                            getRowVal(rowData, 'idCodigo') ?? getRowVal(rowData, 'cabecera.idcodigo') ?? getRowVal(rowData, 'cabesimu.idcodigo') ?? ''
+                        ).trim();
                         if (!idCodigoVal) return;
                         const allAssets = fixedAssetsData?.fixedAssets ?? [];
                         const sameIdCodigo = allAssets.filter((a) => {
-                            const ac = String(getRowVal(a, 'idCodigo') ?? getRowVal(a, 'cabecera.idcodigo') ?? getRowVal(a, 'idcodigo') ?? '').trim();
+                            const ac = String(
+                                getRowVal(a, 'idCodigo') ?? getRowVal(a, 'cabecera.idcodigo') ?? getRowVal(a, 'cabesimu.idcodigo') ?? getRowVal(a, 'idcodigo') ?? ''
+                            ).trim();
                             return ac === idCodigoVal;
                         });
                         setBajaModalAssets(sameIdCodigo);
                         setIsBajaModalOpen(true);
                     } else if (actionId === 'transferencia') {
-                        const idCodigoVal = String(getRowVal(rowData, 'idCodigo') ?? getRowVal(rowData, 'cabecera.idcodigo') ?? '').trim();
+                        const idCodigoVal = String(
+                            getRowVal(rowData, 'idCodigo') ?? getRowVal(rowData, 'cabecera.idcodigo') ?? getRowVal(rowData, 'cabesimu.idcodigo') ?? ''
+                        ).trim();
                         if (!idCodigoVal) return;
                         const allAssets = fixedAssetsData?.fixedAssets ?? [];
                         const sameIdCodigo = allAssets.filter((a) => {
-                            const ac = String(getRowVal(a, 'idCodigo') ?? getRowVal(a, 'cabecera.idcodigo') ?? getRowVal(a, 'idcodigo') ?? '').trim();
+                            const ac = String(
+                                getRowVal(a, 'idCodigo') ?? getRowVal(a, 'cabecera.idcodigo') ?? getRowVal(a, 'cabesimu.idcodigo') ?? getRowVal(a, 'idcodigo') ?? ''
+                            ).trim();
                             return ac === idCodigoVal;
                         });
                         setTransferModalAssets(sameIdCodigo);
