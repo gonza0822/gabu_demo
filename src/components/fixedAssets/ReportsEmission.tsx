@@ -6,13 +6,15 @@ import { RootState } from "@/store";
 import Alert from "@/components/ui/Alert";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import type { BookParamBounds, ReportType } from "@/lib/models/reports/Reports";
+import type { BookParamBounds, BookPeriodBoundsByBook, ReportType } from "@/lib/models/reports/Reports";
 import Select from "@/components/ui/Select";
 import Excel from "@/components/svg/Excel";
 import CollapseAllIcon from "@/components/svg/CollapseAllIcon";
 import ExpandAllIcon from "@/components/svg/ExpandAllIcon";
 import ExcelJS from "exceljs";
 import { formatNumberEs } from "@/util/number/formatNumberEs";
+
+const EXCEL_NUMBER_FORMAT = "#,##0.00";
 
 type ReportBookOption = {
     key: string;
@@ -25,6 +27,7 @@ type ReportsConfigResponse = {
     defaultPeriod: string;
     periods: string[];
     paramBoundsByBook?: Record<string, BookParamBounds>;
+    periodBoundsByBook?: BookPeriodBoundsByBook;
 };
 
 const REPORTS: { key: ReportType; label: string }[] = [
@@ -488,6 +491,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
     const [tableScrollWidth, setTableScrollWidth] = useState(0);
     const [asientosBrowLabels, setAsientosBrowLabels] = useState<Record<string, string>>({});
     const [paramBoundsByBook, setParamBoundsByBook] = useState<Record<string, BookParamBounds>>({});
+    const [periodBoundsByBook, setPeriodBoundsByBook] = useState<BookPeriodBoundsByBook>({});
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [dateRangeError, setDateRangeError] = useState<string | null>(null);
@@ -753,6 +757,15 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
     );
 
     const currentBookParamBounds = paramBoundsByBook[selectedBookKey] ?? { fecini: null, fecpro: null };
+    const currentDateBounds = useMemo(() => {
+        const paramFecproPeriod = currentBookParamBounds.fecpro ? currentBookParamBounds.fecpro.slice(0, 7).replace("-", "") : null;
+        const useParamBounds = !!paramFecproPeriod && period === paramFecproPeriod;
+        if (useParamBounds) {
+            return { ...currentBookParamBounds, source: "parametros" as const };
+        }
+        const cierreBounds = periodBoundsByBook[selectedBookKey]?.[period] ?? { fecini: null, fecpro: null };
+        return { ...cierreBounds, source: "cierres" as const };
+    }, [currentBookParamBounds, period, periodBoundsByBook, selectedBookKey]);
 
     const needsReportDateRange =
         reportType === "ALTAS_ACTIVO" || reportType === "BAJAS_ACTIVO" || reportType === "TRANSFERENCIAS_ACTIVO";
@@ -823,6 +836,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                 setBooks(config.books ?? []);
                 setPeriods(config.periods ?? []);
                 setParamBoundsByBook(config.paramBoundsByBook ?? {});
+                setPeriodBoundsByBook(config.periodBoundsByBook ?? {});
                 setSelectedBookKey(config.books?.[0]?.key ?? "");
                 setPeriod(config.defaultPeriod ?? "");
             } catch (err) {
@@ -841,7 +855,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
     }, [client, simulationOnly]);
 
     useEffect(() => {
-        const b = paramBoundsByBook[selectedBookKey];
+        const b = currentDateBounds;
         if (b?.fecini && b?.fecpro) {
             setDateFrom(b.fecini);
             setDateTo(b.fecpro);
@@ -850,7 +864,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
             setDateTo("");
         }
         setDateRangeError(null);
-    }, [selectedBookKey, paramBoundsByBook]);
+    }, [currentDateBounds]);
 
     useEffect(() => {
         if (reportType === "ASIENTOS") setSubtotalColumns("0");
@@ -927,9 +941,13 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
         setPeriodError(null);
 
         if (needsReportDateRange) {
-            const bounds = paramBoundsByBook[selectedBookKey];
+            const bounds = currentDateBounds;
             if (!bounds?.fecini || !bounds?.fecpro) {
-                setDateRangeError("No hay fecini y fecpro en parámetros para este libro.");
+                setDateRangeError(
+                    bounds.source === "parametros"
+                        ? "No hay fecini y fecpro en parámetros para este libro."
+                        : "No hay fecini y fecpro en cierres para el período seleccionado."
+                );
                 return;
             }
             if (!dateFrom.trim() || !dateTo.trim()) {
@@ -942,7 +960,9 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
             }
             if (dateFrom < bounds.fecini || dateTo > bounds.fecpro) {
                 setDateRangeError(
-                    `Las fechas deben estar entre ${bounds.fecini} y ${bounds.fecpro} (fecini y fecpro de parámetros).`
+                    bounds.source === "parametros"
+                        ? `Las fechas deben estar entre ${bounds.fecini} y ${bounds.fecpro} (fecini y fecpro de parámetros).`
+                        : `Las fechas deben estar entre ${bounds.fecini} y ${bounds.fecpro} (fecini y fecpro de cierres).`
                 );
                 return;
             }
@@ -1007,7 +1027,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
         dateTo,
         enabledReports,
         needsReportDateRange,
-        paramBoundsByBook,
+        currentDateBounds,
         period,
         reportType,
         running,
@@ -1190,6 +1210,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                 if (!excelCellIsNumeric(row[column], column)) return;
                 const cell = excelRow.getCell(index + 1);
                 cell.alignment = { ...(cell.alignment ?? {}), horizontal: "right" };
+                cell.numFmt = EXCEL_NUMBER_FORMAT;
             });
             if (meta?.kind === "subtotal") {
                 excelRow.eachCell({ includeEmpty: true }, (cell) => {
@@ -1363,8 +1384,8 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                                         id="report-date-from"
                                         type="date"
                                         value={dateFrom}
-                                        min={currentBookParamBounds.fecini ?? undefined}
-                                        max={currentBookParamBounds.fecpro ?? undefined}
+                                        min={currentDateBounds.fecini ?? undefined}
+                                        max={currentDateBounds.fecpro ?? undefined}
                                         onChange={(e) => {
                                             setDateFrom(e.target.value);
                                             setDateRangeError(null);
@@ -1382,8 +1403,8 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                                         id="report-date-to"
                                         type="date"
                                         value={dateTo}
-                                        min={currentBookParamBounds.fecini ?? undefined}
-                                        max={currentBookParamBounds.fecpro ?? undefined}
+                                        min={currentDateBounds.fecini ?? undefined}
+                                        max={currentDateBounds.fecpro ?? undefined}
                                         onChange={(e) => {
                                             setDateTo(e.target.value);
                                             setDateRangeError(null);
@@ -1392,9 +1413,11 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                                         className="rounded-md border-0 bg-gabu-100 text-gabu-900 px-2 py-0.5 text-[10px] 2xl:text-xs min-h-[1.5rem] 2xl:min-h-[1.75rem] w-[7.25rem] 2xl:w-[8.5rem] shrink-0 disabled:opacity-60 [color-scheme:light]"
                                     />
                                 </div>
-                                {(!currentBookParamBounds.fecini || !currentBookParamBounds.fecpro) && (
+                                {(!currentDateBounds.fecini || !currentDateBounds.fecpro) && (
                                     <span className="text-gabu-error text-[9px] 2xl:text-[10px] leading-tight whitespace-nowrap">
-                                        Sin fecini/fecpro en parámetros.
+                                        {currentDateBounds.source === "parametros"
+                                            ? "Sin fecini/fecpro en parámetros."
+                                            : "Sin fecini/fecpro en cierres para el período."}
                                     </span>
                                 )}
                                 {dateRangeError && (
@@ -1444,7 +1467,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                                 loadingConfig ||
                                 running ||
                                 (needsReportDateRange &&
-                                    (!currentBookParamBounds.fecini || !currentBookParamBounds.fecpro))
+                                    (!currentDateBounds.fecini || !currentDateBounds.fecpro))
                             }
                         >
                             {running ? "Generando..." : "Generar"}

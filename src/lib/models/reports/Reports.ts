@@ -22,12 +22,16 @@ export type BookParamBounds = {
     fecpro: string | null;
 };
 
+export type BookPeriodBoundsByBook = Record<string, Record<string, BookParamBounds>>;
+
 export type ReportsConfig = {
     books: ReportBookOption[];
     defaultPeriod: string;
     periods: string[];
     /** Límites por `idmoextra` del libro (coincide con `book.key`). */
     paramBoundsByBook: Record<string, BookParamBounds>;
+    /** Límites por período (YYYYMM) y libro, desde `cierres` (`fecini`/`fecpro`). */
+    periodBoundsByBook: BookPeriodBoundsByBook;
 };
 
 function parametrosDateToYyyyMmDd(d: Date | null | undefined): string | null {
@@ -273,15 +277,23 @@ class Reports {
             }),
             this.getFecproFromParametrosYYYYMM(simulationOnly ? "03" : "ml"),
             simulationOnly
-                ? this.prisma.$queryRawUnsafe<Array<{ period: string }>>(`
-                    SELECT DISTINCT LEFT(CONVERT(VARCHAR(8), fecpro, 112), 6) AS period
+                ? this.prisma.$queryRawUnsafe<Array<{ period: string; idmoextra: string | null; fecini: Date | null; fecpro: Date | null }>>(`
+                    SELECT DISTINCT
+                        LEFT(CONVERT(VARCHAR(8), fecpro, 112), 6) AS period,
+                        idmoextra,
+                        fecini,
+                        fecpro
                     FROM cierres
                     WHERE fecpro IS NOT NULL
                       AND LTRIM(RTRIM(idmoextra)) = '03'
                     ORDER BY period DESC
                 `)
-                : this.prisma.$queryRawUnsafe<Array<{ period: string }>>(`
-                    SELECT DISTINCT LEFT(CONVERT(VARCHAR(8), fecpro, 112), 6) AS period
+                : this.prisma.$queryRawUnsafe<Array<{ period: string; idmoextra: string | null; fecini: Date | null; fecpro: Date | null }>>(`
+                    SELECT DISTINCT
+                        LEFT(CONVERT(VARCHAR(8), fecpro, 112), 6) AS period,
+                        idmoextra,
+                        fecini,
+                        fecpro
                     FROM cierres
                     WHERE fecpro IS NOT NULL
                     ORDER BY period DESC
@@ -298,6 +310,19 @@ class Reports {
             paramBoundsByBook[k] = {
                 fecini: parametrosDateToYyyyMmDd(p.fecini),
                 fecpro: parametrosDateToYyyyMmDd(p.fecpro),
+            };
+        }
+
+        const periodBoundsByBook: BookPeriodBoundsByBook = {};
+        for (const row of cierresRows) {
+            const period = (row.period ?? "").trim();
+            if (!this.isValidYYYYMM(period)) continue;
+            const bookKey = (row.idmoextra ?? "").trim();
+            if (!bookKey) continue;
+            if (!periodBoundsByBook[bookKey]) periodBoundsByBook[bookKey] = {};
+            periodBoundsByBook[bookKey][period] = {
+                fecini: parametrosDateToYyyyMmDd(row.fecini),
+                fecpro: parametrosDateToYyyyMmDd(row.fecpro),
             };
         }
 
@@ -330,9 +355,13 @@ class Reports {
             }
         }
 
-        const periods = cierresRows
-            .map((row) => (row.period ?? "").trim())
-            .filter((value) => this.isValidYYYYMM(value));
+        const periods = Array.from(
+            new Set(
+                cierresRows
+                    .map((row) => (row.period ?? "").trim())
+                    .filter((value) => this.isValidYYYYMM(value))
+            )
+        );
 
         const defaultPeriod = defaultFromParametros ?? "";
         if (defaultPeriod && !periods.includes(defaultPeriod)) {
@@ -344,6 +373,7 @@ class Reports {
             defaultPeriod,
             periods,
             paramBoundsByBook,
+            periodBoundsByBook,
         };
     }
 
@@ -364,6 +394,35 @@ class Reports {
             fecini: parametrosDateToYyyyMmDd(row.fecini),
             fecpro: parametrosDateToYyyyMmDd(row.fecpro),
         };
+    }
+
+    private async getCierreBoundsForBookPeriod(bookKey: string, period: string): Promise<BookParamBounds> {
+        const escapedBookKey = this.escapeSqlString(bookKey.trim().toUpperCase());
+        const escapedPeriod = this.escapeSqlString(period.trim());
+        const rows = await this.prisma.$queryRawUnsafe<Array<{ fecini: Date | null; fecpro: Date | null }>>(`
+            SELECT TOP 1 fecini, fecpro
+            FROM cierres
+            WHERE fecpro IS NOT NULL
+              AND UPPER(LTRIM(RTRIM(idmoextra))) = '${escapedBookKey}'
+              AND LEFT(CONVERT(VARCHAR(8), fecpro, 112), 6) = '${escapedPeriod}'
+            ORDER BY fecpro DESC
+        `);
+        const row = rows[0];
+        if (!row) return { fecini: null, fecpro: null };
+        return {
+            fecini: parametrosDateToYyyyMmDd(row.fecini),
+            fecpro: parametrosDateToYyyyMmDd(row.fecpro),
+        };
+    }
+
+    private async getDateBoundsForBookAndPeriod(bookKey: string, period: string): Promise<{ bounds: BookParamBounds; source: "parametros" | "cierres" }> {
+        const paramBounds = await this.getParamBoundsForBook(bookKey);
+        const paramFecproPeriod = paramBounds.fecpro ? paramBounds.fecpro.slice(0, 7).replace("-", "") : null;
+        if (paramFecproPeriod && period === paramFecproPeriod) {
+            return { bounds: paramBounds, source: "parametros" };
+        }
+        const cierreBounds = await this.getCierreBoundsForBookPeriod(bookKey, period);
+        return { bounds: cierreBounds, source: "cierres" };
     }
 
     private normalizeConverFieldKey(idCampo: string): string {
@@ -503,13 +562,19 @@ class Reports {
                 throw new Error("La fecha desde no puede ser posterior a la fecha hasta.");
             }
 
-            const bounds = await this.getParamBoundsForBook(normalizedBook);
+            const { bounds, source } = await this.getDateBoundsForBookAndPeriod(normalizedBook, period);
             if (!bounds.fecini || !bounds.fecpro) {
-                throw new Error("No hay fecini y fecpro definidos en parámetros para este libro.");
+                throw new Error(
+                    source === "parametros"
+                        ? "No hay fecini y fecpro definidos en parámetros para este libro."
+                        : "No hay fecini y fecpro definidos en cierres para ese período y libro."
+                );
             }
             if (from < bounds.fecini || to > bounds.fecpro) {
                 throw new Error(
-                    `Las fechas deben estar entre ${bounds.fecini} y ${bounds.fecpro} (límites de parámetros del libro).`
+                    source === "parametros"
+                        ? `Las fechas deben estar entre ${bounds.fecini} y ${bounds.fecpro} (límites de parámetros del libro).`
+                        : `Las fechas deben estar entre ${bounds.fecini} y ${bounds.fecpro} (límites de cierres para el período).`
                 );
             }
             dateRangeFilter = { from, to };
