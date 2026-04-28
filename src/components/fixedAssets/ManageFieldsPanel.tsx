@@ -136,32 +136,60 @@ export default function ManageFieldsPanel({
     }
   };
 
-  const hideAll = () => {
+  const hideAll = async () => {
     if (visibleIds.length === 0) return;
     const changes = Object.fromEntries(visibleIds.map((id) => [id, false]));
     onVisibilityBatchChange?.(changes);
     if (!onVisibilityBatchChange) visibleIds.forEach((id) => onVisibilityChange(id, false));
-    visibleIds.forEach(id => {
-      fetch('/api/fixedAssets/manage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ petition: 'SetListShow', client, data: { fieldId: id, listShow: false } }),
-      }).catch(() => onVisibilityChange(id, true));
-    });
+    try {
+      const res = await fetch("/api/fixedAssets/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          petition: "SetListShowBatch",
+          client,
+          data: { updates: visibleIds.map((fieldId) => ({ fieldId, listShow: false })) },
+        }),
+      });
+      if (!res.ok) {
+        const revert = Object.fromEntries(visibleIds.map((id) => [id, true]));
+        onVisibilityBatchChange?.(revert);
+        if (!onVisibilityBatchChange) visibleIds.forEach((id) => onVisibilityChange(id, true));
+      }
+    } catch {
+      const revert = Object.fromEntries(visibleIds.map((id) => [id, true]));
+      onVisibilityBatchChange?.(revert);
+      if (!onVisibilityBatchChange) visibleIds.forEach((id) => onVisibilityChange(id, true));
+    }
   };
 
-  const showAll = () => {
+  const showAll = async () => {
     if (hiddenFields.length === 0) return;
     const changes = Object.fromEntries(hiddenFields.map((f) => [f.IdCampo, true]));
     onVisibilityBatchChange?.(changes);
     if (!onVisibilityBatchChange) hiddenFields.forEach((f) => onVisibilityChange(f.IdCampo, true));
-    hiddenFields.forEach(f => {
-      fetch('/api/fixedAssets/manage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ petition: 'SetListShow', client, data: { fieldId: f.IdCampo, listShow: true } }),
-      }).catch(() => onVisibilityChange(f.IdCampo, false));
-    });
+    try {
+      const res = await fetch("/api/fixedAssets/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          petition: "SetListShowBatch",
+          client,
+          data: {
+            updates: hiddenFields.map((f) => ({ fieldId: f.IdCampo, listShow: true })),
+          },
+        }),
+      });
+      if (!res.ok) {
+        const revert = Object.fromEntries(hiddenFields.map((f) => [f.IdCampo, false]));
+        onVisibilityBatchChange?.(revert);
+        if (!onVisibilityBatchChange) hiddenFields.forEach((f) => onVisibilityChange(f.IdCampo, false));
+      }
+    } catch {
+      const revert = Object.fromEntries(hiddenFields.map((f) => [f.IdCampo, false]));
+      onVisibilityBatchChange?.(revert);
+      if (!onVisibilityBatchChange) hiddenFields.forEach((f) => onVisibilityChange(f.IdCampo, false));
+    }
   };
 
   const showPopup = isOpen && (triggerRect ?? exitingRect);

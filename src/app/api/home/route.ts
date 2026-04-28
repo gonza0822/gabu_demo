@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import Home, { HomeDashboardData } from "@/lib/models/Home";
+import { getHomeDashboardCached, HomeDashboardData } from "@/lib/models/Home";
 
 type HomePostRequest = {
     client: string;
@@ -12,8 +12,7 @@ export async function POST(request: Request): Promise<NextResponse<HomeDashboard
         const { client } = (await request.json()) as HomePostRequest;
         if (!client) return NextResponse.json({ message: "Client is required", status: 400 }, { status: 400 });
 
-        const model = new Home(client);
-        const payload = await model.getDashboard();
+        const payload = await getHomeDashboardCached(client);
         return NextResponse.json(payload);
     } catch (err) {
         if (err instanceof Error) {

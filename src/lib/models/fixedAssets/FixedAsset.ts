@@ -296,6 +296,25 @@ class FixedAsset {
         return updated;
     }
 
+    /** Varias visibilidades en una sola petición HTTP/ transacción (evita N llamadas a /api/fixedAssets/manage). */
+    async setListShowBatch(updates: { idCampo: string; listShow: boolean }[]): Promise<{ ok: boolean }> {
+        if (updates.length === 0) return { ok: true };
+        await this.prisma.$transaction(
+            updates.map((u) =>
+                this.prisma.converField.update({
+                    where: {
+                        IdTabla_IdCampo: {
+                            IdTabla: 'actifijo',
+                            IdCampo: u.idCampo,
+                        },
+                    },
+                    data: { listShow: u.listShow },
+                })
+            )
+        );
+        return { ok: true };
+    }
+
     /**
      * Datos para el formulario ABM — acordeón Cabecera: labels desde ConverField, opciones de selects y defaults.
      * En simulación: IdTabla `simulacion`, campos `cabecera.*` (igual que actifijo).

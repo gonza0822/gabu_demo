@@ -62,10 +62,21 @@ export function setManageDataInCache(client: string, manageData: FixedAssetsData
   entry.updatedAt = Date.now();
 }
 
-export function getManageDataFromCache(client: string): FixedAssetsData | null {
-  const entry = cacheByClient.get(client);
-  if (!isEntryFresh(entry)) return null;
-  return entry?.manageData ?? null;
+/**
+ * Lee datos de grilla cacheados. Acepta la clave compuesta usada en ManageContainer (`client::modo::ver`)
+ * o la clave solo `client` del prefetch tras login, para no duplicar el `Get` pesado.
+ */
+export function getManageDataFromCache(key: string): FixedAssetsData | null {
+  const read = (k: string): FixedAssetsData | null => {
+    const entry = cacheByClient.get(k);
+    if (!isEntryFresh(entry)) return null;
+    return entry?.manageData ?? null;
+  };
+  const direct = read(key);
+  if (direct != null) return direct;
+  if (!key.includes("::")) return null;
+  const baseKey = key.split("::")[0];
+  return baseKey ? read(baseKey) : null;
 }
 
 export function setDatosGeneralesInCache(client: string, datosGenerales: AbmDatosGeneralesData): void {

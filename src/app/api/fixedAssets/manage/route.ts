@@ -9,6 +9,7 @@ export type ErrorResponse = { message: string, status: number }
 export async function POST(request: Request): Promise<NextResponse<FixedAssetsData | ConverFieldModel | unknown[] | { ok: boolean } | ErrorResponse>> {
 
     type SetListShowData = { fieldId: string; listShow: boolean };
+    type SetListShowBatchData = { updates: { fieldId: string; listShow: boolean }[] };
 
     type BajaData = {
         selectedAssets: { [key: string]: unknown }[];
@@ -34,6 +35,7 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
         | { petition: "GetSimulacion"; client: string; data: {} }
         | { petition: "UpdateOrder"; client: string; data: ReOrderData }
         | { petition: "SetListShow"; client: string; data: SetListShowData }
+        | { petition: "SetListShowBatch"; client: string; data: SetListShowBatchData }
         | { petition: "Baja"; client: string; data: BajaData }
         | { petition: "Transfer"; client: string; data: TransferData }
         | { petition: "BajaFisica"; client: string; data: BajaFisicaData };
@@ -53,6 +55,14 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
             case "SetListShow": {
                 const { fieldId, listShow } = data as SetListShowData;
                 return NextResponse.json(await fixedAssetsModel.setListShow(fieldId, listShow));
+            }
+            case "SetListShowBatch": {
+                const batch = data as SetListShowBatchData;
+                const updates = (batch?.updates ?? []).map((u) => ({
+                    idCampo: u.fieldId,
+                    listShow: u.listShow,
+                }));
+                return NextResponse.json(await fixedAssetsModel.setListShowBatch(updates));
             }
             case "Baja": {
                 const bajaData = data as BajaData;

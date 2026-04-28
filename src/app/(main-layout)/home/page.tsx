@@ -9,9 +9,11 @@ import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
 import { useFetch } from '@/hooks/useFetch';
 import { HomeDashboardData } from '@/lib/models/Home';
+import { getHomeDashboardFromCache, setHomeDashboardInCache } from '@/lib/cache/homeDashboardCache';
 
 export default function Home() : ReactElement {
     const client = useSelector((state: RootState) => state.authorization.client);
+    const cachedData = useMemo(() => getHomeDashboardFromCache(client), [client]);
 
     const options: RequestInit = useMemo(
         () => ({
@@ -22,7 +24,15 @@ export default function Home() : ReactElement {
         [client]
     );
 
-    const { data } = useFetch<HomeDashboardData>('/api/home', options);
+    const fetchConfig = useMemo(
+        () => ({
+            initialData: cachedData,
+            skipInitialFetch: cachedData != null,
+            onData: (nextData: HomeDashboardData) => setHomeDashboardInCache(client, nextData),
+        }),
+        [cachedData, client]
+    );
+    const { data } = useFetch<HomeDashboardData>('/api/home', options, fetchConfig);
     const stats = data?.stats ?? { totalBienes: 0, altasEjercicio: 0, bajasEjercicio: 0 };
     const fechaProceso = data?.fechaProceso ?? "-";
     const tabs = data?.tabs ?? [
