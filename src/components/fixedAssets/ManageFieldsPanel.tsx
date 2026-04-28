@@ -37,6 +37,7 @@ type Props = {
   fields: ManageFieldItem[];
   visibleIds: string[];
   onVisibilityChange: (fieldId: string, listShow: boolean) => void;
+  onVisibilityBatchChange?: (changes: Record<string, boolean>) => void;
   client: string;
 };
 
@@ -48,6 +49,7 @@ export default function ManageFieldsPanel({
   fields,
   visibleIds,
   onVisibilityChange,
+  onVisibilityBatchChange,
   client,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -135,7 +137,10 @@ export default function ManageFieldsPanel({
   };
 
   const hideAll = () => {
-    visibleIds.forEach(id => onVisibilityChange(id, false));
+    if (visibleIds.length === 0) return;
+    const changes = Object.fromEntries(visibleIds.map((id) => [id, false]));
+    onVisibilityBatchChange?.(changes);
+    if (!onVisibilityBatchChange) visibleIds.forEach((id) => onVisibilityChange(id, false));
     visibleIds.forEach(id => {
       fetch('/api/fixedAssets/manage', {
         method: 'POST',
@@ -146,7 +151,10 @@ export default function ManageFieldsPanel({
   };
 
   const showAll = () => {
-    hiddenFields.forEach(f => onVisibilityChange(f.IdCampo, true));
+    if (hiddenFields.length === 0) return;
+    const changes = Object.fromEntries(hiddenFields.map((f) => [f.IdCampo, true]));
+    onVisibilityBatchChange?.(changes);
+    if (!onVisibilityBatchChange) hiddenFields.forEach((f) => onVisibilityChange(f.IdCampo, true));
     hiddenFields.forEach(f => {
       fetch('/api/fixedAssets/manage', {
         method: 'POST',

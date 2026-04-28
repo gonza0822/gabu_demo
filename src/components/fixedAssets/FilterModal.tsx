@@ -34,6 +34,16 @@ const BAJA_OPTIONS = [
 ];
 
 type ApiTableItem = { [key: string]: unknown };
+type FilterOptionsState = {
+    cuenta: { key: string; value: string }[];
+    centroCosto: { key: string; value: string }[];
+    planta: { key: string; value: string }[];
+    unidadNegocio: { key: string; value: string }[];
+    ubicacion: { key: string; value: string }[];
+    origen: { key: string; value: string }[];
+};
+
+const filterOptionsCache = new Map<string, FilterOptionsState>();
 
 function buildOptions(
     table: ApiTableItem[] | undefined,
@@ -72,14 +82,7 @@ export default function FilterModal({
         origen: '',
     });
 
-    const [options, setOptions] = useState<{
-        cuenta: { key: string; value: string }[];
-        centroCosto: { key: string; value: string }[];
-        planta: { key: string; value: string }[];
-        unidadNegocio: { key: string; value: string }[];
-        ubicacion: { key: string; value: string }[];
-        origen: { key: string; value: string }[];
-    }>({
+    const [options, setOptions] = useState<FilterOptionsState>({
         cuenta: [{ key: '', value: 'Todas' }],
         centroCosto: [{ key: '', value: 'Todos' }],
         planta: [{ key: '', value: 'Todas' }],
@@ -89,6 +92,11 @@ export default function FilterModal({
     });
 
     const fetchOptions = useCallback(async () => {
+        const cached = filterOptionsCache.get(client);
+        if (cached) {
+            setOptions(cached);
+            return;
+        }
         const base = { method: 'POST' as const, headers: { 'Content-Type': 'application/json' as const } };
         const body = (petition: string) => JSON.stringify({ petition, client, data: {} });
 
@@ -106,14 +114,16 @@ export default function FilterModal({
             (row) => row.IdTipo != null && Number(row.IdTipo) !== 0
         );
 
-        setOptions({
+        const nextOptions: FilterOptionsState = {
             cuenta: buildOptions(cuentasFiltradas, 'IdActivo', 'Descripcion', 'Todas'),
             centroCosto: buildOptions((costCenterRes as { table?: ApiTableItem[] })?.table, 'IdCencos', 'Descripcion', 'Todos'),
             planta: buildOptions((plantRes as { table?: ApiTableItem[] })?.table, 'IdPlanta', 'Descripcion', 'Todas'),
             unidadNegocio: buildOptions((businessUnitRes as { table?: ApiTableItem[] })?.table, 'IdUNegocio', 'Descripcion', 'Todas'),
             ubicacion: buildOptions((geoRes as { table?: ApiTableItem[] })?.table, 'idZona', 'descripcion', 'Todas'),
             origen: buildOptions((procedenceRes as { table?: ApiTableItem[] })?.table, 'IdOrigen', 'Descripcion', 'Todos'),
-        });
+        };
+        filterOptionsCache.set(client, nextOptions);
+        setOptions(nextOptions);
     }, [client]);
 
     useEffect(() => {

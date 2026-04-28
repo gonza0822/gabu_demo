@@ -32,7 +32,7 @@ import BajaModal from "./BajaModal";
 import TransferModal from "./TransferModal";
 import BajaFisicaModal from "./BajaFisicaModal";
 import { getColumnType, type ColumnFilterValue } from "./ColumnFilter";
-import AssetActions, { type ActionId } from "./AssetActions";
+import AssetActions from "./AssetActions";
 import ManageFieldsPanel from "./ManageFieldsPanel";
 import { parseStringDate, parseDateString } from "@/util/date/parseDate";
 import { getManageDataFromCache, setManageDataInCache, setSelectedBienFromGrid } from "@/lib/cache/fixedAssetsBootstrapCache";
@@ -79,13 +79,9 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         onData: (nextData: FixedAssetsData) => setManageDataInCache(manageCacheKey, nextData),
     }), [cachedManageData, manageCacheKey]);
 
-    const { data:fixedAssetsData, error, loading, setData, refetch } = useFetch<FixedAssetsData>("/api/fixedAssets/manage", options, fetchConfig);
-
-    console.log(fixedAssetsData);
+    const { data:fixedAssetsData, error, loading, refetch } = useFetch<FixedAssetsData>("/api/fixedAssets/manage", options, fetchConfig);
 
     const columnHelper = createColumnHelper<FixedAssets>();
-
-    const [dataTable, setDataTable] = React.useState<FixedAssets[]>(fixedAssetsData?.fixedAssets || []);
 
     const [viewportCompact, setViewportCompact] = useState(() => readViewportCompact());
     const [pagination, setPagination] = useState(() => ({
@@ -147,16 +143,14 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
 
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
     const bottomScrollbarRef = useRef<HTMLDivElement | null>(null);
     const tableHorizontalRef = useRef<HTMLDivElement | null>(null);
     const scrollSyncLockRef = useRef(false);
     const SEARCH_DEBOUNCE_MS = 350;
     const isSimulationMode = mode === "simulacion";
     const fixedAssetsContextKey = isSimulationMode ? `${client}::simulacion` : client;
-
-    useEffect(() => {
-        setDataTable(fixedAssetsData?.fixedAssets || []);
-    }, [fixedAssetsData]);
 
     useEffect(() => {
         const fields = fixedAssetsData?.fieldsManage ?? [];
@@ -177,6 +171,22 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     }, []);
 
     useEffect(() => {
+        if (searchDebounceRef.current) {
+            clearTimeout(searchDebounceRef.current);
+            searchDebounceRef.current = null;
+        }
+        const trimmed = searchTerm.trim();
+        if (!trimmed) {
+            setDebouncedSearchTerm("");
+            return;
+        }
+        searchDebounceRef.current = setTimeout(() => {
+            searchDebounceRef.current = null;
+            setDebouncedSearchTerm(trimmed.toLowerCase());
+        }, SEARCH_DEBOUNCE_MS);
+    }, [searchTerm]);
+
+    useEffect(() => {
         if (typeof window === "undefined") return;
         const mq = window.matchMedia(COMPACT_PAGE_MEDIA);
         const sync = () => setViewportCompact(mq.matches);
@@ -193,18 +203,14 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         });
     }, [viewportCompact]);
 
-    /** Solo formatea a MM/YYYY si el valor es una fecha (Date o string tipo 2002-03-01 00:00:00.000). No toca números ni otros textos. */
+    /** Solo formatea a MM/YYYY si el valor es Date. Si viene string desde DB, se respeta tal cual. */
     function formatCellDate(value: unknown): string | number {
         if (value == null || value === '') return '';
         if (value instanceof Date) {
             if (isNaN(value.getTime())) return String(value);
             return parseStringDate(value);
         }
-        const s = String(value).trim();
-        if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return typeof value === 'number' ? value : String(value);
-        const d = new Date(s);
-        if (isNaN(d.getTime())) return typeof value === 'number' ? value : String(value);
-        return parseStringDate(d);
+        return typeof value === 'number' ? value : String(value);
     }
 
     function isBusinessCodeColumn(columnId: string): boolean {
@@ -232,16 +238,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
             if (isIndice) return formatNumberEs(value, 7, 7);
             return formatNumberEs(value, 2, 2);
         }
-        if (typeof value === 'string') {
-            const raw = value.trim();
-            if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return formatCellDate(value);
-            const parsed = Number(raw);
-            if (Number.isFinite(parsed)) {
-                const isIndice = columnId.toLowerCase().includes('indice');
-                if (isIndice) return formatNumberEs(parsed, 7, 7);
-                return formatNumberEs(parsed, 2, 2);
-            }
-        }
+        if (typeof value === 'string') return value;
         return formatCellDate(value);
     }
 
@@ -313,13 +310,14 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                     title="Acciones"
                     onClick={(e) => {
                         e.stopPropagation();
-                        if (actionsOpenRowId === row.id) {
+                        const rowId = String(row.id);
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        if (actionsOpenRowId === rowId) {
                             setActionsOpenRowId(null);
                             setActionsTriggerRect(null);
                             return;
                         }
-                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        setActionsOpenRowId(row.id);
+                        setActionsOpenRowId(rowId);
                         setActionsTriggerRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
                     }}
                     onKeyDown={(e) => {
@@ -343,52 +341,9 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     const handleVisibilityChange = useCallback((fieldId: string, listShow: boolean) => {
         setColumnVisibility(prev => ({ ...prev, [fieldId]: listShow }));
     }, []);
-
-    const table = useReactTable({
-        columns,
-        data: dataTable,
-        getCoreRowModel: getCoreRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        onPaginationChange: setPagination,
-        onSortingChange: setSorting,
-        onColumnOrderChange: setColumnOrder,
-        onColumnVisibilityChange: setColumnVisibility,
-        state: {
-            pagination,
-            sorting,
-            columnOrder,
-            columnVisibility,
-        },
-        columnResizeMode: 'onChange',
-        sortingFns: {
-            myCustomSorting: (rowA, rowB, columnId) => {
-                const rowAValue = rowA.getValue(columnId);
-                const rowBValue = rowB.getValue(columnId);
-
-                if(rowAValue == null && rowBValue == null) return 0;
-                if(rowAValue == null) return -1;
-                if(rowBValue == null) return 1;
-
-                const a = String(rowAValue).toLowerCase().trim();
-                const b = String(rowBValue).toLowerCase().trim();
-
-                if(!isNaN(Number(a)) && !isNaN(Number(b))) {
-                    return Number(a) - Number(b);
-                }
-
-                const aDate = toComparableDate(rowAValue);
-                const bDate = toComparableDate(rowBValue);
-                if (aDate != null && bDate != null) return aDate - bDate;
-
-                if(a === "true" || a === "false") {
-                    return (a === "true" ? 1 : 0) - (b === "true" ? 1 : 0);
-                }
-
-                return a.localeCompare(b);
-            },
-        },
-    });
+    const handleVisibilityBatchChange = useCallback((changes: Record<string, boolean>) => {
+        setColumnVisibility((prev) => ({ ...prev, ...changes }));
+    }, []);
 
     const filterFieldIds = useMemo(() => {
         const fields = fixedAssetsData?.fieldsManage ?? [];
@@ -471,131 +426,107 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         return true;
     }
 
-    function applyFilters(filters: FilterValues) {
-        setFilterValues(filters);
-        const sourceData = fixedAssetsData?.fixedAssets ?? [];
-        const filtered = sourceData.filter((row) => {
-            if (filters.cuenta && String(getRowVal(row, filterFieldIds.cuenta ?? 'IdActivo') ?? '') !== filters.cuenta) return false;
-            if (filters.centroCosto && String(getRowVal(row, filterFieldIds.centroCosto ?? 'IdCencos') ?? '') !== filters.centroCosto) return false;
-            if (filters.planta && String(getRowVal(row, filterFieldIds.planta ?? 'IdPlanta') ?? '') !== filters.planta) return false;
-            if (filters.unidadNegocio && String(getRowVal(row, filterFieldIds.unidadNegocio ?? 'IdUNegocio') ?? '') !== filters.unidadNegocio) return false;
-            if (filters.ubicacion && String(getRowVal(row, filterFieldIds.ubicacion ?? 'idZona') ?? getRowVal(row, 'IdZona') ?? '') !== filters.ubicacion) return false;
-            if (filters.origen && String(getRowVal(row, filterFieldIds.origen ?? 'IdOrigen') ?? '') !== filters.origen) return false;
-            if (filters.baja === 'bajas-ejercicio') {
-                const dIni = fixedAssetsData?.feciniEjercicio != null ? toComparableDate(fixedAssetsData.feciniEjercicio) : null;
-                if (dIni == null) return false;
-                const dBaj = toComparableDate(getFecBaj(row));
-                if (dBaj == null || dBaj < dIni) return false;
-            }
-            if (filters.baja === 'con-baja') {
-                if (toComparableDate(getFecBaj(row)) == null) return false;
-            }
-            if (filters.baja === 'solo-activos') {
-                if (toComparableDate(getFecBaj(row)) != null) return false;
-            }
-            return true;
-        });
-        setDataTable(filtered);
-    }
-
-    useEffect(() => {
-        const sourceData = fixedAssetsData?.fixedAssets ?? [];
-        if (sourceData.length === 0) return;
-        const hasModalFilters = Object.values(filterValues).some((v) => v !== '');
-        const hasColumnFilters = Object.keys(columnFilters).length > 0;
-        let filtered = sourceData;
-        if (hasModalFilters) {
-            filtered = filtered.filter((row) => {
-                if (filterValues.cuenta && String(getRowVal(row, filterFieldIds.cuenta ?? 'IdActivo') ?? '') !== filterValues.cuenta) return false;
-                if (filterValues.centroCosto && String(getRowVal(row, filterFieldIds.centroCosto ?? 'IdCencos') ?? '') !== filterValues.centroCosto) return false;
-                if (filterValues.planta && String(getRowVal(row, filterFieldIds.planta ?? 'IdPlanta') ?? '') !== filterValues.planta) return false;
-                if (filterValues.unidadNegocio && String(getRowVal(row, filterFieldIds.unidadNegocio ?? 'IdUNegocio') ?? '') !== filterValues.unidadNegocio) return false;
-                if (filterValues.ubicacion && String(getRowVal(row, filterFieldIds.ubicacion ?? 'idZona') ?? getRowVal(row, 'IdZona') ?? '') !== filterValues.ubicacion) return false;
-                if (filterValues.origen && String(getRowVal(row, filterFieldIds.origen ?? 'IdOrigen') ?? '') !== filterValues.origen) return false;
-                if (filterValues.baja === 'bajas-ejercicio') {
-                    const dIni = fixedAssetsData?.feciniEjercicio != null ? toComparableDate(fixedAssetsData.feciniEjercicio) : null;
-                    if (dIni == null) return false;
-                    const dBaj = toComparableDate(getFecBaj(row));
-                    if (dBaj == null || dBaj < dIni) return false;
-                }
-                if (filterValues.baja === 'con-baja') {
-                    if (toComparableDate(getFecBaj(row)) == null) return false;
-                }
-                if (filterValues.baja === 'solo-activos') {
-                    if (toComparableDate(getFecBaj(row)) != null) return false;
-                }
-                return true;
-            });
+    const rowPassesModalFilters = useCallback((row: FixedAssets, filters: FilterValues): boolean => {
+        if (filters.cuenta && String(getRowVal(row, filterFieldIds.cuenta ?? 'IdActivo') ?? '') !== filters.cuenta) return false;
+        if (filters.centroCosto && String(getRowVal(row, filterFieldIds.centroCosto ?? 'IdCencos') ?? '') !== filters.centroCosto) return false;
+        if (filters.planta && String(getRowVal(row, filterFieldIds.planta ?? 'IdPlanta') ?? '') !== filters.planta) return false;
+        if (filters.unidadNegocio && String(getRowVal(row, filterFieldIds.unidadNegocio ?? 'IdUNegocio') ?? '') !== filters.unidadNegocio) return false;
+        if (filters.ubicacion && String(getRowVal(row, filterFieldIds.ubicacion ?? 'idZona') ?? getRowVal(row, 'IdZona') ?? '') !== filters.ubicacion) return false;
+        if (filters.origen && String(getRowVal(row, filterFieldIds.origen ?? 'IdOrigen') ?? '') !== filters.origen) return false;
+        if (filters.baja === 'bajas-ejercicio') {
+            const dIni = fixedAssetsData?.feciniEjercicio != null ? toComparableDate(fixedAssetsData.feciniEjercicio) : null;
+            if (dIni == null) return false;
+            const dBaj = toComparableDate(getFecBaj(row));
+            if (dBaj == null || dBaj < dIni) return false;
         }
-        if (hasColumnFilters) {
-            filtered = filtered.filter((row) => rowPassesColumnFilters(row));
-        }
-        setDataTable(filtered);
-    }, [fixedAssetsData?.fixedAssets, fixedAssetsData?.feciniEjercicio, filterValues, filterFieldIds, columnFilters]);
+        if (filters.baja === 'con-baja' && toComparableDate(getFecBaj(row)) == null) return false;
+        if (filters.baja === 'solo-activos' && toComparableDate(getFecBaj(row)) != null) return false;
+        return true;
+    }, [filterFieldIds, fixedAssetsData?.feciniEjercicio]);
 
-    function applySearch(value: string) {
+    const filteredData = useMemo(() => {
         const sourceData = fixedAssetsData?.fixedAssets ?? [];
+        if (sourceData.length === 0) return [];
         const fields = fixedAssetsData?.fieldsManage ?? [];
         const hasModalFilters = Object.values(filterValues).some((v) => v !== '');
         const hasColumnFilters = Object.keys(columnFilters).length > 0;
-        let base = sourceData;
-        if (hasModalFilters) {
-            const filtered: FixedAssets[] = [];
-            sourceData.forEach((row) => {
-                if (filterValues.cuenta && String(getRowVal(row, filterFieldIds.cuenta ?? 'IdActivo') ?? '') !== filterValues.cuenta) return;
-                if (filterValues.centroCosto && String(getRowVal(row, filterFieldIds.centroCosto ?? 'IdCencos') ?? '') !== filterValues.centroCosto) return;
-                if (filterValues.planta && String(getRowVal(row, filterFieldIds.planta ?? 'IdPlanta') ?? '') !== filterValues.planta) return;
-                if (filterValues.unidadNegocio && String(getRowVal(row, filterFieldIds.unidadNegocio ?? 'IdUNegocio') ?? '') !== filterValues.unidadNegocio) return;
-                if (filterValues.ubicacion && String(getRowVal(row, filterFieldIds.ubicacion ?? 'idZona') ?? getRowVal(row, 'IdZona') ?? '') !== filterValues.ubicacion) return;
-                if (filterValues.origen && String(getRowVal(row, filterFieldIds.origen ?? 'IdOrigen') ?? '') !== filterValues.origen) return;
-                if (filterValues.baja === 'bajas-ejercicio') {
-                    const dIni = fixedAssetsData?.feciniEjercicio != null ? toComparableDate(fixedAssetsData.feciniEjercicio) : null;
-                    if (dIni == null) return;
-                    const dBaj = toComparableDate(getFecBaj(row));
-                    if (dBaj == null || dBaj < dIni) return;
-                }
-                if (filterValues.baja === 'con-baja') {
-                    if (toComparableDate(getFecBaj(row)) == null) return;
-                }
-                if (filterValues.baja === 'solo-activos') {
-                    if (toComparableDate(getFecBaj(row)) != null) return;
-                }
-                filtered.push(row);
-            });
-            base = filtered;
-        }
-        if (hasColumnFilters) {
-            base = base.filter((row) => rowPassesColumnFilters(row));
-        }
-        if (!value) {
-            setDataTable(base);
-            return;
-        }
-        const valueLower = value.toLowerCase();
-        const filteredData = base.filter((item) =>
-            fields.some((field) => {
-                const fieldValue = getFieldValue(item, field.IdCampo);
-                return fieldValue != null && String(fieldValue).toLowerCase().includes(valueLower);
-            })
-        );
-        setDataTable(filteredData);
-    }
+        const hasSearch = debouncedSearchTerm.length > 0;
 
-    function handleSearch(event: React.FormEvent<HTMLInputElement>) {
-        const value = event.currentTarget.value.trim();
-        if (searchDebounceRef.current) {
-            clearTimeout(searchDebounceRef.current);
-            searchDebounceRef.current = null;
-        }
-        if (!value) {
-            applySearch("");
-            return;
-        }
-        searchDebounceRef.current = setTimeout(() => {
-            searchDebounceRef.current = null;
-            applySearch(value);
-        }, SEARCH_DEBOUNCE_MS);
-    }
+        return sourceData.filter((row) => {
+            if (hasModalFilters && !rowPassesModalFilters(row, filterValues)) return false;
+            if (hasColumnFilters && !rowPassesColumnFilters(row)) return false;
+            if (!hasSearch) return true;
+            return fields.some((field) => {
+                const fieldValue = getFieldValue(row, field.IdCampo);
+                return fieldValue != null && String(fieldValue).toLowerCase().includes(debouncedSearchTerm);
+            });
+        });
+    }, [fixedAssetsData?.fixedAssets, fixedAssetsData?.fieldsManage, filterValues, columnFilters, debouncedSearchTerm, rowPassesModalFilters]);
+
+    const assetsByIdCodigo = useMemo(() => {
+        const grouped = new Map<string, FixedAssets[]>();
+        const allAssets = fixedAssetsData?.fixedAssets ?? [];
+        allAssets.forEach((asset) => {
+            const idCodigo = String(
+                getRowVal(asset, 'idCodigo') ??
+                    getRowVal(asset, 'cabecera.idcodigo') ??
+                    getRowVal(asset, 'cabesimu.idcodigo') ??
+                    getRowVal(asset, 'idcodigo') ??
+                    ''
+            ).trim();
+            if (!idCodigo) return;
+            const current = grouped.get(idCodigo);
+            if (current) current.push(asset);
+            else grouped.set(idCodigo, [asset]);
+        });
+        return grouped;
+    }, [fixedAssetsData?.fixedAssets]);
+
+    const table = useReactTable({
+        columns,
+        data: filteredData,
+        getCoreRowModel: getCoreRowModel(),
+        getPaginationRowModel: getPaginationRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        onPaginationChange: setPagination,
+        onSortingChange: setSorting,
+        onColumnOrderChange: setColumnOrder,
+        onColumnVisibilityChange: setColumnVisibility,
+        state: {
+            pagination,
+            sorting,
+            columnOrder,
+            columnVisibility,
+        },
+        columnResizeMode: 'onChange',
+        sortingFns: {
+            myCustomSorting: (rowA, rowB, columnId) => {
+                const rowAValue = rowA.getValue(columnId);
+                const rowBValue = rowB.getValue(columnId);
+
+                if(rowAValue == null && rowBValue == null) return 0;
+                if(rowAValue == null) return -1;
+                if(rowBValue == null) return 1;
+
+                const a = String(rowAValue).toLowerCase().trim();
+                const b = String(rowBValue).toLowerCase().trim();
+
+                if(!isNaN(Number(a)) && !isNaN(Number(b))) {
+                    return Number(a) - Number(b);
+                }
+
+                const aDate = toComparableDate(rowAValue);
+                const bDate = toComparableDate(rowBValue);
+                if (aDate != null && bDate != null) return aDate - bDate;
+
+                if(a === "true" || a === "false") {
+                    return (a === "true" ? 1 : 0) - (b === "true" ? 1 : 0);
+                }
+
+                return a.localeCompare(b);
+            },
+        },
+    });
 
     function removeAllFilters() {
         setFilterValues({
@@ -613,7 +544,8 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         if (searchInputRef.current) {
             searchInputRef.current.value = '';
         }
-        applySearch('');
+        setSearchTerm("");
+        setDebouncedSearchTerm("");
     }
 
     async function changeOrder(newOrder: string[]) {
@@ -866,7 +798,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                 onClose={() => setIsFilterModalOpen(false)}
                 client={client}
                 onApply={(filters) => {
-                    applyFilters(filters);
+                    setFilterValues(filters);
                     setIsFilterModalOpen(false);
                     const hasFilters = Object.values(filters).some((v) => v !== '');
                     if (hasFilters) {
@@ -975,13 +907,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                             getRowVal(rowData, 'idCodigo') ?? getRowVal(rowData, 'cabecera.idcodigo') ?? getRowVal(rowData, 'cabesimu.idcodigo') ?? ''
                         ).trim();
                         if (!idCodigoVal) return;
-                        const allAssets = fixedAssetsData?.fixedAssets ?? [];
-                        const sameIdCodigo = allAssets.filter((a) => {
-                            const ac = String(
-                                getRowVal(a, 'idCodigo') ?? getRowVal(a, 'cabecera.idcodigo') ?? getRowVal(a, 'cabesimu.idcodigo') ?? getRowVal(a, 'idcodigo') ?? ''
-                            ).trim();
-                            return ac === idCodigoVal;
-                        });
+                        const sameIdCodigo = assetsByIdCodigo.get(idCodigoVal) ?? [];
                         setBajaModalAssets(sameIdCodigo);
                         setIsBajaModalOpen(true);
                     } else if (actionId === 'transferencia') {
@@ -989,13 +915,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                             getRowVal(rowData, 'idCodigo') ?? getRowVal(rowData, 'cabecera.idcodigo') ?? getRowVal(rowData, 'cabesimu.idcodigo') ?? ''
                         ).trim();
                         if (!idCodigoVal) return;
-                        const allAssets = fixedAssetsData?.fixedAssets ?? [];
-                        const sameIdCodigo = allAssets.filter((a) => {
-                            const ac = String(
-                                getRowVal(a, 'idCodigo') ?? getRowVal(a, 'cabecera.idcodigo') ?? getRowVal(a, 'cabesimu.idcodigo') ?? getRowVal(a, 'idcodigo') ?? ''
-                            ).trim();
-                            return ac === idCodigoVal;
-                        });
+                        const sameIdCodigo = assetsByIdCodigo.get(idCodigoVal) ?? [];
                         setTransferModalAssets(sameIdCodigo);
                         setIsTransferModalOpen(true);
                     } else if (actionId === 'baja-fisica') {
@@ -1016,13 +936,14 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                 fields={fixedAssetsData?.fieldsManage ?? []}
                 visibleIds={visibleColumnIds}
                 onVisibilityChange={handleVisibilityChange}
+                onVisibilityBatchChange={handleVisibilityBatchChange}
                 client={client}
             />
             <div className="mt-2 border-bottom border-gabu-300 h-[12%] flex items-end p-1.5 justify-between gap-2 px-3 xl:mt-2.5 xl:p-2 xl:px-5 xl:gap-3 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:mt-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:h-auto [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-h-[2.8rem] [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:items-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:mb-1">
                 <div className="d-flex flex justify-start gap-1.5 xl:gap-2 min-w-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1">
                     <div className="input-group input-group-sm flex bg-gabu-700 rounded-md py-0.5 px-2 gap-1 xl:py-1 xl:px-2 xl:gap-1.5 items-center min-w-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:h-7 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:w-[10.25rem]">
                         <Search style="stroke-gabu-100 !h-[9px] !w-[9px] xl:!h-[12px] xl:!w-[12px] shrink-0"/>
-                        <input ref={searchInputRef} type="text" placeholder="Buscar..." className="form-control form-control-sm focus:outline-none text-gabu-100 w-full bg-transparent text-[11px] xl:text-xs [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[10px]" onInput={handleSearch}/>
+                        <input ref={searchInputRef} type="text" placeholder="Buscar..." className="form-control form-control-sm focus:outline-none text-gabu-100 w-full bg-transparent text-[11px] xl:text-xs [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[10px]" value={searchTerm} onChange={(e) => setSearchTerm(e.currentTarget.value)}/>
                     </div>
                     <div className={`d-flex flex bg-gabu-700 items-center pr-1 xl:pr-1.5 gap-1 xl:gap-1.5 shrink-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:pr-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:h-7 ${isEntriesSelectOpen ? 'rounded-t-md rounded-b-none' : 'rounded-md'}`} id="select-entries-cont">
                     <Select
@@ -1166,7 +1087,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                                                                 onApplyColumnFilter={(colId, value) => {
                                                                     setColumnFilters((prev) => ({ ...prev, [colId]: value }));
                                                                 }}
-                                                                columnType={getColumnType(header.id, (dataTable[0] ?? fixedAssetsData?.fixedAssets?.[0])?.[header.id as keyof FixedAssets])}
+                                                                columnType={getColumnType(header.id, (filteredData[0] ?? fixedAssetsData?.fixedAssets?.[0])?.[header.id as keyof FixedAssets])}
                                                                 columnFilterValue={columnFilters[header.id] ?? null}
                                                                 onOpenManageFields={header.id === 'manage' ? (e) => {
                                                                     const el = e.currentTarget as HTMLElement;
