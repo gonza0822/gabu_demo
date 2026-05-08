@@ -1921,6 +1921,7 @@ class FixedAsset {
         }
 
         const srcTable = this.sqlMeSourceTableName(trimmed, isMl);
+        const escapedSourceId = trimmed.replace(/'/g, "''");
 
         /**
          * ME03 antes que cabesimu por posibles FKs. Un solo batch (adaptador Prisma+MSSQL).
@@ -1932,6 +1933,65 @@ DELETE FROM dbo.ME03;
 DELETE FROM dbo.cabesimu;
 INSERT INTO dbo.cabesimu SELECT * FROM dbo.cabecera;
 INSERT INTO dbo.ME03 SELECT * FROM dbo.[${srcTable}];
+
+DECLARE @SourceId NVARCHAR(2) = '${escapedSourceId}';
+DECLARE @SimulationId NVARCHAR(2) = (
+  SELECT TOP 1 LTRIM(RTRIM(m.idMoextra))
+  FROM dbo.moextra m
+  WHERE ISNULL(m.simula, 0) = 1
+  ORDER BY CASE WHEN LTRIM(RTRIM(m.idMoextra)) = '03' THEN 0 ELSE 1 END, LTRIM(RTRIM(m.idMoextra))
+);
+
+IF @SimulationId IS NULL
+BEGIN
+  THROW 51000, 'No se encontró idMoextra de simulación (moextra.simula = 1).', 1;
+END;
+
+IF NOT EXISTS (
+  SELECT 1
+  FROM dbo.Parametros p
+  WHERE LTRIM(RTRIM(p.idmoextra)) = @SourceId
+)
+BEGIN
+  THROW 51000, 'No existe el registro de Parametros para el libro origen seleccionado.', 1;
+END;
+
+IF EXISTS (
+  SELECT 1
+  FROM dbo.Parametros p
+  WHERE LTRIM(RTRIM(p.idmoextra)) = @SimulationId
+)
+BEGIN
+  UPDATE targetP
+  SET
+    targetP.fecini = sourceP.fecini,
+    targetP.fecpro = sourceP.fecpro,
+    targetP.fecant = sourceP.fecant,
+    targetP.fecrev = sourceP.fecrev,
+    targetP.procesa = sourceP.procesa,
+    targetP.IdTipoAmortizacion = sourceP.IdTipoAmortizacion,
+    targetP.alterna = sourceP.alterna
+  FROM dbo.Parametros targetP
+  INNER JOIN dbo.Parametros sourceP
+    ON LTRIM(RTRIM(sourceP.idmoextra)) = @SourceId
+  WHERE LTRIM(RTRIM(targetP.idmoextra)) = @SimulationId;
+END
+ELSE
+BEGIN
+  INSERT INTO dbo.Parametros (idmoextra, fecini, fecpro, fecant, fecrev, procesa, IdTipoAmortizacion, alterna)
+  SELECT
+    @SimulationId,
+    sourceP.fecini,
+    sourceP.fecpro,
+    sourceP.fecant,
+    sourceP.fecrev,
+    sourceP.procesa,
+    sourceP.IdTipoAmortizacion,
+    sourceP.alterna
+  FROM dbo.Parametros sourceP
+  WHERE LTRIM(RTRIM(sourceP.idmoextra)) = @SourceId;
+END;
+
 COMMIT TRANSACTION;
 END TRY
 BEGIN CATCH
