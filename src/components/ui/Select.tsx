@@ -141,14 +141,16 @@ export default function Select({
         };
     }, [useFixedEntriesList]);
 
-    const defaultSelectedOption = options.find(option => option.key === defaultValue);
+    const defaultSelectedOption =
+        options.find((option) => option.key === defaultValue)
+        ?? options.find((option) => option.value === defaultValue);
 
     useEffect(() => {
         if(valueSelectedRef.current){
             valueSelectedRef.current!.textContent = defaultSelectedOption?.value || '';
             valueSelectedRef.current!.dataset.key = defaultSelectedOption?.key || '';
         }
-    }, [defaultValue]);
+    }, [defaultValue, defaultSelectedOption?.key, defaultSelectedOption?.value]);
 
     useEffect(() => {
         setLongestOption(options.reduce((a, b) => a.value.length > b.value.length ? a : b, {value: ""}));

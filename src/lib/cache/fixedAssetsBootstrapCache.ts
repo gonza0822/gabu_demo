@@ -15,6 +15,7 @@ type BootstrapCacheEntry = {
 };
 
 const cacheByClient = new Map<string, BootstrapCacheEntry>();
+const bootstrapInflightByClient = new Map<string, Promise<void>>();
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
 function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -60,6 +61,16 @@ export function setManageDataInCache(client: string, manageData: FixedAssetsData
   const entry = getOrCreateEntry(client);
   entry.manageData = manageData;
   entry.updatedAt = Date.now();
+
+  const keyParts = client.split("::");
+  if (keyParts.length >= 3 && keyParts[1] === "activo-fijo") {
+    const baseClient = keyParts[0];
+    if (baseClient) {
+      const baseEntry = getOrCreateEntry(baseClient);
+      baseEntry.manageData = manageData;
+      baseEntry.updatedAt = Date.now();
+    }
+  }
 }
 
 /**
@@ -75,7 +86,8 @@ export function getManageDataFromCache(key: string): FixedAssetsData | null {
   const direct = read(key);
   if (direct != null) return direct;
   if (!key.includes("::")) return null;
-  const baseKey = key.split("::")[0];
+  const [baseKey, mode] = key.split("::");
+  if (mode === "simulacion") return null;
   return baseKey ? read(baseKey) : null;
 }
 
@@ -138,18 +150,33 @@ export async function prefetchFixedAssetsBootstrap(client: string): Promise<void
     return;
   }
 
-  const [manageData, datosGenerales, cabeceraData, librosData] = await Promise.all([
-    postJson<FixedAssetsData>("/api/fixedAssets/manage", { petition: "Get", client, data: {} }),
-    postJson<AbmDatosGeneralesData>("/api/fixedAssets/add", { petition: "GetFormData", client, data: {} }),
-    postJson<AbmCabeceraData>("/api/fixedAssets/add", { petition: "GetCabeceraFormData", client, data: {} }),
-    postJson<AbmLibrosData>("/api/fixedAssets/add", { petition: "GetLibrosFormData", client, data: {} }),
-  ]);
+  const inflight = bootstrapInflightByClient.get(client);
+  if (inflight) {
+    await inflight;
+    return;
+  }
 
-  cacheByClient.set(client, {
-    manageData,
-    datosGenerales,
-    cabeceraData,
-    librosData,
-    updatedAt: Date.now(),
-  });
+  const preloadPromise = (async () => {
+    const [manageData, datosGenerales, cabeceraData, librosData] = await Promise.all([
+      postJson<FixedAssetsData>("/api/fixedAssets/manage", { petition: "Get", client, data: {} }),
+      postJson<AbmDatosGeneralesData>("/api/fixedAssets/add", { petition: "GetFormData", client, data: {} }),
+      postJson<AbmCabeceraData>("/api/fixedAssets/add", { petition: "GetCabeceraFormData", client, data: {} }),
+      postJson<AbmLibrosData>("/api/fixedAssets/add", { petition: "GetLibrosFormData", client, data: {} }),
+    ]);
+
+    cacheByClient.set(client, {
+      manageData,
+      datosGenerales,
+      cabeceraData,
+      librosData,
+      updatedAt: Date.now(),
+    });
+  })();
+
+  bootstrapInflightByClient.set(client, preloadPromise);
+  try {
+    await preloadPromise;
+  } finally {
+    bootstrapInflightByClient.delete(client);
+  }
 }

@@ -121,6 +121,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
 
     const [actionsOpenRowId, setActionsOpenRowId] = useState<string | null>(null);
     const [actionsTriggerRect, setActionsTriggerRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+    const actionsOpenRowIdRef = useRef<string | null>(null);
 
     const [manageFieldsOpen, setManageFieldsOpen] = useState(false);
     const [manageFieldsTriggerRect, setManageFieldsTriggerRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
@@ -151,6 +152,10 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     const SEARCH_DEBOUNCE_MS = 350;
     const isSimulationMode = mode === "simulacion";
     const fixedAssetsContextKey = isSimulationMode ? `${client}::simulacion` : client;
+
+    useEffect(() => {
+        actionsOpenRowIdRef.current = actionsOpenRowId;
+    }, [actionsOpenRowId]);
 
     useEffect(() => {
         const fields = fixedAssetsData?.fieldsManage ?? [];
@@ -312,7 +317,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                         e.stopPropagation();
                         const rowId = String(row.id);
                         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        if (actionsOpenRowId === rowId) {
+                        if (actionsOpenRowIdRef.current === rowId) {
                             setActionsOpenRowId(null);
                             setActionsTriggerRect(null);
                             return;
@@ -331,7 +336,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                 </div>
             ),
         }),
-    ], [fixedAssetsData?.fieldsManage, columnHelper, actionsOpenRowId, isSimulationMode]);
+    ], [fixedAssetsData?.fieldsManage, columnHelper, isSimulationMode]);
 
     const visibleColumnIds = useMemo(() => {
         const fields = fixedAssetsData?.fieldsManage ?? [];

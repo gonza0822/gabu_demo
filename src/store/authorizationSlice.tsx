@@ -13,7 +13,7 @@ const initialAuthorizationState : AuthorizationState = {
     logged: false,
     connected: false,
     user: null,
-    client: 'Admagro',
+    client: '',
     isLogging: false,
     supervisor: false,
 }
@@ -36,8 +36,11 @@ const authorizationSlice = createSlice({
             state.connected = true;
         },
         logout(state: AuthorizationState) {
-            state.logged = true;
+            state.logged = false;
+            state.connected = false;
             state.user = null;
+            state.client = '';
+            state.isLogging = false;
             state.supervisor = false;
         },
         setLogin(state: AuthorizationState, action: PayloadAction<{auth: AuthorizationState}>){

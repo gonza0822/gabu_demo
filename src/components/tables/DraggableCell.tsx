@@ -1,20 +1,10 @@
 import React from "react";
 import { Cell, flexRender } from "@tanstack/react-table";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { formatNumericDisplayValue } from "@/util/number/formatNumberEs";
 
 export default function DraggableCell<TData>({ cell, index }: { cell: Cell<TData, unknown>; index: number }): React.ReactElement {
-    const { setNodeRef, isDragging, transform, transition } = useSortable({
-        id: cell.column.id,
-        disabled: cell.column.id === "seleccionar",
-    });
-
     const style: React.CSSProperties = {
         width: cell.column.getSize(),
-        transform: CSS.Translate.toString(transform),
-        zIndex: isDragging ? 50 : 0,
-        transition: transition,
     };
 
     const stickyRight = cell.column.id === "manage";
@@ -37,12 +27,11 @@ export default function DraggableCell<TData>({ cell, index }: { cell: Cell<TData
 
     return (
         <td
-            ref={setNodeRef}
             key={cell.id}
             className={`${cellClass} py-2 text-gabu-900 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 ${
                 index === 0 && cell.column.id === "get" ? "flex justify-center" : ""
             } ${stickyLeft ? "flex justify-center" : ""}`}
-            style={stickyLeft ? { ...style, zIndex: isDragging ? 50 : 24 } : style}
+            style={stickyLeft ? { ...style, zIndex: 24 } : style}
         >
             {displayCell}
         </td>

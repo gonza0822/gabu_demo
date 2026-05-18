@@ -11,16 +11,15 @@ import { useRouter } from "next/navigation";
 import { Menu } from "@/store/navSlice";
 import { RootState } from "@/store";
 import { MenuObj, navActions, Submenu } from "@/store/navSlice";
+import { clearFixedAssetsBootstrapCache } from "@/lib/cache/fixedAssetsBootstrapCache";
+import { clearLibrosFormCache } from "@/lib/cache/librosFormCache";
 
 export default function NavigationMenu() : ReactElement {
     const [idActive, setIdActive] = useState<number | null>(null);
     const dispatch = useDispatch();
     const router = useRouter();
     const client : string = useSelector((state : RootState) => state.authorization.client);
-    if(client === ''){
-        router.push('/');
-    }
-    const clientMenu : Menu = useSelector((state: RootState) => state.nav.find((m : Menu) => m.client === client)!);
+    const clientMenu : Menu | undefined = useSelector((state: RootState) => state.nav.find((m : Menu) => m.client === client));
 
     function handleClickItem(id : number) {
         setIdActive(prevId => (id === prevId ? null : id));
@@ -28,8 +27,11 @@ export default function NavigationMenu() : ReactElement {
 
     async function handleCloseSession(e: React.MouseEvent<HTMLLIElement>) {
         await fetch(`/api/user?closeSession=true`);
+        if (client) {
+            clearFixedAssetsBootstrapCache(client);
+            clearLibrosFormCache(client);
+        }
         dispatch(authorizationActions.logout());
-        router.push('/');
     }
 
     async function loadMenu() {
@@ -51,13 +53,17 @@ export default function NavigationMenu() : ReactElement {
     }
 
     useEffect(() => {
+        if (!client) {
+            router.push('/');
+            return;
+        }
         loadMenu();
-    }, []);
+    }, [client]);
 
     return (
         <nav className="w-full flex flex-col grow min-h-0">
             <ul className="menu-main-list flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-                {clientMenu.menu && clientMenu.menu.map((item, index) => <MenuItem key={index} menuId={index} menuItem={item} onClick={() => handleClickItem(index)} active={index === idActive}/>)}
+                {clientMenu?.menu && clientMenu.menu.map((item, index) => <MenuItem key={index} menuId={index} menuItem={item} onClick={() => handleClickItem(index)} active={index === idActive}/>)}
             </ul>
 
             <ul className="menu-footer-list ml-5 mb-4 mt-3 flex flex-col gap-4 shrink-0">

@@ -93,19 +93,15 @@ class FixedAsset {
         }
 
         async getAll() : Promise<FixedAssetsData> {
-            const [fieldsManage, fixedAssets, parametros01, parametrosMl, internaBajaRows, cuentasDestino] = await Promise.all([
+            const [fieldsManage, fixedAssets, parametrosRows, internaBajaRows, cuentasDestino] = await Promise.all([
                 this.prisma.converField.findMany({
                     where: { IdTabla: 'actifijo' },
                     orderBy: { lisordencampos: 'asc' },
                 }),
                 this.prisma.$queryRaw<{ [key: string]: unknown}[]>`SELECT * FROM dbo.actifijo`,
-                this.prisma.parametros.findUnique({
-                    where: { idmoextra: '01' },
-                    select: { fecini: true },
-                }),
-                this.prisma.parametros.findUnique({
-                    where: { idmoextra: 'ml' },
-                    select: { fecpro: true },
+                this.prisma.parametros.findMany({
+                    where: { idmoextra: { in: ['01', 'ml'] } },
+                    select: { idmoextra: true, fecini: true, fecpro: true },
                 }),
                 this.prisma.interna.findMany({
                     where: { Tipo: 'BAJA' },
@@ -117,6 +113,8 @@ class FixedAsset {
                     select: { IdActivo: true, Descripcion: true },
                 }),
             ]);
+            const parametros01 = parametrosRows.find((p) => p.idmoextra === '01');
+            const parametrosMl = parametrosRows.find((p) => p.idmoextra === 'ml');
             const feciniEjercicio = parametros01?.fecini ? parametros01.fecini.toISOString() : null;
             const fecproBajaDefault = parametrosMl?.fecpro
                 ? `${String((parametrosMl.fecpro as Date).getUTCMonth() + 1).padStart(2, '0')}/${(parametrosMl.fecpro as Date).getUTCFullYear()}`
@@ -141,22 +139,20 @@ class FixedAsset {
         }
 
     async changeOrder(newOrder: ReOrderData): Promise<ConverFieldModel[]> {
-        const updatedRecords: ConverFieldModel[] = [];
-
-        for (const item of newOrder) {
-            const updated = await this.prisma.converField.update({
-                where: {
-                    IdTabla_IdCampo: {
-                        IdTabla: item.tableId,
-                        IdCampo: item.fieldId,
-                    }
-                },
-                data: { lisordencampos: item.order }
-            });
-            updatedRecords.push(updated);
-        }
-
-        return updatedRecords;
+        if (newOrder.length === 0) return [];
+        return this.prisma.$transaction(
+            newOrder.map((item) =>
+                this.prisma.converField.update({
+                    where: {
+                        IdTabla_IdCampo: {
+                            IdTabla: item.tableId,
+                            IdCampo: item.fieldId,
+                        }
+                    },
+                    data: { lisordencampos: item.order }
+                })
+            )
+        );
     }
 
     /**
@@ -406,14 +402,14 @@ class FixedAsset {
                 select: { idMoextra: true, idActivo: true, vidautil: true },
             });
 
-        const [converFields, moextraRows, cuentas, internaRows, monedas, parametrosRows, ctaVidautilRows, cotextranjeraRows] = await Promise.all([
+        const [converFields, moextraRows, cuentas, internaRows, monedas, ctaVidautilRows] = await Promise.all([
             this.prisma.converField.findMany({
                 where: libroConverWhere,
                 orderBy: { lisordencampos: 'asc' },
                 select: { IdCampo: true, BrowNombre: true },
             }),
             this.prisma.moextra.findMany({
-                where: simulationOnly ? { simula: true } : undefined,
+                where: simulationOnly ? { simula: true } : { simula: false },
                 select: { idMoextra: true, Descripcion: true, simula: true },
             }),
             this.prisma.cuentas.findMany({ where: { IdActivo: { not: '0' } }, select: { IdActivo: true, Descripcion: true } }),
@@ -422,13 +418,20 @@ class FixedAsset {
                 select: { IdInterno: true, Descripcion: true, Tipo: true },
             }),
             this.prisma.monedas.findMany({ select: { IdMoneda: true, Descripcion: true } }),
+            ctaVidautilPromise,
+        ]);
+
+        const moextraIds = simulationOnly
+            ? ["03"]
+            : Array.from(new Set(["ml", ...moextraRows.map((r) => r.idMoextra)]));
+
+        const [parametrosRows, cotextranjeraRows] = await Promise.all([
             this.prisma.parametros.findMany({
-                where: simulationOnly ? { idmoextra: { in: ["03"] } } : undefined,
+                where: { idmoextra: { in: moextraIds } },
                 select: { idmoextra: true, IdTipoAmortizacion: true, fecpro: true },
             }),
-            ctaVidautilPromise,
             this.prisma.cotextranjera.findMany({
-                where: simulationOnly ? { idMoextra: "03" } : undefined,
+                where: { idMoextra: { in: moextraIds } },
                 select: { Fecha: true, idMoextra: true, cotizacion: true },
             }),
         ]);
