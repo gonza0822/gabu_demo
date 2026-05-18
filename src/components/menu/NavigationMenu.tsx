@@ -31,6 +31,11 @@ export default function NavigationMenu() : ReactElement {
             clearFixedAssetsBootstrapCache(client);
             clearLibrosFormCache(client);
         }
+        try {
+            window.localStorage.removeItem("gabu-client");
+        } catch {
+            /* noop */
+        }
         dispatch(authorizationActions.logout());
     }
 
@@ -54,7 +59,6 @@ export default function NavigationMenu() : ReactElement {
 
     useEffect(() => {
         if (!client) {
-            router.push('/');
             return;
         }
         loadMenu();

@@ -4,12 +4,12 @@ import { ReactElement, useEffect } from "react";
 import NavigationMenu from "./NavigationMenu";
 import Header from "./Header";
 import { useRouter } from "next/navigation";
-import { useSelector } from "react-redux";
-import { RootState } from "@/store";
-import { Menu } from "@/store/navSlice";
+import { useDispatch } from "react-redux";
+import { authorizationActions } from "@/store/authorizationSlice";
 
 export default function NavigationContainer({children} : {children : React.ReactNode}) : ReactElement {
     const router = useRouter();
+    const dispatch = useDispatch();
 
     async function validateSession() {
         const res = await fetch('/api/session?isInSession=true');
@@ -23,8 +23,16 @@ export default function NavigationContainer({children} : {children : React.React
 
 
     useEffect(() => {
+        try {
+            const savedClient = window.localStorage.getItem("gabu-client");
+            if (savedClient) {
+                dispatch(authorizationActions.clientConnect({ client: savedClient }));
+            }
+        } catch {
+            /* noop */
+        }
         validateSession();
-    }, []);
+    }, [dispatch]);
 
     return (      
         <div className="flex items-start h-screen overflow-hidden" id="app">

@@ -57,6 +57,11 @@ export default function LoginContainer({ alertMessage } : { alertMessage: string
                     isError: true
                 });
             } else {
+                try {
+                    window.localStorage.setItem("gabu-client", target.textContent || "");
+                } catch {
+                    /* noop */
+                }
                 dispatch(authorizationActions.clientConnect({
                     client: target.textContent || ''
                 }));

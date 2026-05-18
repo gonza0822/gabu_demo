@@ -27,7 +27,7 @@ function isDynamicAbmPage(pageKey: string): boolean {
 
 export default function MainNavigation({children} : {children : React.ReactNode}) : React.ReactElement {
     const client : string = useSelector((state : RootState) => state.authorization.client);
-    const clientMenu : Menu = useSelector((state: RootState) => state.nav.find((m : Menu) => m.client === client)!);
+    const clientMenu : Menu | undefined = useSelector((state: RootState) => state.nav.find((m : Menu) => m.client === client));
     const openPages : OpenPage[] = useSelector((state : RootState) => state.openPages || []);
     const restartSimulationOpen = useSelector((state: RootState) => state.overlay?.restartSimulationOpen ?? false);
     const pathName = usePathname();
@@ -35,10 +35,7 @@ export default function MainNavigation({children} : {children : React.ReactNode}
     const prevPathRef = useRef<string | null>(null);
 
     useEffect(() => {
-        const pathChanged = prevPathRef.current === null || prevPathRef.current !== pathName;
-        prevPathRef.current = pathName;
-
-        if (!pathChanged) return;
+        if (!clientMenu) return;
 
         const pageInMenu : Submenu | undefined = clientMenu.menu.flatMap(m => m.submenu).find(submenu => submenu.path === pathName);
 
@@ -57,12 +54,13 @@ export default function MainNavigation({children} : {children : React.ReactNode}
                 }
             }
         }
+        prevPathRef.current = pathName;
     }, [pathName, clientMenu, openPages]);
 
     return (
         <main className="bg-gabu-300 w-full h-[94vh] p-7">
             {restartSimulationOpen ? <RestartSimulation /> : null}
-            {clientMenu.menu && <NavItems/>}
+            {clientMenu?.menu ? <NavItems/> : null}
             <div className="h-[92%] bg-gabu-100 w-full relative rounded-b-xl overflow-hidden">
                 {openPages.map((page : OpenPage) => {
                     const PageComponent = getPage(page.page);

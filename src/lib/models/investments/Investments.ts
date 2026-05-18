@@ -96,7 +96,7 @@ class Investments {
             );
         }
         return this.prisma.$queryRawUnsafe<Record<string, unknown>[]>(
-            `SELECT * FROM [dbo].[cargosmagic]`
+            `SELECT * FROM [dbo].[cargosmagic] ORDER BY [cdobra] ASC, [feccbt] ASC`
         );
     }
 

@@ -23,10 +23,13 @@ import DraggableHeader from "@/components/tables/DraggableHeader";
 import Search from "@/components/svg/Search";
 import Reload from "@/components/svg/Reload";
 import Excel from "@/components/svg/Excel";
+import Filter from "@/components/svg/Filter";
 import Arrow from "@/components/svg/Arrow";
 import Checked from "@/components/svg/Checked";
 import Button from "@/components/ui/Button";
 import Select from "@/components/ui/Select";
+import Alert from "@/components/ui/Alert";
+import ChargesFilterModal, { ChargesFilterValues } from "@/components/investments/ChargesFilterModal";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import ExcelJS from "exceljs";
@@ -82,11 +85,59 @@ function decimalLikeToString(value: { s: number; e: number; d: number[] }): stri
     return value.s < 0 ? `-${text}` : text;
 }
 
-function normalizeCellValue(value: unknown): string | number {
+function toIsoDateOnly(value: string): string {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    if (/^\d{4}-\d{2}-\d{2}T/.test(value)) return value.slice(0, 10);
+    return value;
+}
+
+function toYyyymm(value: unknown): string {
     if (value == null) return "";
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+    if (value instanceof Date) {
+        const year = value.getUTCFullYear();
+        const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+        return `${year}${month}`;
+    }
+    const text = String(value).trim();
+    if (!text) return "";
+    if (/^\d{6}$/.test(text)) return text;
+    if (/^\d{4}-\d{2}/.test(text)) return `${text.slice(0, 4)}${text.slice(5, 7)}`;
+    const parsed = new Date(text);
+    if (Number.isNaN(parsed.getTime())) return "";
+    const year = parsed.getUTCFullYear();
+    const month = String(parsed.getUTCMonth() + 1).padStart(2, "0");
+    return `${year}${month}`;
+}
+
+function getChargePeriod(row: RowData): string {
+    return toYyyymm(getRowValueByField(row, "feccbt"));
+}
+
+function getChargeCdobra(row: RowData): string {
+    const candidates = ["cdobra", "cdObra", "CdObra", "CDOBRA"];
+    for (const key of candidates) {
+        const value = getRowValueByField(row, key);
+        if (value == null) continue;
+        const text = String(value).trim();
+        if (text) return text;
+    }
+    return "";
+}
+
+function getChargeSelectionPeriod(row: RowData): string {
+    return toYyyymm(getRowValueByField(row, "feccbt"));
+}
+
+function normalizeCellValue(value: unknown, options?: { dateOnly?: boolean }): string | number {
+    const dateOnly = options?.dateOnly ?? false;
+    if (value == null) return "";
+    if (typeof value === "string") return dateOnly ? toIsoDateOnly(value) : value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
     if (isDecimalLikeObject(value)) return decimalLikeToString(value);
-    if (value instanceof Date) return value.toISOString();
+    if (value instanceof Date) {
+        const iso = value.toISOString();
+        return dateOnly ? iso.slice(0, 10) : iso;
+    }
     if (Array.isArray(value)) return JSON.stringify(value);
     if (typeof value === "object") {
         try {
@@ -132,6 +183,10 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
     const [searchValue, setSearchValue] = useState("");
     const [isEntriesSelectOpen, setIsEntriesSelectOpen] = useState(false);
     const [selectedChargeIds, setSelectedChargeIds] = useState<Set<string>>(() => new Set());
+    const [isChargeFilterModalOpen, setIsChargeFilterModalOpen] = useState(false);
+    const [chargeFilters, setChargeFilters] = useState<ChargesFilterValues>({ period: "", cdobra: "" });
+    const [selectionErrorMessage, setSelectionErrorMessage] = useState<string | null>(null);
+    const [showSelectionErrorAlert, setShowSelectionErrorAlert] = useState(false);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -174,6 +229,13 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
     }, [type]);
 
     useEffect(() => {
+        if (type !== "charges") {
+            setChargeFilters({ period: "", cdobra: "" });
+            setIsChargeFilterModalOpen(false);
+        }
+    }, [type]);
+
+    useEffect(() => {
         setPagination((p) => (p.pageSize === 15 ? { ...p, pageIndex: 0, pageSize: 10 } : p));
     }, []);
 
@@ -208,14 +270,55 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
 
     const columnHelper = createColumnHelper<RowData>();
 
+    const chargeRowsById = useMemo(() => {
+        if (type !== "charges") return new Map<string, RowData>();
+        const byId = new Map<string, RowData>();
+        for (const row of rows) {
+            const id = String((row as RowData).__chargeRowId ?? "");
+            if (id) byId.set(id, row as RowData);
+        }
+        return byId;
+    }, [rows, type]);
+
+    const showSelectionConstraintError = useCallback((message: string) => {
+        setSelectionErrorMessage(message);
+        setShowSelectionErrorAlert(true);
+    }, []);
+
     const toggleChargeSelect = useCallback((rowId: string) => {
+        let errorMessage: string | null = null;
         setSelectedChargeIds((prev) => {
             const next = new Set(prev);
-            if (next.has(rowId)) next.delete(rowId);
-            else next.add(rowId);
+            if (next.has(rowId)) {
+                next.delete(rowId);
+                return next;
+            }
+            if (type === "charges") {
+                const candidate = chargeRowsById.get(rowId);
+                if (!candidate) return prev;
+                const candidateCdobra = getChargeCdobra(candidate);
+                const candidatePeriod = getChargeSelectionPeriod(candidate);
+                for (const selectedId of next) {
+                    const selectedRow = chargeRowsById.get(selectedId);
+                    if (!selectedRow) continue;
+                    const selectedCdobra = getChargeCdobra(selectedRow);
+                    const selectedPeriod = getChargeSelectionPeriod(selectedRow);
+                    const hasMismatch = selectedCdobra !== candidateCdobra || selectedPeriod !== candidatePeriod;
+                    if (hasMismatch) {
+                        errorMessage = "Solo se permiten cargos con el mismo cdobra y período (feccbt en formato yyyymm).";
+                        return prev;
+                    }
+                }
+            }
+            next.add(rowId);
             return next;
         });
-    }, []);
+        if (errorMessage) showSelectionConstraintError(errorMessage);
+    }, [type, chargeRowsById, showSelectionConstraintError]);
+    const normalizeGridValue = useCallback(
+        (value: unknown) => normalizeCellValue(value, { dateOnly: type === "charges" }),
+        [type]
+    );
 
     const columns = useMemo(() => {
         const fieldCols = fields.map((field) =>
@@ -223,7 +326,7 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                 id: field.IdCampo,
                 size: 220,
                 header: field.BrowNombre ?? field.IdCampo,
-                cell: (info) => normalizeCellValue(info.getValue()),
+                cell: (info) => normalizeGridValue(info.getValue()),
                 sortingFn: "myCustomSorting" as SortingFnOption<RowData>,
             })
         );
@@ -250,7 +353,7 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
             },
         });
         return [selectCol, ...fieldCols];
-    }, [fields, columnHelper, type, selectedChargeIds, toggleChargeSelect]);
+    }, [fields, columnHelper, type, selectedChargeIds, toggleChargeSelect, normalizeGridValue]);
 
     const visibleColumnIds = useMemo(() => fields.filter((f) => columnVisibility[f.IdCampo] !== false).map((f) => f.IdCampo), [fields, columnVisibility]);
 
@@ -258,7 +361,7 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
         (row: RowData): boolean => {
             for (const [columnId, filter] of Object.entries(columnFilters)) {
                 const raw = getRowValueByField(row, columnId);
-                const strVal = String(normalizeCellValue(raw)).trim();
+                const strVal = String(normalizeGridValue(raw)).trim();
                 if (filter.type === "number") {
                     const num = strVal !== "" && !isNaN(Number(strVal)) ? Number(strVal) : null;
                     const f = Number(filter.value);
@@ -285,17 +388,28 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
             }
             return true;
         },
-        [columnFilters]
+        [columnFilters, normalizeGridValue]
     );
 
     const filteredRows = useMemo(() => {
         let base = rows;
+        if (type === "charges") {
+            const period = chargeFilters.period.trim();
+            const cdobra = chargeFilters.cdobra.trim();
+            if (period || cdobra) {
+                base = base.filter((row) => {
+                    if (period && getChargePeriod(row) !== period) return false;
+                    if (cdobra && getChargeCdobra(row) !== cdobra) return false;
+                    return true;
+                });
+            }
+        }
         if (searchValue.trim()) {
             const s = searchValue.toLowerCase();
             base = base.filter((row) =>
                 fields.some((f) => {
                     const v = getRowValueByField(row, f.IdCampo);
-                    return v != null && String(normalizeCellValue(v)).toLowerCase().includes(s);
+                    return v != null && String(normalizeGridValue(v)).toLowerCase().includes(s);
                 })
             );
         }
@@ -303,7 +417,7 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
             base = base.filter((row) => rowPassesColumnFilters(row));
         }
         return base;
-    }, [rows, searchValue, fields, columnFilters, rowPassesColumnFilters]);
+    }, [rows, searchValue, fields, columnFilters, rowPassesColumnFilters, normalizeGridValue, type, chargeFilters]);
 
     const table = useReactTable({
         data: filteredRows,
@@ -319,8 +433,8 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
         columnResizeMode: "onChange",
         sortingFns: {
             myCustomSorting: (rowA, rowB, columnId) => {
-                const aRaw = normalizeCellValue(rowA.getValue(columnId));
-                const bRaw = normalizeCellValue(rowB.getValue(columnId));
+                const aRaw = normalizeGridValue(rowA.getValue(columnId));
+                const bRaw = normalizeGridValue(rowB.getValue(columnId));
                 if (aRaw == null && bRaw == null) return 0;
                 if (aRaw == null) return -1;
                 if (bRaw == null) return 1;
@@ -471,7 +585,7 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
         exportRows.forEach((row) => {
             const rowData: Record<string, unknown> = {};
             visibleColumns.forEach((col) => {
-                rowData[col.id] = normalizeCellValue(row.getValue(col.id));
+                rowData[col.id] = normalizeGridValue(row.getValue(col.id));
             });
             worksheet.addRow(rowData);
         });
@@ -518,6 +632,16 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                                 </div>
                                 <p className="whitespace-nowrap text-sm text-gabu-100 [@media(max-height:600px)]:text-[11px]">Entradas por pagina</p>
                             </div>
+                            {type === "charges" ? (
+                                <button
+                                    type="button"
+                                    className="flex h-8 min-h-8 cursor-pointer items-center gap-1 rounded-md bg-gabu-500 px-2.5 text-gabu-100 transition-colors duration-100 hover:bg-gabu-300 sm:px-3 [@media(max-height:600px)]:px-2"
+                                    onClick={() => setIsChargeFilterModalOpen(true)}
+                                >
+                                    <Filter style="h-4 w-4 text-gabu-100" />
+                                    <span className="whitespace-nowrap text-sm font-normal leading-none">Filtrar</span>
+                                </button>
+                            ) : null}
                         </div>
                         <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2 [@media(max-height:600px)]:gap-1">
                             <button type="button" className="rounded-md bg-gabu-500 p-1.5 cursor-pointer transition-colors duration-100 hover:bg-gabu-300 sm:p-2 flex items-center justify-center [@media(max-height:600px)]:p-1" onClick={() => void refetch()}>
@@ -632,6 +756,22 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                     </div>
                 </div>
             </div>
+            <ChargesFilterModal
+                isOpen={isChargeFilterModalOpen}
+                onClose={() => setIsChargeFilterModalOpen(false)}
+                client={client}
+                initialFilters={chargeFilters}
+                onSearch={(filters) => {
+                    setChargeFilters(filters);
+                    setPagination((p) => ({ ...p, pageIndex: 0 }));
+                }}
+            />
+            <Alert
+                message={selectionErrorMessage}
+                type="error"
+                show={showSelectionErrorAlert && type === "charges"}
+                onClose={() => setShowSelectionErrorAlert(false)}
+            />
             {type === "charges" ? (
                 <div className="sticky bottom-0 z-10 flex w-full shrink-0 items-center justify-end gap-2 border-t border-gabu-900/40 bg-gabu-500 px-2 py-1.5 sm:gap-3 sm:px-3 sm:py-2 lg:gap-5 [@media(max-height:600px)]:px-2 [@media(max-height:600px)]:py-1">
                     <Button
