@@ -24,12 +24,14 @@ import Search from "@/components/svg/Search";
 import Reload from "@/components/svg/Reload";
 import Excel from "@/components/svg/Excel";
 import Filter from "@/components/svg/Filter";
+import RemoveFilter from "@/components/svg/RemoveFilter";
 import Arrow from "@/components/svg/Arrow";
 import Checked from "@/components/svg/Checked";
 import Button from "@/components/ui/Button";
 import Select from "@/components/ui/Select";
 import Alert from "@/components/ui/Alert";
 import ChargesFilterModal, { ChargesFilterValues } from "@/components/investments/ChargesFilterModal";
+import ChargesTransferModal from "@/components/investments/ChargesTransferModal";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import ExcelJS from "exceljs";
@@ -128,6 +130,42 @@ function getChargeSelectionPeriod(row: RowData): string {
     return toYyyymm(getRowValueByField(row, "feccbt"));
 }
 
+function getChargeFeccbtDate(row: RowData): string {
+    const value = getRowValueByField(row, "feccbt");
+    if (value == null) return "";
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    return toIsoDateOnly(String(value).trim());
+}
+
+function getChargeIdArticulo(row: RowData): string {
+    const candidates = ["IDArticulo", "idArticulo", "idarticulo", "IdArticulo"];
+    for (const key of candidates) {
+        const value = getRowValueByField(row, key);
+        if (value == null) continue;
+        const text = String(normalizeCellValue(value)).trim();
+        if (text) return text;
+    }
+    return "";
+}
+
+function normalizeChargeKeyPart(value: unknown): string {
+    if (value == null) return "";
+    const text = String(normalizeCellValue(value)).trim();
+    if (!text) return "";
+    const normalized = text.includes(",") ? text.replace(/\./g, "").replace(",", ".") : text;
+    if (/^-?\d+(\.\d+)?$/.test(normalized)) {
+        return String(Math.trunc(Number(normalized)));
+    }
+    return text;
+}
+
+function getChargeCompositeKey(row: RowData): string {
+    const nrocbt = normalizeChargeKeyPart(getRowValueByField(row, "nrocbt"));
+    const idArticulo = normalizeChargeKeyPart(getChargeIdArticulo(row));
+    if (!nrocbt || !idArticulo) return "";
+    return `${nrocbt}::${idArticulo}`;
+}
+
 function normalizeCellValue(value: unknown, options?: { dateOnly?: boolean }): string | number {
     const dateOnly = options?.dateOnly ?? false;
     if (value == null) return "";
@@ -184,9 +222,12 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
     const [isEntriesSelectOpen, setIsEntriesSelectOpen] = useState(false);
     const [selectedChargeIds, setSelectedChargeIds] = useState<Set<string>>(() => new Set());
     const [isChargeFilterModalOpen, setIsChargeFilterModalOpen] = useState(false);
-    const [chargeFilters, setChargeFilters] = useState<ChargesFilterValues>({ period: "", cdobra: "" });
+    const [isChargeTransferModalOpen, setIsChargeTransferModalOpen] = useState(false);
+    const [isChargeTransferSimulationModalOpen, setIsChargeTransferSimulationModalOpen] = useState(false);
+    const [chargeFilters, setChargeFilters] = useState<ChargesFilterValues>({ period: "", cdobra: "", assetStatus: "all" });
     const [selectionErrorMessage, setSelectionErrorMessage] = useState<string | null>(null);
     const [showSelectionErrorAlert, setShowSelectionErrorAlert] = useState(false);
+    const [chargeContextMenu, setChargeContextMenu] = useState<{ rowId: string; x: number; y: number } | null>(null);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -196,6 +237,11 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
         mq.addEventListener("change", sync);
         return () => mq.removeEventListener("change", sync);
     }, []);
+
+    const blockedChargeCompositeKeys = useMemo(
+        () => new Set(type === "charges" ? data?.blockedChargeCompositeKeys ?? [] : []),
+        [data, type]
+    );
 
     useEffect(() => {
         const rawTable = data?.table ?? [];
@@ -212,13 +258,15 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                         getRowValueByField(r, "ID_CARGO") ??
                         getRowValueByField(r, "idCargo");
                     const base = rid != null && String(rid).trim() !== "" ? String(rid).trim() : `r${i}`;
-                    return { ...r, __chargeRowId: `${base}::${i}` };
+                    const compositeKey = getChargeCompositeKey(r);
+                    const isBlocked = compositeKey !== "" && blockedChargeCompositeKeys.has(compositeKey);
+                    return { ...r, __chargeRowId: `${base}::${i}`, __chargeBlocked: isBlocked };
                 })
             );
         } else {
             setRows(rawTable as RowData[]);
         }
-    }, [data, type]);
+    }, [data, type, blockedChargeCompositeKeys]);
 
     useEffect(() => {
         setSelectedChargeIds(new Set());
@@ -230,10 +278,29 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
 
     useEffect(() => {
         if (type !== "charges") {
-            setChargeFilters({ period: "", cdobra: "" });
+            setChargeFilters({ period: "", cdobra: "", assetStatus: "all" });
             setIsChargeFilterModalOpen(false);
+            setChargeContextMenu(null);
         }
     }, [type]);
+
+    useEffect(() => {
+        if (!chargeContextMenu) return;
+        const handleClose = () => setChargeContextMenu(null);
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") handleClose();
+        };
+        window.addEventListener("click", handleClose);
+        window.addEventListener("resize", handleClose);
+        window.addEventListener("scroll", handleClose, true);
+        window.addEventListener("keydown", handleKeyDown);
+        return () => {
+            window.removeEventListener("click", handleClose);
+            window.removeEventListener("resize", handleClose);
+            window.removeEventListener("scroll", handleClose, true);
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [chargeContextMenu]);
 
     useEffect(() => {
         setPagination((p) => (p.pageSize === 15 ? { ...p, pageIndex: 0, pageSize: 10 } : p));
@@ -279,6 +346,10 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
         }
         return byId;
     }, [rows, type]);
+    const selectedChargeRows = useMemo(
+        () => Array.from(selectedChargeIds).map((id) => chargeRowsById.get(id)).filter((row): row is RowData => Boolean(row)),
+        [selectedChargeIds, chargeRowsById]
+    );
 
     const showSelectionConstraintError = useCallback((message: string) => {
         setSelectionErrorMessage(message);
@@ -296,6 +367,10 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
             if (type === "charges") {
                 const candidate = chargeRowsById.get(rowId);
                 if (!candidate) return prev;
+                if (Boolean((candidate as RowData).__chargeBlocked)) {
+                    errorMessage = "Este cargo ya fue transferido (existe en relacargoactivo) y no se puede seleccionar.";
+                    return prev;
+                }
                 const candidateCdobra = getChargeCdobra(candidate);
                 const candidatePeriod = getChargeSelectionPeriod(candidate);
                 for (const selectedId of next) {
@@ -338,12 +413,17 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
             header: "Seleccionar",
             cell: ({ row }) => {
                 const id = String((row.original as RowData).__chargeRowId ?? "");
+                const isBlocked = Boolean((row.original as RowData).__chargeBlocked);
                 return (
                     <div className="relative flex w-full min-w-[40px] items-center justify-center py-1">
                         <input
                             type="checkbox"
                             aria-label="Seleccionar fila"
-                            className="peer h-4 w-4 min-h-[16px] min-w-[16px] cursor-pointer appearance-none rounded-md border border-gabu-900 bg-gabu-300 checked:bg-gabu-900 focus:outline-none"
+                            title={isBlocked ? "Cargo bloqueado: ya existe en relacargoactivo." : "Seleccionar fila"}
+                            disabled={isBlocked}
+                            className={`peer h-4 w-4 min-h-[16px] min-w-[16px] appearance-none rounded-md border border-gabu-900 bg-gabu-300 checked:bg-gabu-900 focus:outline-none ${
+                                isBlocked ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+                            }`}
                             checked={selectedChargeIds.has(id)}
                             onChange={() => toggleChargeSelect(id)}
                         />
@@ -396,10 +476,13 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
         if (type === "charges") {
             const period = chargeFilters.period.trim();
             const cdobra = chargeFilters.cdobra.trim();
-            if (period || cdobra) {
+            const assetStatus = chargeFilters.assetStatus;
+            if (period || cdobra || assetStatus !== "all") {
                 base = base.filter((row) => {
                     if (period && getChargePeriod(row) !== period) return false;
                     if (cdobra && getChargeCdobra(row) !== cdobra) return false;
+                    if (assetStatus === "withAsset" && !Boolean((row as RowData).__chargeBlocked)) return false;
+                    if (assetStatus === "withoutAsset" && Boolean((row as RowData).__chargeBlocked)) return false;
                     return true;
                 });
             }
@@ -518,6 +601,54 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
         searchDebounceRef.current = setTimeout(() => setSearchValue(value), 300);
     };
 
+    const hasActiveChargeFilters = useMemo(() => {
+        if (type !== "charges") return false;
+        if (searchValue.trim() !== "") return true;
+        if (chargeFilters.period.trim() !== "" || chargeFilters.cdobra.trim() !== "" || chargeFilters.assetStatus !== "all") return true;
+        return Object.keys(columnFilters).length > 0;
+    }, [type, searchValue, chargeFilters, columnFilters]);
+
+    const clearAllChargeFilters = useCallback(() => {
+        if (type !== "charges") return;
+        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+        if (searchInputRef.current) searchInputRef.current.value = "";
+        setSearchValue("");
+        setChargeFilters({ period: "", cdobra: "", assetStatus: "all" });
+        setColumnFilters({});
+        setColumnFilterColumnId(null);
+        setClosingColumnId(null);
+        setPagination((p) => ({ ...p, pageIndex: 0 }));
+    }, [type]);
+
+    const selectChargeGroupFromRow = useCallback(
+        (rowId: string) => {
+            const source = chargeRowsById.get(rowId);
+            if (!source) return;
+            if (Boolean((source as RowData).__chargeBlocked)) {
+                showSelectionConstraintError("El cargo elegido está bloqueado porque ya existe en relacargoactivo.");
+                return;
+            }
+            const sourceCdobra = getChargeCdobra(source);
+            const sourceFeccbt = getChargeFeccbtDate(source);
+            if (!sourceCdobra || !sourceFeccbt) {
+                showSelectionConstraintError("No se pudo agrupar: el cargo no tiene cdobra o feccbt válido.");
+                return;
+            }
+            const matchingIds = rows
+                .filter(
+                    (row) =>
+                        getChargeCdobra(row) === sourceCdobra &&
+                        getChargeFeccbtDate(row) === sourceFeccbt &&
+                        !Boolean((row as RowData).__chargeBlocked)
+                )
+                .map((row) => String((row as RowData).__chargeRowId ?? ""))
+                .filter((id) => id !== "");
+            if (matchingIds.length === 0) return;
+            setSelectedChargeIds(new Set(matchingIds));
+        },
+        [rows, chargeRowsById, showSelectionConstraintError]
+    );
+
     function getPaginationItems() {
         const totalPages = table.getPageCount();
         const currentPage = table.getState().pagination.pageIndex + 1;
@@ -606,12 +737,12 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border border-gabu-900 bg-gabu-100 p-2 sm:p-3 [@media(max-height:600px)]:p-1.5">
                     <div className="relative z-30 mb-1.5 flex w-full shrink-0 flex-col gap-2 sm:mb-2 sm:flex-row sm:items-stretch sm:justify-between [@media(max-height:600px)]:mb-1 [@media(max-height:600px)]:gap-1.5">
                         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 [@media(max-height:600px)]:gap-1.5">
-                            <div className="flex h-8 min-h-8 min-w-0 flex-1 basis-[min(100%,11rem)] max-w-[15rem] shrink-0 items-center gap-1 rounded-md bg-gabu-500 px-2 py-0 sm:max-w-[15rem] sm:basis-[15rem] sm:gap-1.5 sm:px-2.5 [@media(max-height:600px)]:max-w-[12rem] [@media(max-height:600px)]:px-2">
+                            <div className="flex h-7 min-h-7 min-w-0 flex-1 basis-[min(100%,11rem)] max-w-[15rem] shrink-0 items-center gap-1 rounded-md bg-gabu-500 px-2 py-0 sm:max-w-[15rem] sm:basis-[15rem] sm:gap-1 sm:px-2 [@media(max-height:600px)]:max-w-[12rem] [@media(max-height:600px)]:px-1.5">
                                 <Search style="!h-3 !w-3 shrink-0 stroke-gabu-100 sm:!h-3.5 sm:!w-3.5" />
-                                <input ref={searchInputRef} type="text" placeholder="Buscar..." className="focus:outline-none text-gabu-100 min-w-0 w-full flex items-center text-sm" onInput={handleSearchInput} />
+                                <input ref={searchInputRef} type="text" placeholder="Buscar..." className="focus:outline-none text-gabu-100 min-w-0 w-full flex items-center text-xs sm:text-sm" onInput={handleSearchInput} />
                             </div>
                             <div
-                                className={`flex h-8 min-h-8 shrink-0 items-center gap-1 rounded-md bg-gabu-500 pl-1 pr-1.5 sm:gap-2 sm:pl-1.5 sm:pr-2 [@media(max-height:600px)]:gap-1 [@media(max-height:600px)]:pl-1 [@media(max-height:600px)]:pr-1 ${isEntriesSelectOpen ? "rounded-b-none rounded-t-md" : ""}`}
+                                className={`flex h-7 min-h-7 shrink-0 items-center gap-1 rounded-md bg-gabu-500 pl-1 pr-1.5 sm:gap-1.5 sm:pl-1.5 sm:pr-1.5 [@media(max-height:600px)]:gap-1 [@media(max-height:600px)]:pl-1 [@media(max-height:600px)]:pr-1 ${isEntriesSelectOpen ? "rounded-b-none rounded-t-md" : ""}`}
                                 id="inv-select-entries-cont"
                             >
                                 <div className="flex h-full min-h-0 min-w-0 max-w-[5.5rem] shrink-0 items-stretch sm:max-w-[6rem]">
@@ -633,14 +764,25 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                                 <p className="whitespace-nowrap text-sm text-gabu-100 [@media(max-height:600px)]:text-[11px]">Entradas por pagina</p>
                             </div>
                             {type === "charges" ? (
-                                <button
-                                    type="button"
-                                    className="flex h-8 min-h-8 cursor-pointer items-center gap-1 rounded-md bg-gabu-500 px-2.5 text-gabu-100 transition-colors duration-100 hover:bg-gabu-300 sm:px-3 [@media(max-height:600px)]:px-2"
-                                    onClick={() => setIsChargeFilterModalOpen(true)}
-                                >
-                                    <Filter style="h-4 w-4 text-gabu-100" />
-                                    <span className="whitespace-nowrap text-sm font-normal leading-none">Filtrar</span>
-                                </button>
+                                <>
+                                    <button
+                                        type="button"
+                                    className="flex h-7 min-h-7 cursor-pointer items-center gap-1 rounded-md bg-gabu-500 px-2 text-gabu-100 transition-colors duration-100 hover:bg-gabu-300 sm:px-2.5 [@media(max-height:600px)]:px-1.5"
+                                        onClick={() => setIsChargeFilterModalOpen(true)}
+                                    >
+                                        <Filter style="h-4 w-4 text-gabu-100" />
+                                    <span className="whitespace-nowrap text-xs sm:text-sm font-normal leading-none">Filtrar</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                    className="flex h-7 min-h-7 cursor-pointer items-center gap-1 rounded-md bg-gabu-500 px-2 text-gabu-100 transition-colors duration-100 hover:bg-gabu-300 disabled:cursor-not-allowed disabled:opacity-60 sm:px-2.5 [@media(max-height:600px)]:px-1.5"
+                                        onClick={clearAllChargeFilters}
+                                        disabled={!hasActiveChargeFilters}
+                                    >
+                                        <RemoveFilter style="h-4 w-4 text-gabu-100" />
+                                    <span className="whitespace-nowrap text-xs sm:text-sm font-normal leading-none">Remover filtros</span>
+                                    </button>
+                                </>
                             ) : null}
                         </div>
                         <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2 [@media(max-height:600px)]:gap-1">
@@ -720,7 +862,32 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                                         </thead>
                                         <tbody className="divide-y-2 divide-gabu-900/25 relative">
                                             {table.getRowModel().rows.map((row) => (
-                                                <tr key={row.id}>
+                                                <tr
+                                                    key={row.id}
+                                                    className={
+                                                        type === "charges" && Boolean((row.original as RowData).__chargeBlocked)
+                                                            ? "bg-gabu-300 text-gabu-700"
+                                                            : ""
+                                                    }
+                                                    onContextMenu={(event) => {
+                                                        if (type !== "charges") return;
+                                                        event.preventDefault();
+                                                        const rowId = String((row.original as RowData).__chargeRowId ?? "");
+                                                        if (!rowId) return;
+                                                        if (Boolean((row.original as RowData).__chargeBlocked)) return;
+                                                        const tr = event.currentTarget as HTMLTableRowElement;
+                                                        const checkbox = tr.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+                                                        if (checkbox) {
+                                                            const rect = checkbox.getBoundingClientRect();
+                                                            const checkboxCenterX = rect.left + rect.width / 2;
+                                                            const menuLeft = checkboxCenterX - 18;
+                                                            const menuTop = rect.bottom + 8;
+                                                            setChargeContextMenu({ rowId, x: menuLeft, y: menuTop });
+                                                            return;
+                                                        }
+                                                        setChargeContextMenu({ rowId, x: event.clientX, y: event.clientY });
+                                                    }}
+                                                >
                                                     <SortableContext key={row.id} items={columnOrder} strategy={horizontalListSortingStrategy}>
                                                         {row.getVisibleCells().map((cell, index) => (
                                                             <DraggableCell key={cell.id} cell={cell} index={index} />
@@ -762,7 +929,7 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                 client={client}
                 initialFilters={chargeFilters}
                 onSearch={(filters) => {
-                    setChargeFilters(filters);
+                    setChargeFilters({ ...filters, assetStatus: filters.assetStatus ?? "all" });
                     setPagination((p) => ({ ...p, pageIndex: 0 }));
                 }}
             />
@@ -772,6 +939,50 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                 show={showSelectionErrorAlert && type === "charges"}
                 onClose={() => setShowSelectionErrorAlert(false)}
             />
+            {type === "charges" && chargeContextMenu ? (
+                <div
+                    className="fixed z-[1200] min-w-[18rem] rounded-md border border-gabu-900 bg-gabu-100 p-1 shadow-lg"
+                    style={{ left: chargeContextMenu.x, top: chargeContextMenu.y }}
+                    onClick={(event) => event.stopPropagation()}
+                >
+                    <span
+                        className="pointer-events-none absolute -top-1.5 left-3 h-3 w-3 rotate-45 border-l border-t border-gabu-900 bg-gabu-100"
+                        aria-hidden
+                    />
+                    <button
+                        type="button"
+                        className="w-full rounded px-3 py-2 text-left text-sm text-gabu-900 transition-colors hover:bg-gabu-300"
+                        onClick={() => {
+                            selectChargeGroupFromRow(chargeContextMenu.rowId);
+                            setChargeContextMenu(null);
+                        }}
+                    >
+                        Seleccionar todos con mismo proyecto y periodo
+                    </button>
+                </div>
+            ) : null}
+            <ChargesTransferModal
+                isOpen={isChargeTransferModalOpen && type === "charges"}
+                onClose={() => setIsChargeTransferModalOpen(false)}
+                client={client}
+                selectedRows={selectedChargeRows}
+                target="fixedAssets"
+                onSuccess={() => {
+                    setSelectedChargeIds(new Set());
+                    void refetch();
+                }}
+            />
+            <ChargesTransferModal
+                isOpen={isChargeTransferSimulationModalOpen && type === "charges"}
+                onClose={() => setIsChargeTransferSimulationModalOpen(false)}
+                client={client}
+                selectedRows={selectedChargeRows}
+                target="simulation"
+                onSuccess={() => {
+                    setSelectedChargeIds(new Set());
+                    void refetch();
+                }}
+            />
             {type === "charges" ? (
                 <div className="sticky bottom-0 z-10 flex w-full shrink-0 items-center justify-end gap-2 border-t border-gabu-900/40 bg-gabu-500 px-2 py-1.5 sm:gap-3 sm:px-3 sm:py-2 lg:gap-5 [@media(max-height:600px)]:px-2 [@media(max-height:600px)]:py-1">
                     <Button
@@ -779,7 +990,7 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                         type="button"
                         disabled={selectedChargeIds.size === 0}
                         handleClick={() => {
-                            /* Sin acción por ahora */
+                            setIsChargeTransferSimulationModalOpen(true);
                         }}
                         style="font-normal text-gabu-900 w-auto min-w-[5.25rem] max-w-[12rem] shrink-0 rounded-md border border-gabu-900/30 bg-gabu-100 px-3 py-1 text-xs transition-colors duration-300 hover:bg-gabu-300 sm:min-w-[7.75rem] sm:px-4 sm:py-1.5 sm:text-sm"
                     />
@@ -788,7 +999,7 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                         type="button"
                         disabled={selectedChargeIds.size === 0}
                         handleClick={() => {
-                            /* Integración API transferencia de cargos */
+                            setIsChargeTransferModalOpen(true);
                         }}
                         style="font-normal text-gabu-900 w-auto min-w-[5.25rem] max-w-[10rem] shrink-0 rounded-md border border-gabu-900/30 bg-gabu-100 px-3 py-1 text-xs transition-colors duration-300 hover:bg-gabu-300 sm:min-w-[6.5rem] sm:px-4 sm:py-1.5 sm:text-sm"
                     />

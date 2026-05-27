@@ -9,11 +9,16 @@ export default function DraggableCell<TData>({ cell, index }: { cell: Cell<TData
 
     const stickyRight = cell.column.id === "manage";
     const stickyLeft = cell.column.id === "seleccionar";
+    const isBlockedChargeRow = Boolean((cell.row.original as Record<string, unknown> | undefined)?.__chargeBlocked);
     const cellClass =
         stickyRight
-            ? "text-sm sticky right-0 z-10 bg-gabu-100 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-xs"
+            ? `text-sm sticky right-0 z-10 ${
+                  isBlockedChargeRow ? "bg-gabu-300 text-gabu-700" : "bg-gabu-100"
+              } [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-xs`
             : stickyLeft
-              ? "sticky left-0 z-[24] bg-gabu-100 px-2 text-xs whitespace-nowrap shadow-[4px_0_12px_-8px_rgba(28,53,81,0.12)] relative [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]"
+              ? `sticky left-0 z-[24] ${
+                    isBlockedChargeRow ? "bg-gabu-300 text-gabu-700 shadow-none" : "bg-gabu-100 shadow-[4px_0_12px_-8px_rgba(28,53,81,0.12)]"
+                } px-2 text-xs whitespace-nowrap relative [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]`
               : "px-2 text-xs whitespace-nowrap text-ellipsis overflow-hidden relative [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]";
     const renderedCell = flexRender(cell.column.columnDef.cell, cell.getContext());
     const rawValue = cell.getValue();

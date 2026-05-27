@@ -46,6 +46,19 @@
   border: .3em solid var(--color-gabu-100);
 }
 
+.asset-charges-scroll::-webkit-scrollbar {
+  background: var(--color-gabu-100);
+  width: 1.1em;
+  height: 1.1em;
+  border-radius: 2em;
+}
+
+.asset-charges-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--color-gabu-700);
+  border-radius: 2em;
+  border: .3em solid var(--color-gabu-100);
+}
+
 .fields-table::-webkit-scrollbar {
   background: var(--color-gabu-700);
   height: .5em;

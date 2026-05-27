@@ -24,6 +24,7 @@ import {
     setLibrosDataInCache,
 } from "@/lib/cache/fixedAssetsBootstrapCache";
 import { formatNumberEs } from "@/util/number/formatNumberEs";
+import AssetChargesGrid from "@/components/fixedAssets/AssetChargesGrid";
 
 type AbmDatosGeneralesData = {
     plants: { key: string; value: string }[];
@@ -659,10 +660,10 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                 let hasValoriError = false;
                 Object.entries(libros).forEach(([prefijo, fields]) => {
                     const valoriNum = parseLocalizedNumber(fields['VALORI'] ?? '');
-                    if (!(valoriNum > 0)) {
+                    if (!(valoriNum !== 0)) {
                         const prev = nextErrors[prefijo] ?? [];
                         if (!prev.some((e) => e.startsWith('VALORI:'))) {
-                            nextErrors[prefijo] = [...prev, 'VALORI: debe ser mayor a 0'];
+                            nextErrors[prefijo] = [...prev, 'VALORI: no puede ser 0'];
                             hasValoriError = true;
                         }
                     }
@@ -968,8 +969,8 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
     );
 
     return (
-        <form ref={formRef} onSubmit={(e) => { e.preventDefault(); if (!consultMode) handleGuardar(); }} className="flex flex-col w-full h-full">
-            <div key={formKey} className="flex flex-col w-full h-full pl-10 pr-5 overflow-y-auto main-content">
+        <form ref={formRef} onSubmit={(e) => { e.preventDefault(); if (!consultMode) handleGuardar(); }} className="flex h-full min-h-0 w-full flex-col">
+            <div key={formKey} className="main-content flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto pl-10 pr-5">
                 <div className="flex flex-col w-full rounded-xl bg-gabu-700 pb-5 pt-3 my-5">
                     <div className="flex w-full justify-center relative">
                         <p className="text-xl text-gabu-100">Datos generales</p>
@@ -1075,8 +1076,8 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                 </div>
 
                 {/* Cabecera accordion */}
-                <div className="flex flex-col w-full">
-                    <div className="flex flex-col w-full select-none bg-gabu-700 rounded-t-xl">
+                <div className="flex w-full min-w-0 max-w-full flex-col">
+                    <div className="flex w-full min-w-0 select-none flex-col rounded-t-xl bg-gabu-700">
                         <div
                             className={`flex justify-center items-center transition-all duration-150 py-1.5 border-b-2 border-b-gabu-100 cursor-pointer sticky top-0 z-[10000] rounded-t-xl ${cabeceraOpen ? 'bg-gabu-700' : ''} ${accordionErrors['cabecera']?.length ? 'border-2 border-gabu-error' : ''}`}
                             onClick={() => setLibrosOpenPrefijo((prev) => prev === 'cabecera' ? null : 'cabecera')}
@@ -1084,16 +1085,16 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                             <ArrowSvg open={cabeceraOpen} />
                             <p className="text-gabu-100 text-lg">Cabecera</p>
                         </div>
-                        <div className={`grid transition-all duration-200 ease-linear bg-gabu-300 ${cabeceraOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-                        <div className={cabeceraOpen ? 'overflow-visible' : 'overflow-hidden'}>
+                        <div className={`grid min-w-0 transition-all duration-200 ease-linear bg-gabu-300 ${cabeceraOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                        <div className="min-w-0 overflow-hidden">
                             {(cabeceraLoading || !cabeceraData) ? (
-                                <div className="grid grid-cols-2 gap-x-5 gap-y-3 w-full py-7 px-10">
+                                <div className="grid w-full min-w-0 max-w-full grid-cols-2 gap-x-5 gap-y-3 py-7 px-10 [&>*]:min-w-0">
                                     {Array.from({ length: 10 }).map((_, i) => (
                                         <div key={i} className="h-7 bg-gabu-500 rounded-xl animate-pulse" />
                                     ))}
                                 </div>
                             ) : (
-                            <div className="grid grid-cols-2 gap-x-5 gap-y-3 w-full py-7 px-10">
+                            <div className="grid w-full min-w-0 max-w-full grid-cols-2 gap-x-5 gap-y-3 py-7 px-10 [&>*]:min-w-0">
                                 {/* Col izquierda */}
                                 <HorizontalInput
                                     label={cabeceraData.fields?.find(f => f.idCampo.toLowerCase() === 'iddescripcion')?.browNombre ?? 'Descripcion normalizada'}
@@ -1348,8 +1349,8 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                                 />
                             </div>
                             )}
-                            <div className="flex mx-10 mb-7 min-w-0">
-                                <div className="flex select-none bg-gabu-700 min-w-0 flex-1 items-stretch">
+                            <div className="mx-10 mb-7 flex w-full min-w-0 max-w-[calc(100%-5rem)] overflow-hidden">
+                                <div className="flex min-w-0 w-full max-w-full flex-1 select-none items-stretch overflow-hidden bg-gabu-700">
                                     {horizontalTabsCabecera.map((tab, idx) => (
                                         <React.Fragment key={tab.id}>
                                             <div
@@ -1358,8 +1359,21 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                                             >
                                                 <p className="text-gabu-100 text-xs text-center py-1.5">{tab.label.split('').map((char, i) => <React.Fragment key={i}>{char}{i < tab.label.length - 1 && <br />}</React.Fragment>)}</p>
                                             </div>
-                                            <div className={`${horizontalTabCabecera === tab.id ? 'flex-1 overflow-visible' : 'w-0 overflow-hidden'} transition-[width,flex] duration-200 ease-linear bg-gabu-100 min-w-0 ${idx === horizontalTabsCabecera.length - 1 ? 'rounded-r-xl' : ''}`}>
-                                                <div className="w-full p-5 min-h-[260px] flex flex-col justify-center" style={{ display: horizontalTabCabecera === tab.id ? '' : 'none' }}>
+                                            <div
+                                                className={`${
+                                                    horizontalTabCabecera === tab.id
+                                                        ? "min-w-0 flex-1 max-w-full overflow-hidden"
+                                                        : "w-0 min-w-0 max-w-0 overflow-hidden"
+                                                } transition-[width,flex] duration-200 ease-linear bg-gabu-100 ${idx === horizontalTabsCabecera.length - 1 ? "rounded-r-xl" : ""}`}
+                                            >
+                                                {horizontalTabCabecera === tab.id ? (
+                                                <div
+                                                    className={`flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden ${
+                                                        tab.id === "tecnica"
+                                                            ? "flex h-[200px] max-h-[200px] min-h-[200px] flex-col overflow-hidden px-4 py-3"
+                                                            : "min-h-[260px] justify-center p-5"
+                                                    }`}
+                                                >
                                                     {tab.id === 'distribucion' && (
                                                         <div className={`flex flex-col gap-2 ${(distribucionInvalid || distribucionDuplicateCencos) ? 'rounded-md border-2 border-gabu-error p-2' : ''}`}>
                                                             {distribucionInvalid && (
@@ -1456,19 +1470,27 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                                                             </div>
                                                         </div>
                                                     )}
-                                                    {(tab.id === 'documentos' || tab.id === 'tecnica') && (
+                                                    {tab.id === "documentos" && (
                                                         <div className="flex justify-around items-center gap-3">
                                                             <div className="border border-gabu-900 rounded-lg">
                                                                 <div className="flex items-center justify-center bg-gabu-300 overflow-hidden h-40 w-40" />
-                                                                <button className="w-full bg-gabu-700 text-gabu-100 text-sm py-2 hover:bg-gabu-500 cursor-pointer">Ver {tab.id === 'documentos' ? 'documento' : 'plantilla'}</button>
+                                                                <button type="button" className="w-full bg-gabu-700 text-gabu-100 text-sm py-2 hover:bg-gabu-500 cursor-pointer">Ver documento</button>
                                                             </div>
                                                             <div className="flex flex-col gap-3 w-[70%]">
-                                                                <button className="w-full bg-gabu-700 text-center py-2 text-gabu-100 rounded-lg cursor-pointer hover:bg-gabu-500 transition-all duration-150">Agregar {tab.id === 'documentos' ? 'documento' : 'plantilla'}</button>
-                                                                <button className="w-full bg-gabu-700 text-center py-2 text-gabu-100 rounded-lg cursor-pointer hover:bg-gabu-500 transition-all duration-150">Cambiar {tab.id === 'documentos' ? 'documento' : 'plantilla'}</button>
+                                                                <button type="button" className="w-full bg-gabu-700 text-center py-2 text-gabu-100 rounded-lg cursor-pointer hover:bg-gabu-500 transition-all duration-150">Agregar documento</button>
+                                                                <button type="button" className="w-full bg-gabu-700 text-center py-2 text-gabu-100 rounded-lg cursor-pointer hover:bg-gabu-500 transition-all duration-150">Cambiar documento</button>
                                                             </div>
                                                         </div>
                                                     )}
+                                                    {tab.id === "tecnica" && (
+                                                        <AssetChargesGrid
+                                                            client={client}
+                                                            bienId={bienId}
+                                                            enabled
+                                                        />
+                                                    )}
                                                 </div>
+                                                ) : null}
                                             </div>
                                         </React.Fragment>
                                     ))}

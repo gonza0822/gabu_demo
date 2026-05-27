@@ -19,6 +19,10 @@ export default function Select({
   variant = 'default',
   onListOpenChange,
   controlClassName,
+  valueClassName,
+  arrowColorClass,
+  optionClassName,
+  optionListClassName,
   entriesListClassName,
   entriesToolbarTone,
   entriesUseFixedDropdown,
@@ -33,6 +37,10 @@ export default function Select({
   variant?: 'default' | 'entriesPerPage' | 'filterModal' | 'abm' | 'tableCell',
   onListOpenChange?: (open: boolean) => void,
   controlClassName?: string,
+  valueClassName?: string,
+  arrowColorClass?: string,
+  optionClassName?: string,
+  optionListClassName?: string,
   /** Extra classes for the entries-per-page options panel (e.g. min-width). */
   entriesListClassName?: string,
   /** List/option background to match toolbar (Manage: 700, Inversiones: 500). */
@@ -51,13 +59,14 @@ export default function Select({
     const isAbm = variant === 'abm';
     const isTableCell = variant === 'tableCell';
 
-    const optionStyle : string = isEntriesPerPage
+    const optionStyleBase : string = isEntriesPerPage
         ? `px-3 py-1.5 text-gabu-100 text-sm hover:bg-gabu-300 transition-all duration-300 w-full ${entriesOptionBgClass}`
         : isTableCell
         ? 'px-2 py-1 text-gabu-900 text-xs leading-snug hover:bg-gabu-300 transition-all duration-300 bg-gabu-100 w-full'
         : isFilterModal || isAbm
         ? 'px-3 py-1 text-gabu-900 text-xs hover:bg-gabu-300 transition-all duration-300 bg-gabu-100 w-full'
         : `${isLogin ? 'text-base border-l-10 border-gabu-900 py-2 pl-3 pr-2' : 'px-2'} hover:bg-gabu-300 transition-all duration-300 bg-gabu-100 w-full`;
+    const optionStyle = `${optionStyleBase} ${optionClassName ?? ''}`.trim();
     const selectStyle : string = isEntriesPerPage
         ? 'border-0 bg-transparent py-1.5 pl-3 pr-2 w-full flex justify-between items-center cursor-pointer gap-2 min-w-0'
         : isFilterModal
@@ -67,7 +76,7 @@ export default function Select({
         : isTableCell
         ? 'border border-gabu-900 bg-gabu-100 py-1 pl-2 pr-1.5 min-h-0 w-full flex justify-between items-center cursor-pointer gap-1.5 rounded-md'
         : ` ${isLogin ? 'border-l-10 border-2' : 'border'}  border-gabu-900 py-2 pl-3 pr-2 w-full flex justify-between items-center cursor-pointer filter`;
-    const optionListStyle: string = isEntriesPerPage
+    const optionListStyleBase: string = isEntriesPerPage
         ? `w-full rounded-b-md ${entriesListBorderClass} overflow-visible options-list ${entriesListBgClass} shadow-md ${entriesListClassName ?? ''}`.trim()
         : isFilterModal
           ? "w-full rounded-b-2xl border border-t-0 border-gabu-300 mt-0 overflow-hidden options-list bg-gabu-100 max-h-25 overflow-y-auto shadow-lg"
@@ -76,6 +85,7 @@ export default function Select({
             : isTableCell
               ? "w-full border border-t-0 border-gabu-900 rounded-b-md mt-0 overflow-hidden options-list bg-gabu-100 max-h-25 overflow-y-auto"
             : `w-full ${isLogin ? "border-r-2 border-b-2" : "border"} rounded-b-md border-gabu-900 max-h-25 overflow-y-auto options-list`;
+    const optionListStyle = `${optionListStyleBase} ${optionListClassName ?? ''}`.trim();
     const entriesPortalListClass: string = isEntriesPerPage
         ? `rounded-b-md ${entriesListBorderClass} options-list ${entriesListBgClass} shadow-md ${entriesListClassName ?? ""}`.trim()
         : "";
@@ -163,14 +173,15 @@ export default function Select({
             ? 'text-gabu-100 text-xs font-normal'
             : 'text-gabu-900 text-lg'
         : '';
-    const valueSpanClass = isEntriesPerPage
+    const valueSpanClassBase = isEntriesPerPage
         ? 'text-sm text-gabu-100'
         : isTableCell
         ? 'text-xs leading-snug text-gabu-900 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap'
         : isFilterModal || isAbm
         ? 'text-sm text-gabu-700 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap'
         : `${isLogin ? 'text-base' : 'text-xs'} text-gabu-900`;
-    const arrowColor = isEntriesPerPage ? 'text-gabu-100' : (isFilterModal || isAbm) ? 'text-gabu-900' : 'text-gabu-900';
+    const valueSpanClass = `${valueSpanClassBase} ${valueClassName ?? ''}`.trim();
+    const arrowColor = arrowColorClass ?? (isEntriesPerPage ? 'text-gabu-100' : (isFilterModal || isAbm) ? 'text-gabu-900' : 'text-gabu-900');
     const borderRadius = isFilterModal
         ? (isOptionListVisible ? "8px 8px 0 0" : "8px")
         : isAbm

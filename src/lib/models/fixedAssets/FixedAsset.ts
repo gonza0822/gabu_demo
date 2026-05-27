@@ -628,29 +628,46 @@ class FixedAsset {
         libros?: Record<string, Record<string, string>>;
         /** Para alta agregado: id del bien origen (idCodigo-idSubien-idSubtra-idSufijo). Se mantiene idCodigo, idSubien = max+1 */
         altaAgregadoBienId?: string;
+        /** Alta en simulación: cabesimu + libros simulados (ej. ME03), sin tocar seteos/distribución real. */
+        simulationOnly?: boolean;
     }): Promise<{ idCodigo: string; idSubien: string }> {
         return this.prisma.$transaction(async (tx) => {
+            const simulationOnly = data.simulationOnly === true;
             let idCodigo: string;
             let idSubien: string;
             const idSubtra = '0';
             const idSufijo = '0';
+            const cabeHead = this.getCabeHeadForTransaction(tx, simulationOnly);
 
             if (data.altaAgregadoBienId) {
                 const parts = data.altaAgregadoBienId.split('-');
                 if (parts.length < 2) throw new Error('altaAgregadoBienId inválido');
                 idCodigo = parts[0];
-                const existing = await tx.cabecera.findMany({
-                    where: { idCodigo },
-                    select: { idSubien: true },
-                });
+                const existing = simulationOnly
+                    ? await tx.$queryRawUnsafe<Array<{ idSubien: string | null }>>(
+                          `SELECT idSubien FROM dbo.cabesimu WHERE idCodigo = ${this.sqlLiteralCabesimu(idCodigo)}`
+                      )
+                    : await tx.cabecera.findMany({
+                          where: { idCodigo },
+                          select: { idSubien: true },
+                      });
                 const maxSubien = existing.length
                     ? Math.max(...existing.map((r) => parseInt(r.idSubien ?? '0', 10) || 0))
                     : 0;
                 idSubien = String(maxSubien + 1).padStart(3, '0');
             } else {
-                const seteo = await tx.seteos.findFirst({ select: { idcodigo: true, Id: true } });
-                const current = seteo?.idcodigo ? parseInt(seteo.idcodigo, 10) : 0;
-                const next = isNaN(current) ? 1 : current + 1;
+                let next = 1;
+                if (simulationOnly) {
+                    const rows = await tx.$queryRawUnsafe<Array<{ maxId: string | null }>>(
+                        `SELECT MAX(idCodigo) AS maxId FROM dbo.cabesimu`
+                    );
+                    const current = rows[0]?.maxId ? parseInt(String(rows[0].maxId), 10) : 0;
+                    next = isNaN(current) ? 1 : current + 1;
+                } else {
+                    const seteo = await tx.seteos.findFirst({ select: { idcodigo: true, Id: true } });
+                    const current = seteo?.idcodigo ? parseInt(seteo.idcodigo, 10) : 0;
+                    next = isNaN(current) ? 1 : current + 1;
+                }
                 idCodigo = String(next).padStart(6, '0');
                 idSubien = '000';
             }
@@ -670,7 +687,7 @@ class FixedAsset {
                 return new Date(Number(m[2]), Number(m[1]) - 1, 1);
             };
 
-            await tx.cabecera.create({
+            await cabeHead.create({
                 data: {
                     idCodigo,
                     idSubien,
@@ -701,6 +718,8 @@ class FixedAsset {
                     tridProyecto: trim(cab.tridProyecto as string, 8),
                     trFecUNegocio: parseMmYyyy(String(cab.trFecUNegocio ?? '')) ?? null,
                     tridUNegocio: trim(cab.tridUNegocio as string, 5),
+                    marcaSeleccion: cab.marcaSeleccion === true || cab.marcaSeleccion === 'true',
+                    fecpro: trim(cab.fecpro as string, 6),
                 },
             });
 
@@ -711,17 +730,19 @@ class FixedAsset {
                 const pct = parseFloat(String(d.porcentaje)) || 0;
                 distByCencos.set(idCencos, (distByCencos.get(idCencos) ?? 0) + pct);
             }
-            for (const [idCencos, porcentaje] of distByCencos) {
-                await tx.distribucion.create({
-                    data: {
-                        idCodigo,
-                        idsubien: idSubien,
-                        idsubtra: idSubtra,
-                        idsufijo: idSufijo,
-                        idCencos,
-                        porcentaje,
-                    },
-                });
+            if (!simulationOnly) {
+                for (const [idCencos, porcentaje] of distByCencos) {
+                    await tx.distribucion.create({
+                        data: {
+                            idCodigo,
+                            idsubien: idSubien,
+                            idsubtra: idSubtra,
+                            idsufijo: idSufijo,
+                            idCencos,
+                            porcentaje,
+                        },
+                    });
+                }
             }
 
             const parseMmYyyyLibro = (s: string): Date | null => {
@@ -749,6 +770,12 @@ class FixedAsset {
                 if (mmYyyy) return `${mmYyyy[2]}${mmYyyy[1].padStart(2, '0')}`;
                 return null;
             };
+            const normalizeTipoProceso = (raw: string | undefined): string => {
+                const v = String(raw ?? '').trim().toLowerCase();
+                if (v === '1' || v === 'true' || v === 'si') return '1';
+                if (v === '0' || v === 'false' || v === 'no') return '0';
+                return '';
+            };
             const fieldNum = (fields: Record<string, string>, key: string): number | null =>
                 valNum(fields[key] ?? fields[key.toUpperCase()]);
             const subCol = (fields: Record<string, string>, key: string, fallback: number): number =>
@@ -757,8 +784,8 @@ class FixedAsset {
             for (const [prefijo, fields] of Object.entries(libros)) {
                 if (!fields || Object.keys(fields).length === 0) continue;
                 const valoriForValidation = valNum(fields['VALORI']);
-                if (!(valoriForValidation != null && valoriForValidation > 0)) {
-                    throw new Error(`No se puede dar de alta un bien con VALORI en 0 para ${prefijo}`);
+                if (!(valoriForValidation != null && valoriForValidation !== 0)) {
+                    throw new Error(`No se puede dar de alta un bien con VALORI igual a 0 para ${prefijo}`);
                 }
                 const idActivoSource = cab.idActivo ?? fields['IDACTIVO'];
                 const idActivo = trim(idActivoSource == null ? null : String(idActivoSource), 15);
@@ -774,17 +801,16 @@ class FixedAsset {
                     idTipoAmortizacion: trim(fields['IDTIPOAMORTIZACION'], 2),
                     idIndact: trim(fields['IDINDACT'], 1),
                     idCodamo: trim(fields['IDCODAMO'], 1),
-                    idTipoProceso: (() => {
-                        const v = String(fields['IDTIPOPROCESO'] ?? '').toLowerCase();
-                        return (v === '1' || v === 'true' || v === 'si') ? '1' : '0';
-                    })(),
+                    idTipoProceso: normalizeTipoProceso(fields['IDTIPOPROCESO']),
                     Estcon: trim(fields['ESTCON'], 1),
                     FecOri: parseMmYyyyLibro(fields['FECORI'] ?? '') ?? null,
                     FecDep: parseMmYyyyLibro(fields['FECDEP'] ?? '') ?? null,
                     Fecfin: parseMmYyyyLibro(fields['FECFIN'] ?? '') ?? null,
-                    vidaUtil: fieldNum(fields, 'VIDAUTIL'),
+                    precioVenta: fieldNum(fields, 'PRECIOVENTA') ?? 0,
+                    vidaUtil: fieldNum(fields, 'VIDAUTIL') ?? 0,
                     vidaTranscurrida: fieldNum(fields, 'VIDATRANSCURRIDA') ?? 0,
                     vidaRestante: fieldNum(fields, 'VIDARESTANTE') ?? 0,
+                    valorResidual: fieldNum(fields, 'VALORRESIDUAL') ?? 0,
                     indice: fieldNum(fields, 'INDICE') ?? 1,
                     FecPro: normalizeYyyyMm(fields['FECPRO']) ?? normalizeYyyyMm(fields['FECORI']) ?? null,
                     Valori: valNum(fields['VALORI']) ?? null,
@@ -818,7 +844,7 @@ class FixedAsset {
                 if (model?.create) await model.create({ data: row });
             }
 
-            if (!data.altaAgregadoBienId) {
+            if (!data.altaAgregadoBienId && !simulationOnly) {
                 const seteo = await tx.seteos.findFirst({ select: { Id: true } });
                 if (seteo?.Id != null) {
                     await tx.seteos.update({
@@ -1272,6 +1298,8 @@ class FixedAsset {
                     tridProyecto: trim(cab.tridProyecto as string, 8),
                     trFecUNegocio: parseMmYyyy(String(cab.trFecUNegocio ?? '')) ?? null,
                     tridUNegocio: trim(cab.tridUNegocio as string, 5),
+                    marcaSeleccion: cab.marcaSeleccion === true || cab.marcaSeleccion === 'true',
+                    fecpro: trim(cab.fecpro as string, 6),
                 },
             });
 
@@ -1317,6 +1345,12 @@ class FixedAsset {
                 if (mmYyyy) return `${mmYyyy[2]}${mmYyyy[1].padStart(2, '0')}`;
                 return null;
             };
+            const normalizeTipoProcesoUpdate = (raw: string | undefined): string => {
+                const v = String(raw ?? '').trim().toLowerCase();
+                if (v === '1' || v === 'true' || v === 'si') return '1';
+                if (v === '0' || v === 'false' || v === 'no') return '0';
+                return '';
+            };
             const fieldNumUpdate = (fields: Record<string, string>, key: string): number | null =>
                 valNumUpdate(fields[key] ?? fields[key.toUpperCase()]);
             const subColUpdate = (fields: Record<string, string>, key: string, fallback: number): number =>
@@ -1356,17 +1390,16 @@ class FixedAsset {
                     idTipoAmortizacion: trim(fields['IDTIPOAMORTIZACION'], 2),
                     idIndact: trim(fields['IDINDACT'], 1),
                     idCodamo: trim(fields['IDCODAMO'], 1),
-                    idTipoProceso: (() => {
-                        const v = String(fields['IDTIPOPROCESO'] ?? '').toLowerCase();
-                        return (v === '1' || v === 'true' || v === 'si') ? '1' : '0';
-                    })(),
+                    idTipoProceso: normalizeTipoProcesoUpdate(fields['IDTIPOPROCESO']),
                     Estcon: trim(fields['ESTCON'], 1),
                     FecOri: parseMmYyyyLibro(fields['FECORI'] ?? '') ?? null,
                     FecDep: parseMmYyyyLibro(fields['FECDEP'] ?? '') ?? null,
                     Fecfin: parseMmYyyyLibro(fields['FECFIN'] ?? '') ?? null,
-                    vidaUtil: fieldNumUpdate(fields, 'VIDAUTIL'),
+                    precioVenta: fieldNumUpdate(fields, 'PRECIOVENTA') ?? 0,
+                    vidaUtil: fieldNumUpdate(fields, 'VIDAUTIL') ?? 0,
                     vidaTranscurrida: fieldNumUpdate(fields, 'VIDATRANSCURRIDA') ?? 0,
                     vidaRestante: fieldNumUpdate(fields, 'VIDARESTANTE') ?? 0,
+                    valorResidual: fieldNumUpdate(fields, 'VALORRESIDUAL') ?? 0,
                     indice: fieldNumUpdate(fields, 'INDICE') ?? 1,
                     FecPro: normalizeYyyyMmUpdate(fields['FECPRO']) ?? normalizeYyyyMmUpdate(fields['FECORI']) ?? null,
                     Valori: valNumUpdate(fields['VALORI']) ?? null,

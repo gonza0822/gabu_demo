@@ -3,12 +3,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
 import Cross from "@/components/svg/Cross";
 import Button from "@/components/ui/Button";
 
 export type ChargesFilterValues = {
     period: string;
     cdobra: string;
+    assetStatus: "all" | "withAsset" | "withoutAsset";
 };
 
 function toYyyymm(value: unknown): string {
@@ -42,8 +44,14 @@ export default function ChargesFilterModal({
     initialFilters: ChargesFilterValues;
     onSearch: (filters: ChargesFilterValues) => void;
 }): React.ReactElement {
+    const assetStatusOptions: { key: ChargesFilterValues["assetStatus"]; value: string }[] = [
+        { key: "all", value: "Todos" },
+        { key: "withAsset", value: "Cargos transferidos" },
+        { key: "withoutAsset", value: "Cargos pendientes" },
+    ];
     const [period, setPeriod] = useState(initialFilters.period);
     const [cdobra, setCdobra] = useState(initialFilters.cdobra);
+    const [assetStatus, setAssetStatus] = useState<ChargesFilterValues["assetStatus"]>(initialFilters.assetStatus ?? "all");
     const [periodError, setPeriodError] = useState<string | null>(null);
     const [cdobraError, setCdobraError] = useState<string | null>(null);
     const [defaultPeriod, setDefaultPeriod] = useState("");
@@ -52,9 +60,10 @@ export default function ChargesFilterModal({
         if (!isOpen) return;
         setPeriod(initialFilters.period);
         setCdobra(initialFilters.cdobra);
+        setAssetStatus(initialFilters.assetStatus ?? "all");
         setPeriodError(null);
         setCdobraError(null);
-    }, [isOpen, initialFilters.period, initialFilters.cdobra]);
+    }, [isOpen, initialFilters.period, initialFilters.cdobra, initialFilters.assetStatus]);
 
     useEffect(() => {
         if (!isOpen || !client) return;
@@ -116,8 +125,21 @@ export default function ChargesFilterModal({
 
     const handleSearch = () => {
         if (!validate()) return;
-        onSearch({ period: period.trim(), cdobra: cdobra.trim() });
+        onSearch({ period: period.trim(), cdobra: cdobra.trim(), assetStatus: assetStatus ?? "all" });
         onClose();
+    };
+
+    const handleAssetStatusSelect = (
+        event: React.MouseEvent<HTMLLIElement>,
+        ref: React.RefObject<HTMLSpanElement | null>
+    ) => {
+        const key = ((event.currentTarget.dataset.key ?? "all") as ChargesFilterValues["assetStatus"]);
+        const text = event.currentTarget.textContent ?? "Todos";
+        if (ref.current) {
+            ref.current.textContent = text;
+            ref.current.dataset.key = key;
+        }
+        setAssetStatus(key);
     };
 
     return (
@@ -153,7 +175,7 @@ export default function ChargesFilterModal({
                         if (periodError) setPeriodError(null);
                     }}
                     placeholder={periodPlaceholder}
-                    inputClassName="bg-gabu-500 text-gabu-100 placeholder:text-gabu-300 border-gabu-300"
+                    inputClassName="bg-gabu-500 !text-gabu-100 placeholder:text-gabu-100 border-gabu-300 caret-gabu-100"
                 />
                 <Input
                     label="Proyecto (cdobra)"
@@ -170,8 +192,24 @@ export default function ChargesFilterModal({
                         if (cdobraError) setCdobraError(null);
                     }}
                     placeholder="Ej: 1205"
-                    inputClassName="bg-gabu-500 text-gabu-100 placeholder:text-gabu-300 border-gabu-300"
+                    inputClassName="bg-gabu-500 text-gabu-100 placeholder:text-gabu-100 border-gabu-300"
                 />
+                <div className="flex flex-col gap-2">
+                    <Select
+                        label="Estado del bien"
+                        hasLabel
+                        isLogin={false}
+                        variant="filterModal"
+                        options={assetStatusOptions}
+                        defaultValue={assetStatus}
+                        chooseOptionHandler={handleAssetStatusSelect}
+                        controlClassName="rounded-md !border-[1px] !border-gabu-100 bg-gabu-500 py-0.5 pl-3 pr-2"
+                        valueClassName="!text-gabu-100"
+                        arrowColorClass="text-gabu-100"
+                        optionListClassName="bg-gabu-500 border-gabu-100"
+                        optionClassName="bg-gabu-500 !text-gabu-100 hover:bg-gabu-300"
+                    />
+                </div>
             </div>
 
             <div className="mt-5 flex justify-end gap-2 border-t border-gabu-500 pt-4">
