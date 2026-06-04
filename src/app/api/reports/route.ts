@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import Reports, { type ReportType, type ReportsConfig } from "@/lib/models/reports/Reports";
+import Reports, {
+    type ReportType,
+    type ReportsConfig,
+    type ChargeCompositionData,
+} from "@/lib/models/reports/Reports";
 
 type ErrorResponse = { message: string; status: number };
 
@@ -16,12 +20,15 @@ type GenerateData = {
 type UserPostRequest =
     | { petition: "GetConfig"; client: string; data: { simulationOnly?: boolean } }
     | { petition: "Generate"; client: string; data: GenerateData }
-    | { petition: "GetAsientosFieldLabels"; client: string; data: { book: string; bookTableName: string } };
+    | { petition: "GetAsientosFieldLabels"; client: string; data: { book: string; bookTableName: string } }
+    | { petition: "GetChargeComposition"; client: string; data: { bienIds: string[] } };
 
 export async function POST(
     request: Request
 ): Promise<
-        NextResponse<ReportsConfig | Record<string, unknown>[] | { labels: Record<string, string> } | { ok: boolean } | ErrorResponse>
+        NextResponse<
+            ReportsConfig | Record<string, unknown>[] | ChargeCompositionData | { labels: Record<string, string> } | { ok: boolean } | ErrorResponse
+        >
     > {
     try {
         const { client, petition, data } = (await request.json()) as UserPostRequest;
@@ -62,6 +69,10 @@ export async function POST(
                         dateTo: payload.dateTo,
                     })
                 );
+            }
+            case "GetChargeComposition": {
+                const d = data as { bienIds?: string[] };
+                return NextResponse.json(await reports.getChargeCompositionForBienIds(d?.bienIds ?? []));
             }
             default:
                 return NextResponse.json({ message: "Petición desconocida", status: 400 }, { status: 400 });

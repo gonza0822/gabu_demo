@@ -30,6 +30,11 @@ type ReportsConfigResponse = {
     periodBoundsByBook?: BookPeriodBoundsByBook;
 };
 
+type ChargeCompositionResponse = {
+    fields: { idCampo: string; browNombre: string }[];
+    byBienId: Record<string, Record<string, unknown>[]>;
+};
+
 const REPORTS: { key: ReportType; label: string }[] = [
     { key: "ANEXO", label: "Anexo" },
     { key: "DETALLE_ACTIVO", label: "Detalle activo" },
@@ -370,6 +375,25 @@ function formatCellValue(value: unknown, column: string): string {
     return formatNumberEs(numeric, 2, 2);
 }
 
+function getDetailBienId(row: Record<string, unknown>): string {
+    const candidates = ["codigo", "idCodigo", "idcodigo"];
+    for (const candidate of candidates) {
+        const key = Object.keys(row).find((k) => normalizeColumnKey(k) === normalizeColumnKey(candidate));
+        if (!key) continue;
+        const value = String(row[key] ?? "").trim();
+        if (value) return value;
+    }
+    return "";
+}
+
+function formatChargeCellValue(value: unknown): string {
+    const raw = normalizeCellValue(value);
+    if (raw === "") return raw;
+    const numeric = toNumericValue(value);
+    if (numeric == null) return raw;
+    return formatNumberEs(numeric, 2, 2);
+}
+
 function formatPeriodToMMYYYY(period: string): string {
     if (!/^\d{6}$/.test(period)) return period;
     return `${period.slice(4, 6)}/${period.slice(0, 4)}`;
@@ -490,6 +514,8 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
     const scrollSyncLockRef = useRef(false);
     const [tableScrollWidth, setTableScrollWidth] = useState(0);
     const [asientosBrowLabels, setAsientosBrowLabels] = useState<Record<string, string>>({});
+    const [chargeCompositionFields, setChargeCompositionFields] = useState<{ idCampo: string; browNombre: string }[]>([]);
+    const [chargeCompositionByBienId, setChargeCompositionByBienId] = useState<Record<string, Record<string, unknown>[]>>({});
     const [paramBoundsByBook, setParamBoundsByBook] = useState<Record<string, BookParamBounds>>({});
     const [periodBoundsByBook, setPeriodBoundsByBook] = useState<BookPeriodBoundsByBook>({});
     const [dateFrom, setDateFrom] = useState("");
@@ -1010,6 +1036,38 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                 throw new Error((data as { message?: string }).message ?? "Error generando el reporte");
             }
             const resultRows = Array.isArray(data) ? data : [];
+            if (reportType === "DETALLE_ACTIVO" && resultRows.length > 0) {
+                const bienIds = Array.from(
+                    new Set(
+                        resultRows
+                            .map((row) => getDetailBienId(row))
+                            .filter((value) => value !== "")
+                    )
+                );
+                if (bienIds.length > 0) {
+                    const chargeRes = await fetch("/api/reports", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            petition: "GetChargeComposition",
+                            client,
+                            data: { bienIds },
+                        }),
+                    });
+                    const chargeData = (await chargeRes.json()) as ChargeCompositionResponse | { message?: string };
+                    if (!chargeRes.ok) {
+                        throw new Error((chargeData as { message?: string }).message ?? "Error cargando composición de cargos");
+                    }
+                    setChargeCompositionFields((chargeData as ChargeCompositionResponse).fields ?? []);
+                    setChargeCompositionByBienId((chargeData as ChargeCompositionResponse).byBienId ?? {});
+                } else {
+                    setChargeCompositionFields([]);
+                    setChargeCompositionByBienId({});
+                }
+            } else {
+                setChargeCompositionFields([]);
+                setChargeCompositionByBienId({});
+            }
             setRows(resultRows);
             setGeneratedReportType(reportType);
             setHasGenerated(true);
@@ -1040,6 +1098,13 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
             setReportType(enabledReports[0]?.key ?? "ANEXO");
         }
     }, [enabledReports, reportType]);
+
+    useEffect(() => {
+        if (displayedReportType === "DETALLE_ACTIVO") return;
+        if (chargeCompositionFields.length === 0 && Object.keys(chargeCompositionByBienId).length === 0) return;
+        setChargeCompositionFields([]);
+        setChargeCompositionByBienId({});
+    }, [displayedReportType, chargeCompositionFields.length, chargeCompositionByBienId]);
 
     const handleBookSelect = useCallback(
         (e: React.MouseEvent<HTMLLIElement>, ref: React.RefObject<HTMLSpanElement | null>) => {
@@ -1217,6 +1282,30 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                     cell.font = { ...(cell.font ?? {}), bold: true };
                 });
             }
+
+            if (displayedReportType === "DETALLE_ACTIVO" && meta?.kind === "data") {
+                const bienId = getDetailBienId(row);
+                const charges = bienId ? chargeCompositionByBienId[bienId] ?? [] : [];
+                if (charges.length > 0) {
+                    const labelRow = worksheet.addRow([`Composición de cargos (${bienId})`]);
+                    worksheet.mergeCells(labelRow.number, 1, labelRow.number, colCount);
+                    labelRow.font = { bold: true, color: { argb: "FF1C3551" } };
+
+                    const chargeHeaders = chargeCompositionFields.map((f) => f.browNombre || f.idCampo);
+                    const chargeHeaderRow = worksheet.addRow(chargeHeaders);
+                    chargeHeaderRow.font = { bold: true };
+                    chargeHeaderRow.fill = {
+                        type: "pattern",
+                        pattern: "solid",
+                        fgColor: { argb: "FFD7E5F1" },
+                    };
+
+                    for (const charge of charges) {
+                        const values = chargeCompositionFields.map((f) => normalizeCellValue(charge[f.idCampo]));
+                        worksheet.addRow(values);
+                    }
+                }
+            }
         });
 
         worksheet.views = [{ state: "frozen", ySplit: 4 }];
@@ -1255,6 +1344,8 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
         selectedReportLabel,
         subtotalColumns,
         asientosBrowLabels,
+        chargeCompositionByBienId,
+        chargeCompositionFields,
     ]);
 
     return (
@@ -1561,52 +1652,83 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                                                         })();
                                                     if (isSubtotalHidden) return null;
                                                     const isSummary = rowMeta.kind !== "data" || isSummaryRow(row);
+                                                    const bienId = displayedReportType === "DETALLE_ACTIVO" ? getDetailBienId(row) : "";
+                                                    const chargeRows = bienId ? chargeCompositionByBienId[bienId] ?? [] : [];
+                                                    const showChargeSubgrid =
+                                                        displayedReportType === "DETALLE_ACTIVO" &&
+                                                        rowMeta.kind === "data" &&
+                                                        chargeRows.length > 0;
                                                     return (
-                                                        <tr key={`row-${index}`} className={isSummary ? "font-semibold" : ""}>
-                                                            {showOutlineGutter && (
-                                                                <td
-                                                                    className="w-8 min-w-[2rem] max-w-[2rem] align-middle py-2 px-0.5 text-center text-gabu-900 [@media(max-height:600px)]:py-1"
-                                                                    style={
-                                                                        rowMeta.kind === "subtotal" && rowMeta.outlineLevel != null
-                                                                            ? { paddingLeft: `${6 + rowMeta.outlineLevel * 8}px` }
-                                                                            : undefined
+                                                        <React.Fragment key={`row-${index}`}>
+                                                            <tr className={isSummary ? "font-semibold" : ""}>
+                                                                {showOutlineGutter && (
+                                                                    <td
+                                                                        className="w-8 min-w-[2rem] max-w-[2rem] align-middle py-2 px-0.5 text-center text-gabu-900 [@media(max-height:600px)]:py-1"
+                                                                        style={
+                                                                            rowMeta.kind === "subtotal" && rowMeta.outlineLevel != null
+                                                                                ? { paddingLeft: `${6 + rowMeta.outlineLevel * 8}px` }
+                                                                                : undefined
+                                                                        }
+                                                                    >
+                                                                        {rowMeta.kind === "subtotal" && rowMeta.groupKey != null ? (
+                                                                            <button
+                                                                                type="button"
+                                                                                className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-gabu-900/40 bg-gabu-100 text-xs font-semibold leading-none text-gabu-900 hover:bg-gabu-300"
+                                                                                onClick={() => toggleGroupCollapse(rowMeta.groupKey!)}
+                                                                                title={
+                                                                                    collapsedGroups.has(rowMeta.groupKey)
+                                                                                        ? "Expandir grupo"
+                                                                                        : "Contraer grupo"
+                                                                                }
+                                                                                aria-expanded={!collapsedGroups.has(rowMeta.groupKey)}
+                                                                            >
+                                                                                {collapsedGroups.has(rowMeta.groupKey) ? "+" : "−"}
+                                                                            </button>
+                                                                        ) : null}
+                                                                    </td>
+                                                                )}
+                                                                {columns.map((column, columnIndex) => {
+                                                                    const isNumericCell =
+                                                                        !isIdentifierColumn(column) && toNumericValue(row[column]) != null;
+                                                                    const rawCellText = normalizeCellValue(row[column]);
+                                                                    const rawLower = rawCellText.toLowerCase();
+                                                                    const canToggleSubtotal =
+                                                                        !showOutlineGutter &&
+                                                                        rowMeta.kind === "subtotal" &&
+                                                                        rowMeta.groupKey != null &&
+                                                                        columnIndex === 0 &&
+                                                                        (rawLower.startsWith("subtotal ") ||
+                                                                            (rawLower.startsWith("total ") && rawLower !== "total general"));
+                                                                    if (canToggleSubtotal) {
+                                                                        const isCollapsed = collapsedGroups.has(rowMeta.groupKey!);
+                                                                        return (
+                                                                            <td
+                                                                                key={`${index}-${column}`}
+                                                                                className={`py-2 px-2.5 2xl:py-2.5 2xl:px-3 text-gabu-900 text-[10px] 2xl:text-xs whitespace-nowrap [@media(max-height:600px)]:py-1 [@media(max-height:600px)]:px-2 ${
+                                                                                    columnIndex === 0
+                                                                                        ? "pl-3 2xl:pl-4 [@media(max-height:600px)]:pl-2"
+                                                                                        : ""
+                                                                                } ${
+                                                                                    columnIndex === columns.length - 1
+                                                                                        ? "pr-3 2xl:pr-4 [@media(max-height:600px)]:pr-2"
+                                                                                        : ""
+                                                                                }`}
+                                                                            >
+                                                                                <button
+                                                                                    type="button"
+                                                                                    className="cursor-pointer hover:text-gabu-700 transition-colors duration-100"
+                                                                                    onClick={() => toggleGroupCollapse(rowMeta.groupKey!)}
+                                                                                    title={isCollapsed ? "Expandir subtotal" : "Colapsar subtotal"}
+                                                                                >
+                                                                                    {isCollapsed ? "▸" : "▾"} {formatCellValue(row[column], column)}
+                                                                                </button>
+                                                                            </td>
+                                                                        );
                                                                     }
-                                                                >
-                                                                    {rowMeta.kind === "subtotal" && rowMeta.groupKey != null ? (
-                                                                        <button
-                                                                            type="button"
-                                                                            className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-gabu-900/40 bg-gabu-100 text-xs font-semibold leading-none text-gabu-900 hover:bg-gabu-300"
-                                                                            onClick={() => toggleGroupCollapse(rowMeta.groupKey!)}
-                                                                            title={
-                                                                                collapsedGroups.has(rowMeta.groupKey)
-                                                                                    ? "Expandir grupo"
-                                                                                    : "Contraer grupo"
-                                                                            }
-                                                                            aria-expanded={!collapsedGroups.has(rowMeta.groupKey)}
-                                                                        >
-                                                                            {collapsedGroups.has(rowMeta.groupKey) ? "+" : "−"}
-                                                                        </button>
-                                                                    ) : null}
-                                                                </td>
-                                                            )}
-                                                            {columns.map((column, columnIndex) => {
-                                                                const isNumericCell =
-                                                                    !isIdentifierColumn(column) && toNumericValue(row[column]) != null;
-                                                                const rawCellText = normalizeCellValue(row[column]);
-                                                                const rawLower = rawCellText.toLowerCase();
-                                                                const canToggleSubtotal =
-                                                                    !showOutlineGutter &&
-                                                                    rowMeta.kind === "subtotal" &&
-                                                                    rowMeta.groupKey != null &&
-                                                                    columnIndex === 0 &&
-                                                                    (rawLower.startsWith("subtotal ") ||
-                                                                        (rawLower.startsWith("total ") && rawLower !== "total general"));
-                                                                if (canToggleSubtotal) {
-                                                                    const isCollapsed = collapsedGroups.has(rowMeta.groupKey!);
                                                                     return (
                                                                         <td
                                                                             key={`${index}-${column}`}
-                                                                            className={`py-2 px-2.5 2xl:py-2.5 2xl:px-3 text-gabu-900 text-[10px] 2xl:text-xs whitespace-nowrap [@media(max-height:600px)]:py-1 [@media(max-height:600px)]:px-2 ${
+                                                                            className={`py-2 px-2.5 2xl:py-2.5 2xl:px-3 text-gabu-900 text-[10px] 2xl:text-xs whitespace-nowrap ${isNumericCell ? "text-right" : ""} [@media(max-height:600px)]:py-1 [@media(max-height:600px)]:px-2 ${
                                                                                 columnIndex === 0
                                                                                     ? "pl-3 2xl:pl-4 [@media(max-height:600px)]:pl-2"
                                                                                     : ""
@@ -1616,35 +1738,56 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                                                                                     : ""
                                                                             }`}
                                                                         >
-                                                                            <button
-                                                                                type="button"
-                                                                                className="cursor-pointer hover:text-gabu-700 transition-colors duration-100"
-                                                                                onClick={() => toggleGroupCollapse(rowMeta.groupKey!)}
-                                                                                title={isCollapsed ? "Expandir subtotal" : "Colapsar subtotal"}
-                                                                            >
-                                                                                {isCollapsed ? "▸" : "▾"} {formatCellValue(row[column], column)}
-                                                                            </button>
+                                                                            {formatCellValue(row[column], column)}
                                                                         </td>
                                                                     );
-                                                                }
-                                                                return (
+                                                                })}
+                                                            </tr>
+                                                            {showChargeSubgrid ? (
+                                                                <tr className="bg-gabu-300/45">
                                                                     <td
-                                                                        key={`${index}-${column}`}
-                                                                        className={`py-2 px-2.5 2xl:py-2.5 2xl:px-3 text-gabu-900 text-[10px] 2xl:text-xs whitespace-nowrap ${isNumericCell ? "text-right" : ""} [@media(max-height:600px)]:py-1 [@media(max-height:600px)]:px-2 ${
-                                                                            columnIndex === 0
-                                                                                ? "pl-3 2xl:pl-4 [@media(max-height:600px)]:pl-2"
-                                                                                : ""
-                                                                        } ${
-                                                                            columnIndex === columns.length - 1
-                                                                                ? "pr-3 2xl:pr-4 [@media(max-height:600px)]:pr-2"
-                                                                                : ""
-                                                                        }`}
+                                                                        colSpan={(columns.length || 1) + (showOutlineGutter ? 1 : 0)}
+                                                                        className="px-2 py-2"
                                                                     >
-                                                                        {formatCellValue(row[column], column)}
+                                                                        <div className="rounded border border-gabu-900/30 bg-gabu-100 p-2">
+                                                                            <p className="mb-1 text-[10px] font-semibold text-gabu-900">
+                                                                                Composición de cargos ({bienId})
+                                                                            </p>
+                                                                            <div className="overflow-x-auto">
+                                                                                <table className="min-w-full border-collapse">
+                                                                                    <thead>
+                                                                                        <tr className="bg-gabu-300/60">
+                                                                                            {chargeCompositionFields.map((field) => (
+                                                                                                <th
+                                                                                                    key={`${index}-${field.idCampo}-hdr`}
+                                                                                                    className="whitespace-nowrap px-2 py-1 text-left text-[10px] text-gabu-900"
+                                                                                                >
+                                                                                                    {field.browNombre}
+                                                                                                </th>
+                                                                                            ))}
+                                                                                        </tr>
+                                                                                    </thead>
+                                                                                    <tbody className="divide-y divide-gabu-900/20">
+                                                                                        {chargeRows.map((chargeRow, chargeIndex) => (
+                                                                                            <tr key={`${index}-charge-${chargeIndex}`}>
+                                                                                                {chargeCompositionFields.map((field) => (
+                                                                                                    <td
+                                                                                                        key={`${index}-${chargeIndex}-${field.idCampo}`}
+                                                                                                        className="whitespace-nowrap px-2 py-1 text-[10px] text-gabu-900"
+                                                                                                    >
+                                                                                                        {formatChargeCellValue(chargeRow[field.idCampo])}
+                                                                                                    </td>
+                                                                                                ))}
+                                                                                            </tr>
+                                                                                        ))}
+                                                                                    </tbody>
+                                                                                </table>
+                                                                            </div>
+                                                                        </div>
                                                                     </td>
-                                                                );
-                                                            })}
-                                                        </tr>
+                                                                </tr>
+                                                            ) : null}
+                                                        </React.Fragment>
                                                     );
                                                 })
                                             )}

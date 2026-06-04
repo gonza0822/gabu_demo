@@ -10,6 +10,7 @@ type UserPostRequest =
     | { petition: "GetCCostosOptions"; client: string; data: {} }
     | { petition: "Add"; client: string; data: Record<string, unknown> }
     | { petition: "GetBienData"; client: string; data: { bienId: string; simulationOnly?: boolean } }
+    | { petition: "UpdateAnotaciones"; client: string; data: { bienId: string; anotaciones: string } }
     | { petition: "Update"; client: string; data: { bienId: string } & Record<string, unknown> };
 
 export async function POST(
@@ -46,6 +47,19 @@ export async function POST(
                     return NextResponse.json({ message: "Bien no encontrado", status: 404 }, { status: 404 });
                 }
                 return NextResponse.json(bien);
+            }
+            case "UpdateAnotaciones": {
+                const data = (body as { data?: { bienId: string; anotaciones: string } }).data;
+                if (!data?.bienId) {
+                    return NextResponse.json({ message: "bienId is required", status: 400 }, { status: 400 });
+                }
+                try {
+                    await fixedAssetModel.updateAnotaciones(data.bienId, data.anotaciones ?? '');
+                    return NextResponse.json({ ok: true });
+                } catch (err) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    return NextResponse.json({ message: msg, status: 500 }, { status: 500 });
+                }
             }
             case "Update": {
                 const data = (body as { data?: { bienId: string } & Record<string, unknown> }).data;

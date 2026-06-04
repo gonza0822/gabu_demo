@@ -34,6 +34,16 @@ export type ReportsConfig = {
     periodBoundsByBook: BookPeriodBoundsByBook;
 };
 
+export type ChargeCompositionField = {
+    idCampo: string;
+    browNombre: string;
+};
+
+export type ChargeCompositionData = {
+    fields: ChargeCompositionField[];
+    byBienId: Record<string, Record<string, unknown>[]>;
+};
+
 function parametrosDateToYyyyMmDd(d: Date | null | undefined): string | null {
     if (!d || Number.isNaN(d.getTime())) return null;
     return d.toISOString().slice(0, 10);
@@ -523,6 +533,76 @@ class Reports {
                 haber,
             };
         });
+    }
+
+    async getChargeCompositionForBienIds(bienIds: string[]): Promise<ChargeCompositionData> {
+        const normalizedIds = Array.from(
+            new Set(
+                bienIds
+                    .map((id) => String(id ?? "").trim())
+                    .filter((id) => /^\d+\-\d+\-\d+\-\d+$/.test(id))
+            )
+        );
+
+        const fields = await this.prisma.converField.findMany({
+            where: { IdTabla: "cargosmagic", listShow: true },
+            orderBy: { lisordencampos: "asc" },
+            select: { IdCampo: true, BrowNombre: true },
+        });
+
+        if (normalizedIds.length === 0) {
+            return {
+                fields: fields.map((f) => ({ idCampo: f.IdCampo, browNombre: f.BrowNombre ?? f.IdCampo })),
+                byBienId: {},
+            };
+        }
+
+        const tupleValues = normalizedIds
+            .map((id) => {
+                const [idCodigo, idSubien = "000", idSubtra = "0", idSufijo = "0"] = id.split("-");
+                return `(
+                    N'${this.escapeSqlString(idCodigo)}',
+                    N'${this.escapeSqlString(idSubien.padStart(3, "0"))}',
+                    N'${this.escapeSqlString(idSubtra)}',
+                    N'${this.escapeSqlString(idSufijo)}'
+                )`;
+            })
+            .join(", ");
+
+        const rows = await this.prisma.$queryRawUnsafe<Record<string, unknown>[]>(`
+            SELECT
+                CONCAT(
+                    CAST(r.idcodigo AS NVARCHAR(50)), '-',
+                    RIGHT('000' + CAST(r.idsubien AS NVARCHAR(10)), 3), '-',
+                    CAST(r.idsubtra AS NVARCHAR(10)), '-',
+                    CAST(r.idsufijo AS NVARCHAR(10))
+                ) AS __bienId,
+                c.*
+            FROM (VALUES ${tupleValues}) AS t(idcodigo, idsubien, idsubtra, idsufijo)
+            INNER JOIN dbo.relacargoactivo r
+                ON CAST(r.idcodigo AS NVARCHAR(50)) = t.idcodigo
+               AND RIGHT('000' + CAST(r.idsubien AS NVARCHAR(10)), 3) = t.idsubien
+               AND CAST(r.idsubtra AS NVARCHAR(10)) = t.idsubtra
+               AND CAST(r.idsufijo AS NVARCHAR(10)) = t.idsufijo
+            INNER JOIN dbo.cargosmagic c
+                ON c.nrocbt = r.nrocbt
+               AND c.IDArticulo = r.IDArticulo
+            ORDER BY __bienId ASC, c.cdobra ASC, c.feccbt ASC, c.nrocbt ASC
+        `);
+
+        const byBienId: Record<string, Record<string, unknown>[]> = {};
+        for (const row of rows) {
+            const bienId = String(row.__bienId ?? "").trim();
+            if (!bienId) continue;
+            const { __bienId: _omit, ...chargeRow } = row;
+            if (!byBienId[bienId]) byBienId[bienId] = [];
+            byBienId[bienId].push(chargeRow);
+        }
+
+        return {
+            fields: fields.map((f) => ({ idCampo: f.IdCampo, browNombre: f.BrowNombre ?? f.IdCampo })),
+            byBienId,
+        };
     }
 
     async runReport(params: {

@@ -2,6 +2,10 @@ import { getPrisma } from "@/lib/prisma/prisma";
 import { PrismaClient } from '@/generated/prisma/client';
 import { ConverFieldModel } from "@/generated/prisma/models";
 import { ReOrderData } from "@/lib/models/tables/Table";
+import {
+    deleteFotoFileIfExists,
+    writeFotoFile,
+} from '@/lib/uploads/assetFotoStorage';
 
 export type FixedAssets = {[key: string]: unknown};
 
@@ -626,6 +630,7 @@ class FixedAsset {
         distribucion: { idCencos: string; porcentaje: number }[];
         cabecera: Record<string, string | number | boolean | null | undefined>;
         libros?: Record<string, Record<string, string>>;
+        anotaciones?: string | null;
         /** Para alta agregado: id del bien origen (idCodigo-idSubien-idSubtra-idSufijo). Se mantiene idCodigo, idSubien = max+1 */
         altaAgregadoBienId?: string;
         /** Alta en simulación: cabesimu + libros simulados (ej. ME03), sin tocar seteos/distribución real. */
@@ -772,8 +777,8 @@ class FixedAsset {
             };
             const normalizeTipoProceso = (raw: string | undefined): string => {
                 const v = String(raw ?? '').trim().toLowerCase();
-                if (v === '1' || v === 'true' || v === 'si') return '1';
-                if (v === '0' || v === 'false' || v === 'no') return '0';
+                if (v === 's' || v === '1' || v === 'true' || v === 'si') return 'S';
+                if (v === 'n' || v === '0' || v === 'false' || v === 'no') return 'N';
                 return '';
             };
             const fieldNum = (fields: Record<string, string>, key: string): number | null =>
@@ -856,6 +861,11 @@ class FixedAsset {
                         data: { Id: 1, idcodigo: idCodigo, sonido: false },
                     });
                 }
+            }
+
+            if (data.anotaciones !== undefined) {
+                const newBienId = `${idCodigo}-${idSubien}-${idSubtra}-${idSufijo}`;
+                await this.upsertImagenAnotaciones(newBienId, data.anotaciones, tx);
             }
 
             return { idCodigo, idSubien };
@@ -1102,6 +1112,118 @@ class FixedAsset {
         }
     }
 
+    /** Claves de `imagenes` a partir de `idCodigo-idSubien-idSubtra-idSufijo`. */
+    private parseBienIdKeys(bienId: string): {
+        idCodigo: string;
+        idSubien: string;
+        idSubtra: string;
+        idSufijo: string;
+    } | null {
+        const parts = bienId.split('-');
+        if (parts.length < 4) return null;
+        const [idCodigo, idSubien = '000', idSubtra = '0', idSufijo = '0'] = parts;
+        return {
+            idCodigo,
+            idSubien: idSubien.padStart(3, '0'),
+            idSubtra,
+            idSufijo,
+        };
+    }
+
+    /** Lee `anotaciones` de `imagenes` para el bien indicado. */
+    async getImagenAnotaciones(bienId: string): Promise<string> {
+        const keys = this.parseBienIdKeys(bienId);
+        if (!keys) return '';
+        const row = await this.prisma.imagenes.findFirst({
+            where: keys,
+            select: { anotaciones: true },
+        });
+        return row?.anotaciones ?? '';
+    }
+
+    /** Crea o actualiza la fila en `imagenes` con el texto de anotaciones. */
+    async upsertImagenAnotaciones(
+        bienId: string,
+        anotaciones: string | null,
+        tx?: Pick<PrismaClient, 'imagenes'>
+    ): Promise<void> {
+        const keys = this.parseBienIdKeys(bienId);
+        if (!keys) throw new Error('bienId inválido');
+        const db = tx ?? this.prisma;
+        const text = anotaciones != null && String(anotaciones).trim() !== '' ? String(anotaciones) : null;
+        const existing = await db.imagenes.findFirst({
+            where: keys,
+            select: { id: true },
+        });
+        if (existing) {
+            await db.imagenes.update({
+                where: { id: existing.id },
+                data: { anotaciones: text },
+            });
+        } else {
+            await db.imagenes.create({
+                data: { ...keys, foto: null, plano: null, anotaciones: text },
+            });
+        }
+    }
+
+    /** Lee la ruta relativa de `imagenes.foto` para el bien indicado. */
+    async getImagenFotoRelative(bienId: string): Promise<string | null> {
+        const keys = this.parseBienIdKeys(bienId);
+        if (!keys) return null;
+        const row = await this.prisma.imagenes.findFirst({
+            where: keys,
+            select: { foto: true },
+        });
+        const raw = row?.foto?.trim();
+        return raw ? raw.replace(/\\/g, '/') : null;
+    }
+
+    /** Actualiza solo `imagenes.foto` (ruta relativa), sin tocar anotaciones. */
+    async upsertImagenFoto(
+        bienId: string,
+        fotoRelative: string | null,
+        tx?: Pick<PrismaClient, 'imagenes'>
+    ): Promise<void> {
+        const keys = this.parseBienIdKeys(bienId);
+        if (!keys) throw new Error('bienId inválido');
+        const db = tx ?? this.prisma;
+        const foto = fotoRelative?.trim() ? fotoRelative.replace(/\\/g, '/') : null;
+        const existing = await db.imagenes.findFirst({
+            where: keys,
+            select: { id: true, anotaciones: true },
+        });
+        if (existing) {
+            await db.imagenes.update({
+                where: { id: existing.id },
+                data: { foto },
+            });
+        } else {
+            await db.imagenes.create({
+                data: { ...keys, foto, plano: null, anotaciones: null },
+            });
+        }
+    }
+
+    /**
+     * Guarda el archivo en disco y persiste la ruta relativa en `imagenes.foto`.
+     * Si ya había otra foto, elimina el archivo anterior.
+     */
+    async saveImagenFoto(bienId: string, buffer: Buffer, originalFileName: string): Promise<string> {
+        const oldRelative = await this.getImagenFotoRelative(bienId);
+        const { relativePath } = await writeFotoFile(bienId, originalFileName, buffer);
+        try {
+            await this.upsertImagenFoto(bienId, relativePath);
+        } catch (err) {
+            await deleteFotoFileIfExists(relativePath);
+            throw err;
+        }
+        if (oldRelative && oldRelative !== relativePath) {
+            await deleteFotoFileIfExists(oldRelative);
+        }
+        return relativePath;
+    }
+
     /** Obtiene un bien por id desde cabecera, distribucion y tablas de libros */
     async getBienById(bienId: string, options?: { simulationOnly?: boolean }): Promise<{ [key: string]: unknown } | null> {
         const simulationOnly = options?.simulationOnly ?? false;
@@ -1181,6 +1303,8 @@ class FixedAsset {
             if (simulationOnly && simRow && typeof simRow === 'object') {
                 this.hydrateFromSimulacionVistaRow(out, simRow as Record<string, unknown>);
             }
+            out._anotaciones = await this.getImagenAnotaciones(bienId);
+            out._foto = await this.getImagenFotoRelative(bienId);
             return out;
         }
 
@@ -1235,6 +1359,9 @@ class FixedAsset {
             this.hydrateFromSimulacionVistaRow(out, simRow as Record<string, unknown>);
         }
 
+        out._anotaciones = await this.getImagenAnotaciones(bienId);
+        out._foto = await this.getImagenFotoRelative(bienId);
+
         return out;
     }
 
@@ -1246,6 +1373,7 @@ class FixedAsset {
             distribucion: { idCencos: string; porcentaje: number }[];
             cabecera: Record<string, string | number | boolean | null | undefined>;
             libros?: Record<string, Record<string, string>>;
+            anotaciones?: string | null;
         }
     ): Promise<{ ok: boolean }> {
         const parts = bienId.split('-');
@@ -1347,8 +1475,8 @@ class FixedAsset {
             };
             const normalizeTipoProcesoUpdate = (raw: string | undefined): string => {
                 const v = String(raw ?? '').trim().toLowerCase();
-                if (v === '1' || v === 'true' || v === 'si') return '1';
-                if (v === '0' || v === 'false' || v === 'no') return '0';
+                if (v === 's' || v === '1' || v === 'true' || v === 'si') return 'S';
+                if (v === 'n' || v === '0' || v === 'false' || v === 'no') return 'N';
                 return '';
             };
             const fieldNumUpdate = (fields: Record<string, string>, key: string): number | null =>
@@ -1431,8 +1559,18 @@ class FixedAsset {
                 }
             }
 
+            if (data.anotaciones !== undefined) {
+                await this.upsertImagenAnotaciones(bienId, data.anotaciones, tx);
+            }
+
             return { ok: true };
         }, { timeout: 30000 });
+    }
+
+    /** Persiste solo las anotaciones del bien en `imagenes`. */
+    async updateAnotaciones(bienId: string, anotaciones: string | null): Promise<{ ok: boolean }> {
+        await this.upsertImagenAnotaciones(bienId, anotaciones);
+        return { ok: true };
     }
 
     /** Campos de valor de libros a los que se aplica el porcentaje (60% / 40%). Solo valores contables, no vidaUtil, etc. */

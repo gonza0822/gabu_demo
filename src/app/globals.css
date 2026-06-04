@@ -17,6 +17,11 @@ body {
 }
 
 @layer utilities {
+  /* Sin esto, un <dialog> cerrado queda en el flujo del documento y se ve un borde al pie de la página. */
+  dialog:not([open]) {
+    display: none;
+  }
+
   dialog::backdrop {
     @apply bg-gabu-900/50;
   }

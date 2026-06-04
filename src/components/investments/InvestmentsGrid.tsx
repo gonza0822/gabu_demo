@@ -350,6 +350,10 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
         () => Array.from(selectedChargeIds).map((id) => chargeRowsById.get(id)).filter((row): row is RowData => Boolean(row)),
         [selectedChargeIds, chargeRowsById]
     );
+    const hasBlockedSelectedCharges = useMemo(
+        () => selectedChargeRows.some((row) => Boolean((row as RowData).__chargeBlocked)),
+        [selectedChargeRows]
+    );
 
     const showSelectionConstraintError = useCallback((message: string) => {
         setSelectionErrorMessage(message);
@@ -367,10 +371,6 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
             if (type === "charges") {
                 const candidate = chargeRowsById.get(rowId);
                 if (!candidate) return prev;
-                if (Boolean((candidate as RowData).__chargeBlocked)) {
-                    errorMessage = "Este cargo ya fue transferido (existe en relacargoactivo) y no se puede seleccionar.";
-                    return prev;
-                }
                 const candidateCdobra = getChargeCdobra(candidate);
                 const candidatePeriod = getChargeSelectionPeriod(candidate);
                 for (const selectedId of next) {
@@ -419,10 +419,13 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                         <input
                             type="checkbox"
                             aria-label="Seleccionar fila"
-                            title={isBlocked ? "Cargo bloqueado: ya existe en relacargoactivo." : "Seleccionar fila"}
-                            disabled={isBlocked}
+                            title={
+                                isBlocked
+                                    ? "Cargo transferido: se permite para simulación, no para transferencia a activo fijo."
+                                    : "Seleccionar fila"
+                            }
                             className={`peer h-4 w-4 min-h-[16px] min-w-[16px] appearance-none rounded-md border border-gabu-900 bg-gabu-300 checked:bg-gabu-900 focus:outline-none ${
-                                isBlocked ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+                                isBlocked ? "cursor-pointer opacity-75" : "cursor-pointer"
                             }`}
                             checked={selectedChargeIds.has(id)}
                             onChange={() => toggleChargeSelect(id)}
@@ -624,10 +627,6 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
         (rowId: string) => {
             const source = chargeRowsById.get(rowId);
             if (!source) return;
-            if (Boolean((source as RowData).__chargeBlocked)) {
-                showSelectionConstraintError("El cargo elegido está bloqueado porque ya existe en relacargoactivo.");
-                return;
-            }
             const sourceCdobra = getChargeCdobra(source);
             const sourceFeccbt = getChargeFeccbtDate(source);
             if (!sourceCdobra || !sourceFeccbt) {
@@ -638,8 +637,7 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                 .filter(
                     (row) =>
                         getChargeCdobra(row) === sourceCdobra &&
-                        getChargeFeccbtDate(row) === sourceFeccbt &&
-                        !Boolean((row as RowData).__chargeBlocked)
+                        getChargeFeccbtDate(row) === sourceFeccbt
                 )
                 .map((row) => String((row as RowData).__chargeRowId ?? ""))
                 .filter((id) => id !== "");
@@ -874,7 +872,6 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                                                         event.preventDefault();
                                                         const rowId = String((row.original as RowData).__chargeRowId ?? "");
                                                         if (!rowId) return;
-                                                        if (Boolean((row.original as RowData).__chargeBlocked)) return;
                                                         const tr = event.currentTarget as HTMLTableRowElement;
                                                         const checkbox = tr.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
                                                         if (checkbox) {
@@ -997,8 +994,14 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                     <Button
                         text="Transferir"
                         type="button"
-                        disabled={selectedChargeIds.size === 0}
+                        disabled={selectedChargeIds.size === 0 || hasBlockedSelectedCharges}
                         handleClick={() => {
+                            if (hasBlockedSelectedCharges) {
+                                showSelectionConstraintError(
+                                    "Hay cargos transferidos seleccionados. Esos cargos solo pueden transferirse a simulación."
+                                );
+                                return;
+                            }
                             setIsChargeTransferModalOpen(true);
                         }}
                         style="font-normal text-gabu-900 w-auto min-w-[5.25rem] max-w-[10rem] shrink-0 rounded-md border border-gabu-900/30 bg-gabu-100 px-3 py-1 text-xs transition-colors duration-300 hover:bg-gabu-300 sm:min-w-[6.5rem] sm:px-4 sm:py-1.5 sm:text-sm"

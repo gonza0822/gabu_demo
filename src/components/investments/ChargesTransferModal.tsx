@@ -208,6 +208,13 @@ export default function ChargesTransferModal({
             setSubmitError("No hay cargos seleccionados.");
             return;
         }
+        if (target === "fixedAssets") {
+            const hasBlocked = selectedRows.some((row) => Boolean(getRowValueByField(row, "__chargeBlocked")));
+            if (hasBlocked) {
+                setSubmitError("Hay cargos transferidos seleccionados. Esos cargos solo pueden transferirse a simulación.");
+                return;
+            }
+        }
         if (transferMode === "improve" && !selectedAssetId) {
             setSubmitError("Debe seleccionar un bien existente para generar mejora.");
             return;

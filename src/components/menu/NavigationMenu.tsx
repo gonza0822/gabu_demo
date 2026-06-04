@@ -37,6 +37,7 @@ export default function NavigationMenu() : ReactElement {
             /* noop */
         }
         dispatch(authorizationActions.logout());
+        router.push("/");
     }
 
     async function loadMenu() {
