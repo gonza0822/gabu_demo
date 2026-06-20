@@ -33,6 +33,12 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# MCP SQL Server (local — credenciales y configuración)
+.env.mcp
+mcp.env.example
+/scripts/mcp-sqlserver-launcher.mjs
+/logs/mcp-mssqlserver*.log
+
 # vercel
 .vercel
 

@@ -19,6 +19,22 @@ type ErrorResponse = {
     status: number
 }
 
+function getLoginErrorMessage(
+    reason: "connection_error" | "invalid_credentials" | "invalid_response" | "expired",
+    client: string
+): string {
+    switch (reason) {
+        case "connection_error":
+            return "No se pudo conectar con el servicio de autenticación. Verifique que esté en ejecución.";
+        case "invalid_response":
+            return "El servicio de autenticación devolvió una respuesta inválida.";
+        case "expired":
+            return "La sesión devuelta por el servicio de autenticación ya expiró.";
+        default:
+            return "Credenciales invalidas para el cliente " + client + ".";
+    }
+}
+
 export async function POST(request: Request) : Promise<NextResponse<UserPostResponse | ErrorResponse>> {
     try {
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -29,17 +45,17 @@ export async function POST(request: Request) : Promise<NextResponse<UserPostResp
         } else {
             const user : User = new User(userName, password, client);
 
-            const loginRes : { result : boolean, token : string, supervisor: boolean} = await user.login();
+            const loginRes = await user.login();
 
             if(loginRes.result){
-                await setSessionStore('token', loginRes.token, 60 * 60 * 24);
+                await setSessionStore('token', loginRes.token, loginRes.expirationSeconds);
 
                 return  NextResponse.json({
                     user: userName,
                     supervisor: loginRes.supervisor,
                 })
             } else {
-                throw new Error("Credenciales invalidas para el cliente "+client+".");
+                throw new Error(getLoginErrorMessage(loginRes.reason, client));
             }
         }
     } catch(err){

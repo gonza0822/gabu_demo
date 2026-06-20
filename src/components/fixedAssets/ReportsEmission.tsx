@@ -11,6 +11,7 @@ import Select from "@/components/ui/Select";
 import Excel from "@/components/svg/Excel";
 import CollapseAllIcon from "@/components/svg/CollapseAllIcon";
 import ExpandAllIcon from "@/components/svg/ExpandAllIcon";
+import Checked from "@/components/svg/Checked";
 import ExcelJS from "exceljs";
 import { formatNumberEs } from "@/util/number/formatNumberEs";
 
@@ -516,6 +517,8 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
     const [asientosBrowLabels, setAsientosBrowLabels] = useState<Record<string, string>>({});
     const [chargeCompositionFields, setChargeCompositionFields] = useState<{ idCampo: string; browNombre: string }[]>([]);
     const [chargeCompositionByBienId, setChargeCompositionByBienId] = useState<Record<string, Record<string, unknown>[]>>({});
+    const [includeChargeComposition, setIncludeChargeComposition] = useState(false);
+    const [generatedWithChargeComposition, setGeneratedWithChargeComposition] = useState(false);
     const [paramBoundsByBook, setParamBoundsByBook] = useState<Record<string, BookParamBounds>>({});
     const [periodBoundsByBook, setPeriodBoundsByBook] = useState<BookPeriodBoundsByBook>({});
     const [dateFrom, setDateFrom] = useState("");
@@ -998,6 +1001,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
         }
         setRunning(true);
         setHasGenerated(false);
+        setGeneratedWithChargeComposition(false);
         setErrorMessage(null);
         setSuccessMessage(null);
         setShowErrorAlert(false);
@@ -1036,7 +1040,8 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                 throw new Error((data as { message?: string }).message ?? "Error generando el reporte");
             }
             const resultRows = Array.isArray(data) ? data : [];
-            if (reportType === "DETALLE_ACTIVO" && resultRows.length > 0) {
+            let withChargeComposition = false;
+            if (reportType === "DETALLE_ACTIVO" && includeChargeComposition && resultRows.length > 0) {
                 const bienIds = Array.from(
                     new Set(
                         resultRows
@@ -1060,6 +1065,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                     }
                     setChargeCompositionFields((chargeData as ChargeCompositionResponse).fields ?? []);
                     setChargeCompositionByBienId((chargeData as ChargeCompositionResponse).byBienId ?? {});
+                    withChargeComposition = true;
                 } else {
                     setChargeCompositionFields([]);
                     setChargeCompositionByBienId({});
@@ -1068,6 +1074,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                 setChargeCompositionFields([]);
                 setChargeCompositionByBienId({});
             }
+            setGeneratedWithChargeComposition(withChargeComposition);
             setRows(resultRows);
             setGeneratedReportType(reportType);
             setHasGenerated(true);
@@ -1084,6 +1091,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
         dateFrom,
         dateTo,
         enabledReports,
+        includeChargeComposition,
         needsReportDateRange,
         currentDateBounds,
         period,
@@ -1101,10 +1109,11 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
 
     useEffect(() => {
         if (displayedReportType === "DETALLE_ACTIVO") return;
-        if (chargeCompositionFields.length === 0 && Object.keys(chargeCompositionByBienId).length === 0) return;
+        if (chargeCompositionFields.length === 0 && Object.keys(chargeCompositionByBienId).length === 0 && !generatedWithChargeComposition) return;
         setChargeCompositionFields([]);
         setChargeCompositionByBienId({});
-    }, [displayedReportType, chargeCompositionFields.length, chargeCompositionByBienId]);
+        setGeneratedWithChargeComposition(false);
+    }, [displayedReportType, chargeCompositionFields.length, chargeCompositionByBienId, generatedWithChargeComposition]);
 
     const handleBookSelect = useCallback(
         (e: React.MouseEvent<HTMLLIElement>, ref: React.RefObject<HTMLSpanElement | null>) => {
@@ -1283,7 +1292,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                 });
             }
 
-            if (displayedReportType === "DETALLE_ACTIVO" && meta?.kind === "data") {
+            if (displayedReportType === "DETALLE_ACTIVO" && generatedWithChargeComposition && meta?.kind === "data") {
                 const bienId = getDetailBienId(row);
                 const charges = bienId ? chargeCompositionByBienId[bienId] ?? [] : [];
                 if (charges.length > 0) {
@@ -1346,6 +1355,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
         asientosBrowLabels,
         chargeCompositionByBienId,
         chargeCompositionFields,
+        generatedWithChargeComposition,
     ]);
 
     return (
@@ -1459,6 +1469,26 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                                 />
                             </div>
                         </div>
+                        {reportType === "DETALLE_ACTIVO" && (
+                            <label
+                                className="flex items-center gap-1.5 2xl:gap-2 shrink-0 cursor-pointer select-none"
+                                title="Incluir composición de cargos debajo de cada activo"
+                            >
+                                <div className="relative flex justify-center items-center w-3.5 h-3.5 2xl:w-4 2xl:h-4 shrink-0">
+                                    <input
+                                        type="checkbox"
+                                        checked={includeChargeComposition}
+                                        onChange={(e) => setIncludeChargeComposition(e.target.checked)}
+                                        disabled={loadingConfig || running}
+                                        className="peer checked:bg-gabu-900 appearance-none w-3.5 h-3.5 2xl:w-4 2xl:h-4 min-w-[14px] min-h-[14px] 2xl:min-w-[16px] 2xl:min-h-[16px] bg-gabu-300 border border-gabu-900 cursor-pointer rounded-md focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+                                    />
+                                    <Checked style="absolute w-3.5 h-3.5 2xl:w-4 2xl:h-4 min-w-[14px] min-h-[14px] 2xl:min-w-[16px] 2xl:min-h-[16px] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-gabu-100 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                                </div>
+                                <span className="text-gabu-100 text-[10px] 2xl:text-sm whitespace-nowrap">
+                                    Comp. cargos
+                                </span>
+                            </label>
+                        )}
                         {needsReportDateRange && (
                             <div
                                 className="flex flex-col gap-0.5 shrink-0 min-w-0 border-l border-gabu-900/30 pl-2.5 ml-0.5 2xl:pl-3 2xl:ml-1"
@@ -1655,6 +1685,7 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                                                     const bienId = displayedReportType === "DETALLE_ACTIVO" ? getDetailBienId(row) : "";
                                                     const chargeRows = bienId ? chargeCompositionByBienId[bienId] ?? [] : [];
                                                     const showChargeSubgrid =
+                                                        generatedWithChargeComposition &&
                                                         displayedReportType === "DETALLE_ACTIVO" &&
                                                         rowMeta.kind === "data" &&
                                                         chargeRows.length > 0;

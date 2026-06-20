@@ -1,5 +1,14 @@
 import { usuariosModel } from '@/generated/prisma/models';
 import { getPrisma } from '@/lib/prisma/prisma';
+import {
+    getLoginExpirationSeconds,
+    validateUserLogin,
+    ValidateUserLoginErrorReason,
+} from '@/lib/auth/validateUserLogin';
+
+type LoginResult =
+    | { result: true; token: string; supervisor: boolean; expirationSeconds: number }
+    | { result: false; reason: ValidateUserLoginErrorReason | "expired" };
 
 class User {
     userName: string;
@@ -12,31 +21,38 @@ class User {
         this.client = client;
     }
 
-    async login() : Promise<{ result : boolean, token : string, supervisor: boolean }> {
-        const prisma = getPrisma();
-        const listUsers : usuariosModel[] = await prisma.usuarios.findMany();
-        const matchedUser = listUsers.find(
-            (user) => this.userName.trim() === user.idUsuario && this.password.trim() === user.clave
-        );
-        let token : string = '';
-        if (matchedUser) {
-            token = Math.random().toString(36).substring(2);
-        }
+    async login(): Promise<LoginResult> {
+        const apiLogin = await validateUserLogin(this.userName, this.password);
 
-        if(token === ''){
+        if (!apiLogin.ok) {
             return {
                 result: false,
-                token: '',
-                supervisor: false,
-            };
-        } else {
-            return {
-                result: true,
-                token: token,
-                supervisor: !!matchedUser?.supervisor,
+                reason: apiLogin.reason,
             };
         }
+
+        const expirationSeconds = getLoginExpirationSeconds(apiLogin.expiracion);
+
+        if (expirationSeconds <= 0) {
+            return {
+                result: false,
+                reason: "expired",
+            };
+        }
+
+        const prisma = getPrisma(this.client);
+        const listUsers: usuariosModel[] = await prisma.usuarios.findMany();
+        const matchedUser = listUsers.find(
+            (user) => this.userName.trim() === user.idUsuario
+        );
+
+        return {
+            result: true,
+            token: apiLogin.token,
+            supervisor: !!matchedUser?.supervisor,
+            expirationSeconds,
+        };
     }
 }
 
-export default User;  
+export default User;

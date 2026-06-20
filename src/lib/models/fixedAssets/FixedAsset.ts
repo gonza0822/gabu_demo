@@ -4,6 +4,9 @@ import { ConverFieldModel } from "@/generated/prisma/models";
 import { ReOrderData } from "@/lib/models/tables/Table";
 import {
     deleteFotoFileIfExists,
+    parseFotoPathsStored,
+    sanitizeFileName,
+    serializeFotoPathsStored,
     writeFotoFile,
 } from '@/lib/uploads/assetFotoStorage';
 
@@ -1167,28 +1170,33 @@ class FixedAsset {
         }
     }
 
-    /** Lee la ruta relativa de `imagenes.foto` para el bien indicado. */
-    async getImagenFotoRelative(bienId: string): Promise<string | null> {
+    /** Lee las rutas relativas de `imagenes.foto` para el bien indicado. */
+    async getImagenFotosRelative(bienId: string): Promise<string[]> {
         const keys = this.parseBienIdKeys(bienId);
-        if (!keys) return null;
+        if (!keys) return [];
         const row = await this.prisma.imagenes.findFirst({
             where: keys,
             select: { foto: true },
         });
-        const raw = row?.foto?.trim();
-        return raw ? raw.replace(/\\/g, '/') : null;
+        return parseFotoPathsStored(row?.foto);
     }
 
-    /** Actualiza solo `imagenes.foto` (ruta relativa), sin tocar anotaciones. */
-    async upsertImagenFoto(
+    /** Lee la primera ruta relativa de `imagenes.foto` (compatibilidad). */
+    async getImagenFotoRelative(bienId: string): Promise<string | null> {
+        const fotos = await this.getImagenFotosRelative(bienId);
+        return fotos[0] ?? null;
+    }
+
+    /** Actualiza `imagenes.foto` con la lista de rutas, sin tocar anotaciones. */
+    async upsertImagenFotos(
         bienId: string,
-        fotoRelative: string | null,
+        fotoPaths: string[],
         tx?: Pick<PrismaClient, 'imagenes'>
     ): Promise<void> {
         const keys = this.parseBienIdKeys(bienId);
         if (!keys) throw new Error('bienId inválido');
         const db = tx ?? this.prisma;
-        const foto = fotoRelative?.trim() ? fotoRelative.replace(/\\/g, '/') : null;
+        const foto = serializeFotoPathsStored(fotoPaths);
         const existing = await db.imagenes.findFirst({
             where: keys,
             select: { id: true, anotaciones: true },
@@ -1205,23 +1213,42 @@ class FixedAsset {
         }
     }
 
+    /** Actualiza solo `imagenes.foto` (ruta relativa), sin tocar anotaciones. */
+    async upsertImagenFoto(
+        bienId: string,
+        fotoRelative: string | null,
+        tx?: Pick<PrismaClient, 'imagenes'>
+    ): Promise<void> {
+        const paths = fotoRelative?.trim() ? [fotoRelative.replace(/\\/g, '/')] : [];
+        await this.upsertImagenFotos(bienId, paths, tx);
+    }
+
     /**
-     * Guarda el archivo en disco y persiste la ruta relativa en `imagenes.foto`.
-     * Si ya había otra foto, elimina el archivo anterior.
+     * Guarda el archivo en disco y agrega la ruta relativa a `imagenes.foto`.
      */
     async saveImagenFoto(bienId: string, buffer: Buffer, originalFileName: string): Promise<string> {
-        const oldRelative = await this.getImagenFotoRelative(bienId);
-        const { relativePath } = await writeFotoFile(bienId, originalFileName, buffer);
+        const uniqueName = `${Date.now()}_${sanitizeFileName(originalFileName)}`;
+        const { relativePath } = await writeFotoFile(bienId, uniqueName, buffer);
+        const current = await this.getImagenFotosRelative(bienId);
         try {
-            await this.upsertImagenFoto(bienId, relativePath);
+            await this.upsertImagenFotos(bienId, [...current, relativePath]);
         } catch (err) {
             await deleteFotoFileIfExists(relativePath);
             throw err;
         }
-        if (oldRelative && oldRelative !== relativePath) {
-            await deleteFotoFileIfExists(oldRelative);
-        }
         return relativePath;
+    }
+
+    /** Elimina una foto del bien (archivo en disco y entrada en `imagenes.foto`). */
+    async deleteImagenFoto(bienId: string, fotoRelative: string): Promise<void> {
+        const normalized = fotoRelative.replace(/\\/g, '/').trim();
+        const current = await this.getImagenFotosRelative(bienId);
+        if (!current.includes(normalized)) {
+            throw new Error('Foto no encontrada');
+        }
+        const next = current.filter((p) => p !== normalized);
+        await this.upsertImagenFotos(bienId, next);
+        await deleteFotoFileIfExists(normalized);
     }
 
     /** Obtiene un bien por id desde cabecera, distribucion y tablas de libros */
@@ -1304,7 +1331,9 @@ class FixedAsset {
                 this.hydrateFromSimulacionVistaRow(out, simRow as Record<string, unknown>);
             }
             out._anotaciones = await this.getImagenAnotaciones(bienId);
-            out._foto = await this.getImagenFotoRelative(bienId);
+            const fotosCabecera = await this.getImagenFotosRelative(bienId);
+            out._fotos = fotosCabecera;
+            out._foto = fotosCabecera[0] ?? null;
             return out;
         }
 
@@ -1360,7 +1389,9 @@ class FixedAsset {
         }
 
         out._anotaciones = await this.getImagenAnotaciones(bienId);
-        out._foto = await this.getImagenFotoRelative(bienId);
+        const fotosBien = await this.getImagenFotosRelative(bienId);
+        out._fotos = fotosBien;
+        out._foto = fotosBien[0] ?? null;
 
         return out;
     }
@@ -1544,16 +1575,22 @@ class FixedAsset {
                     modelName
                 );
                 if (!model) continue;
-                const hasIdActivoInPk = /^impu|^me\d/i.test(prefijo);
+                const needsIdActivoInWhere = /^impu/i.test(prefijo);
                 const where: Record<string, unknown> = { idCodigo, idSubien: sidSubien, idSubtra, idSufijo };
-                if (hasIdActivoInPk && idActivo) (where as Record<string, unknown>).idActivo = idActivo;
+                if (needsIdActivoInWhere && idActivo) (where as Record<string, unknown>).idActivo = idActivo;
                 const updateData = { ...rowData };
                 delete (updateData as Record<string, unknown>).idCodigo;
                 delete (updateData as Record<string, unknown>).idSubien;
                 delete (updateData as Record<string, unknown>).idSubtra;
                 delete (updateData as Record<string, unknown>).idSufijo;
-                if (hasIdActivoInPk) delete (updateData as Record<string, unknown>).idActivo;
-                const result = await model.updateMany({ where, data: updateData });
+                if (needsIdActivoInWhere) delete (updateData as Record<string, unknown>).idActivo;
+                let result = await model.updateMany({ where, data: updateData });
+                if (result.count === 0 && needsIdActivoInWhere && idActivo) {
+                    result = await model.updateMany({
+                        where: { idCodigo, idSubien: sidSubien, idSubtra, idSufijo },
+                        data: updateData,
+                    });
+                }
                 if (result.count === 0 && model.create) {
                     await model.create({ data: rowData });
                 }

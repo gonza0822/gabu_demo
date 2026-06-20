@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
@@ -52,12 +52,25 @@ function previewAnotaciones(text: string): string {
     return `${t.slice(0, NOTA_PREVIEW_MAX).trimEnd()}…`;
 }
 
+type FotoDraftPending = { kind: 'pending'; id: string; file: File; previewUrl: string };
+type FotoDraftSaved = { kind: 'saved'; path: string };
+type FotoDraftItem = FotoDraftPending | FotoDraftSaved;
+
+function fotoDraftKey(item: FotoDraftItem): string {
+    return item.kind === 'pending' ? item.id : item.path;
+}
+
 function parseLocalizedNumber(value: unknown): number {
     const raw = String(value ?? "").trim();
     if (!raw) return 0;
     const normalized = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw;
     const parsed = Number(normalized);
     return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/** Formatea un número para mostrar al cargar datos (no usar mientras el usuario escribe). */
+function formatNumericFieldDisplay(value: unknown, fractionDigits = 2): string {
+    return formatNumberEs(parseLocalizedNumber(value), fractionDigits, fractionDigits);
 }
 
 const SelectArrowSvg = () => (
@@ -121,7 +134,7 @@ function shouldFetchBienDataFromApi(data: Record<string, unknown> | null, simula
     // cuando faltan datos extendidos necesarios para edición completa (ej: distribución detallada).
     const hasDistribucion = Array.isArray(data._distribucion);
     const hasAnotaciones = typeof data._anotaciones === 'string';
-    const hasFoto = '_foto' in data;
+    const hasFoto = '_fotos' in data || '_foto' in data;
     return !hasDistribucion || !hasAnotaciones || !hasFoto;
 }
 
@@ -305,12 +318,14 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
     const [librosTipoAmor, setLibrosTipoAmor] = useState<Record<string, string>>({});
     const [librosVidautil, setLibrosVidautil] = useState<Record<string, string>>({});
     const [librosValori, setLibrosValori] = useState<Record<string, string>>({});
+    /** Texto visible en inputs VALORI; se formatea solo al cargar/revertir, no al escribir. */
+    const [librosValoriDraft, setLibrosValoriDraft] = useState<Record<string, string>>({});
 
     const [librosOpenPrefijo, setLibrosOpenPrefijo] = useState<string | null>(null);
     const cabeceraOpen = librosOpenPrefijo === 'cabecera';
     const [cabeceraCuenta, setCabeceraCuenta] = useState<string>('');
     const [librosHorizontalTab, setLibrosHorizontalTab] = useState<Record<string, string>>({});
-    const [valorOrigenGral, setValorOrigenGral] = useState('0');
+    const [valorOrigenGral, setValorOrigenGral] = useState(() => formatNumericFieldDisplay(0));
     const [formKey, setFormKey] = useState(0);
 
     const [descripcion, setDescripcion] = useState('');
@@ -371,15 +386,28 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
     const [distribucionRows, setDistribucionRows] = useState<DistribucionRow[]>([]);
     const [ccostosOptions, setCcostosOptions] = useState<{ key: string; value: string }[]>([]);
     const [anotaciones, setAnotaciones] = useState('');
+    const initialAnotacionesRef = useRef('');
     const [notaModalOpen, setNotaModalOpen] = useState(false);
     const [notaModalDraft, setNotaModalDraft] = useState('');
-    const [notaSaving, setNotaSaving] = useState(false);
-    const [notaSaveError, setNotaSaveError] = useState<string | null>(null);
-    const [fotoRelative, setFotoRelative] = useState<string | null>(null);
+    const [savedFotosPaths, setSavedFotosPaths] = useState<string[]>([]);
+    const savedFotosSnapshotRef = useRef<string[]>([]);
+    const [pendingFotoAdds, setPendingFotoAdds] = useState<FotoDraftPending[]>([]);
+    const [pendingFotoDeletes, setPendingFotoDeletes] = useState<string[]>([]);
     const [fotoVersion, setFotoVersion] = useState(0);
-    const [fotoUploading, setFotoUploading] = useState(false);
     const [fotoError, setFotoError] = useState<string | null>(null);
+    const [fotoModalOpen, setFotoModalOpen] = useState(false);
+    const [fotoModalItem, setFotoModalItem] = useState<FotoDraftItem | null>(null);
     const fotoInputRef = useRef<HTMLInputElement>(null);
+    const fotosFetchIdRef = useRef(0);
+    const pendingFotoAddsRef = useRef<FotoDraftPending[]>([]);
+
+    useEffect(() => {
+        pendingFotoAddsRef.current = pendingFotoAdds;
+    }, [pendingFotoAdds]);
+
+    useEffect(() => () => {
+        pendingFotoAddsRef.current.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    }, []);
 
     /** Hidrata formulario desde bienData (debe ir después de los useState que actualiza). */
     useEffect(() => {
@@ -433,19 +461,20 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
             setDistribucionRows(dist.map((d, i) => ({
                 id: Date.now() + i,
                 cencos: d.idCencos ?? '',
-                porcentaje: String(d.porcentaje ?? 0),
+                porcentaje: formatNumericFieldDisplay(d.porcentaje ?? 0),
             })));
         }
         const rawAnot = r._anotaciones;
-        setAnotaciones(typeof rawAnot === 'string' ? rawAnot : '');
-        const rawFoto = r._foto;
-        setFotoRelative(typeof rawFoto === 'string' && rawFoto.trim() ? rawFoto.trim() : null);
+        const initialAnot = typeof rawAnot === 'string' ? rawAnot : '';
+        initialAnotacionesRef.current = initialAnot;
+        setAnotaciones(initialAnot);
         const rawVal = altaAgregadoMode ? 0 : parseLocalizedNumber(getRowVal(r, 'Valori') ?? getRowVal(r, 'valori') ?? 0);
-        setValorOrigenGral(isNaN(rawVal) ? '0' : String(rawVal));
+        setValorOrigenGral(formatNumericFieldDisplay(isNaN(rawVal) ? 0 : rawVal));
         const fecoriMap: Record<string, string> = {};
         const tipoAmorMap: Record<string, string> = {};
         const vidautilMap: Record<string, string> = {};
         const valoriMap: Record<string, string> = {};
+        const valoriDraftMap: Record<string, string> = {};
         const tryLibroVal = (prefijo: string, campo: string): unknown => {
             const fallbacks = simulationOnly
                 ? [
@@ -485,15 +514,19 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
             if (vVu != null && vVu !== '') vidautilMap[ac.prefijo] = String(vVu);
             if (altaAgregadoMode) {
                 valoriMap[ac.prefijo] = '0';
+                valoriDraftMap[ac.prefijo] = '0';
             } else if (rowHasUsableValue(vVal) || (typeof vVal === 'number' && !Number.isNaN(vVal))) {
                 const num = parseLocalizedNumber(vVal);
-                valoriMap[ac.prefijo] = isNaN(num) ? '0' : String(num);
+                const raw = isNaN(num) ? '0' : String(num);
+                valoriMap[ac.prefijo] = raw;
+                valoriDraftMap[ac.prefijo] = valorConCotizacion(raw, ac.prefijo);
             }
         });
         setLibrosFecori((prev) => ({ ...prev, ...fecoriMap }));
         setLibrosTipoAmor((prev) => ({ ...prev, ...tipoAmorMap }));
         setLibrosVidautil((prev) => ({ ...prev, ...vidautilMap }));
         setLibrosValori((prev) => ({ ...prev, ...valoriMap }));
+        setLibrosValoriDraft((prev) => ({ ...prev, ...valoriDraftMap }));
         setFormKey((k) => k + 1);
     }, [bienData, cabeceraData, librosData, getRowVal, cloneMode, altaAgregadoMode, simulationOnly]);
 
@@ -512,6 +545,36 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
 
     useEffect(() => { fetchCCostos(); }, [fetchCCostos]);
 
+    const fetchFotos = useCallback(async () => {
+        if (!client || !bienId || cloneMode || altaAgregadoMode) return;
+        const fetchId = ++fotosFetchIdRef.current;
+        try {
+            const params = new URLSearchParams({ client, bienId, list: '1' });
+            const res = await fetch(`/api/fixedAssets/foto?${params.toString()}`);
+            const data = await res.json();
+            if (fetchId !== fotosFetchIdRef.current) return;
+            if (res.ok && Array.isArray(data.fotos)) {
+                const paths = (data.fotos as unknown[]).filter(
+                    (p): p is string => typeof p === 'string' && p.trim() !== ''
+                );
+                setSavedFotosPaths(paths);
+                savedFotosSnapshotRef.current = paths;
+                setPendingFotoAdds((prev) => {
+                    prev.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+                    return [];
+                });
+                setPendingFotoDeletes([]);
+                setFotoVersion((v) => v + 1);
+            }
+        } catch {
+            /* silent */
+        }
+    }, [client, bienId, cloneMode, altaAgregadoMode]);
+
+    useEffect(() => {
+        void fetchFotos();
+    }, [fetchFotos]);
+
     const [distribucionOpenId, setDistribucionOpenId] = useState<number | null>(null);
 
     const addDistribucionRow = () => {
@@ -526,14 +589,12 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
     };
 
     const updateDistribucionPorcentaje = (id: number, newVal: string) => {
-        setDistribucionRows((prev) => {
-            const num = parseLocalizedNumber(newVal);
-            const capped = Math.min(100, Math.max(0, num));
-            return prev.map((r) => r.id === id ? { ...r, porcentaje: String(capped) } : r);
-        });
+        setDistribucionRows((prev) =>
+            prev.map((r) => r.id === id ? { ...r, porcentaje: newVal } : r)
+        );
     };
 
-    const distribucionSum = distribucionRows.reduce((s, r) => s + (parseFloat(r.porcentaje) || 0), 0);
+    const distribucionSum = distribucionRows.reduce((s, r) => s + parseLocalizedNumber(r.porcentaje), 0);
     const distribucionInvalid = distribucionRows.length > 0 && Math.abs(distribucionSum - 100) > 0.01;
     const cencosKeys = distribucionRows.map((r) => r.cencos).filter(Boolean);
     const distribucionDuplicateCencos = cencosKeys.length !== new Set(cencosKeys).size;
@@ -542,18 +603,83 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
         cabeceraValuesRef.current[fieldId] = key;
     };
 
-    const handleRevert = useCallback(() => {
-        setValorOrigenGral('0');
-        setAnotaciones('');
-        setFotoRelative(null);
-        setFotoVersion(0);
+    const resetFotoDraft = useCallback(() => {
+        pendingFotoAddsRef.current.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+        setPendingFotoAdds([]);
+        setPendingFotoDeletes([]);
+        if (cloneMode || altaAgregadoMode || !bienId) {
+            setSavedFotosPaths([]);
+            savedFotosSnapshotRef.current = [];
+        } else {
+            setSavedFotosPaths([...savedFotosSnapshotRef.current]);
+        }
         setFotoError(null);
+        setFotoModalOpen(false);
+        setFotoModalItem(null);
+    }, [bienId, cloneMode, altaAgregadoMode]);
+
+    const fotoDisplayItems = useMemo((): FotoDraftItem[] => {
+        const deletes = new Set(pendingFotoDeletes);
+        const saved = savedFotosPaths
+            .filter((p) => !deletes.has(p))
+            .map((path): FotoDraftSaved => ({ kind: 'saved', path }));
+        return [...saved, ...pendingFotoAdds];
+    }, [savedFotosPaths, pendingFotoDeletes, pendingFotoAdds]);
+
+    const syncFotosWithServer = useCallback(async (targetBienId: string): Promise<string | null> => {
+        if (!client) return 'Cliente no disponible';
+        fotosFetchIdRef.current += 1;
+        try {
+            for (const path of pendingFotoDeletes) {
+                const params = new URLSearchParams({ client, bienId: targetBienId, path });
+                const res = await fetch(`/api/fixedAssets/foto?${params.toString()}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (!res.ok || !data?.ok) {
+                    return (data?.message as string | undefined) ?? 'Error al eliminar una foto';
+                }
+            }
+            for (const item of pendingFotoAdds) {
+                const form = new FormData();
+                form.append('client', client);
+                form.append('bienId', targetBienId);
+                form.append('file', item.file);
+                const res = await fetch('/api/fixedAssets/foto', { method: 'POST', body: form });
+                const data = await res.json();
+                if (!res.ok || !data?.ok) {
+                    return (data?.message as string | undefined) ?? 'Error al guardar una foto';
+                }
+            }
+            pendingFotoAddsRef.current.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+            setPendingFotoAdds([]);
+            setPendingFotoDeletes([]);
+            const params = new URLSearchParams({ client, bienId: targetBienId, list: '1' });
+            const res = await fetch(`/api/fixedAssets/foto?${params.toString()}`);
+            const data = await res.json();
+            if (res.ok && Array.isArray(data.fotos)) {
+                const paths = (data.fotos as unknown[]).filter(
+                    (p): p is string => typeof p === 'string' && p.trim() !== ''
+                );
+                setSavedFotosPaths(paths);
+                savedFotosSnapshotRef.current = paths;
+                setFotoVersion((v) => v + 1);
+            }
+            return null;
+        } catch {
+            return 'Error al guardar las fotos';
+        }
+    }, [client, pendingFotoDeletes, pendingFotoAdds]);
+
+    const handleRevert = useCallback(() => {
+        setValorOrigenGral(formatNumericFieldDisplay(0));
+        setAnotaciones(initialAnotacionesRef.current);
+        resetFotoDraft();
+        void fetchFotos();
         setNotaModalOpen(false);
         setNotaModalDraft('');
-        setNotaSaveError(null);
         setDistribucionRows([]);
         setDistribucionOpenId(null);
         setLibrosValori({});
+        setLibrosValoriDraft({});
         const defaultActivo = cabeceraData?.defaultActivo ?? librosData?.cuentas[0]?.key ?? '';
         setCabeceraCuenta(defaultActivo);
         if (librosData) {
@@ -581,7 +707,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
             setLibrosVidautil(vidautilMap);
         }
         setFormKey((k) => k + 1);
-    }, [cabeceraData?.defaultActivo, librosData]);
+    }, [cabeceraData?.defaultActivo, librosData, fetchFotos, resetFotoDraft]);
 
     const handleGuardar = useCallback(async () => {
         if (!client) return;
@@ -621,7 +747,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
             if (libErrors.length) errors[ac.prefijo] = libErrors;
         });
 
-        const distSum = distribucionRows.reduce((s, r) => s + (parseFloat(r.porcentaje) || 0), 0);
+        const distSum = distribucionRows.reduce((s, r) => s + parseLocalizedNumber(r.porcentaje), 0);
         if (distribucionRows.length > 0 && Math.abs(distSum - 100) > 0.01) {
             setSaveError('El conjunto de la distribución tiene que ser un 100%');
             setAccordionErrors(errors);
@@ -668,11 +794,9 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                     const inp = formRef.current?.querySelector<HTMLInputElement>(`[name="${fieldId}"]`);
                     if (inp) row[f.idCampo.toUpperCase()] = (inp.value ?? '').trim();
                 });
-                const rawVal = librosValori[ac.prefijo];
-                if (rawVal !== undefined && rawVal !== '') {
-                    const cot = getCotizacion(ac.prefijo);
-                    const rawNum = parseLocalizedNumber(rawVal);
-                    const valInLibroCurrency = cot !== 0 ? rawNum / cot : rawNum;
+                const draftVal = librosValoriDraft[ac.prefijo];
+                if (draftVal !== undefined && draftVal !== '') {
+                    const valInLibroCurrency = parseLocalizedNumber(draftVal);
                     row['VALORI'] = (Math.round(valInLibroCurrency * 100) / 100).toFixed(2);
                 }
                 for (const base of subAccordionBases) {
@@ -719,7 +843,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                 },
                 distribucion: distribucionRows.map((r) => ({
                     idCencos: r.cencos || '',
-                    porcentaje: parseFloat(r.porcentaje) || 0,
+                    porcentaje: parseLocalizedNumber(r.porcentaje),
                 })),
                 cabecera: cab,
                 libros,
@@ -743,13 +867,22 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
             if (data?.ok) {
                 setSaveError(null);
                 setAccordionErrors({});
+                const hasFotoChanges = pendingFotoAdds.length > 0 || pendingFotoDeletes.length > 0;
                 if (!bienId || cloneMode || altaAgregadoMode) {
+                    const newBienId = (data?.bienId ?? (data?.idCodigo ? `${data.idCodigo}-${data?.idSubien ?? '000'}-0-0` : undefined)) as string | undefined;
+                    if (hasFotoChanges && newBienId) {
+                        const fotoErr = await syncFotosWithServer(newBienId);
+                        if (fotoErr) {
+                            setSaveError(fotoErr);
+                            return;
+                        }
+                    }
                     setDescripcion('');
                     setDatosPlanta(datosGenerales?.defaultPlanta ?? '');
                     setDatosZona(datosGenerales?.defaultZona ?? '');
                     setDatosCencos(datosGenerales?.defaultCencos ?? '');
+                    initialAnotacionesRef.current = '';
                     handleRevert();
-                    const newBienId = (data?.bienId ?? (data?.idCodigo ? `${data.idCodigo}-${data?.idSubien ?? '000'}-0-0` : undefined)) as string | undefined;
                     if (client && newBienId) {
                         const tableName = simulationOnly ? `AbmSimulationFixedAssetConsult-${newBienId}` : `AbmFixedAssetConsult-${newBienId}`;
                         const path = simulationOnly ? `/simulations/consult/${newBienId}` : `/fixedAssets/consult/${newBienId}`;
@@ -773,6 +906,15 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                         dispatch(openPagesActions.addOpenPage({ page: tableName }));
                         router.push(path);
                     }
+                } else if (bienId && hasFotoChanges) {
+                    const fotoErr = await syncFotosWithServer(bienId);
+                    if (fotoErr) {
+                        setSaveError(fotoErr);
+                        return;
+                    }
+                }
+                if (bienId && !cloneMode && !altaAgregadoMode) {
+                    initialAnotacionesRef.current = anotaciones;
                 }
             } else {
                 const rawMsg = data?.message || 'Error al guardar';
@@ -784,100 +926,105 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
         } finally {
             setSaving(false);
         }
-    }, [client, clientMenu, pathname, descripcion, datosPlanta, datosZona, datosCencos, distribucionRows, cabeceraCuenta, datosGenerales, librosData, librosValori, handleRevert, bienId, cloneMode, altaAgregadoMode, dispatch, router, simulationOnly, anotaciones]);
+    }, [client, clientMenu, pathname, descripcion, datosPlanta, datosZona, datosCencos, distribucionRows, cabeceraCuenta, datosGenerales, librosData, librosValoriDraft, handleRevert, bienId, cloneMode, altaAgregadoMode, dispatch, router, simulationOnly, anotaciones, pendingFotoAdds, pendingFotoDeletes, syncFotosWithServer]);
 
     const openNotaModal = useCallback(() => {
         setNotaModalDraft(anotaciones);
-        setNotaSaveError(null);
         setNotaModalOpen(true);
     }, [anotaciones]);
 
     const closeNotaModal = useCallback(() => {
         setNotaModalOpen(false);
         setNotaModalDraft('');
-        setNotaSaveError(null);
     }, []);
 
-    const saveNotaModal = useCallback(async () => {
+    const applyNotaModal = useCallback(() => {
         if (consultMode) return;
-        if (!client) return;
-        if (!bienId || cloneMode || altaAgregadoMode) {
-            setAnotaciones(notaModalDraft);
-            closeNotaModal();
-            return;
-        }
-        setNotaSaving(true);
-        setNotaSaveError(null);
-        try {
-            const res = await fetch('/api/fixedAssets/add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    petition: 'UpdateAnotaciones',
-                    client,
-                    data: { bienId, anotaciones: notaModalDraft },
-                }),
-            });
-            const data = await res.json();
-            if (!res.ok || !data?.ok) {
-                setNotaSaveError(data?.message ?? 'Error al guardar la nota');
-                return;
-            }
-            setAnotaciones(notaModalDraft);
-            setBienData((prev) => (prev ? { ...prev, _anotaciones: notaModalDraft } : prev));
-            closeNotaModal();
-        } catch {
-            setNotaSaveError('Error al guardar la nota');
-        } finally {
-            setNotaSaving(false);
-        }
-    }, [consultMode, client, bienId, cloneMode, altaAgregadoMode, notaModalDraft, closeNotaModal]);
+        setAnotaciones(notaModalDraft);
+        closeNotaModal();
+    }, [consultMode, notaModalDraft, closeNotaModal]);
 
-    const canUploadFoto = Boolean(
-        client && bienId && !consultMode && !cloneMode && !altaAgregadoMode
-    );
+    const canEditFotos = Boolean(client && !consultMode);
 
-    const fotoPreviewUrl =
-        client && bienId && fotoRelative
-            ? `/api/fixedAssets/foto?client=${encodeURIComponent(client)}&bienId=${encodeURIComponent(bienId)}&v=${fotoVersion}`
-            : null;
+    const buildFotoUrl = useCallback((relativePath: string, download = false) => {
+        if (!client || !bienId) return '';
+        const params = new URLSearchParams({
+            client,
+            bienId,
+            path: relativePath,
+            v: String(fotoVersion),
+        });
+        if (download) params.set('download', '1');
+        return `/api/fixedAssets/foto?${params.toString()}`;
+    }, [client, bienId, fotoVersion]);
+
+    const getFotoDisplayUrl = useCallback((item: FotoDraftItem, download = false) => {
+        if (item.kind === 'pending') return item.previewUrl;
+        return buildFotoUrl(item.path, download);
+    }, [buildFotoUrl]);
 
     const triggerFotoPicker = useCallback(() => {
-        if (!canUploadFoto) {
-            setFotoError('Guarde el bien antes de agregar una foto.');
+        if (!canEditFotos) return;
+        setFotoError(null);
+        const input = fotoInputRef.current;
+        if (!input) return;
+        input.value = '';
+        input.click();
+    }, [canEditFotos]);
+
+    const openFotoModal = useCallback((item: FotoDraftItem) => {
+        setFotoModalItem(item);
+        setFotoModalOpen(true);
+    }, []);
+
+    const closeFotoModal = useCallback(() => {
+        setFotoModalOpen(false);
+        setFotoModalItem(null);
+    }, []);
+
+    const downloadFotoItem = useCallback((item: FotoDraftItem) => {
+        const fileName = item.kind === 'pending'
+            ? item.file.name
+            : (item.path.split('/').pop() ?? 'foto');
+        const url = getFotoDisplayUrl(item, item.kind === 'saved');
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+    }, [getFotoDisplayUrl]);
+
+    const handleFotoSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files?.length || !canEditFotos) {
+            e.target.value = '';
             return;
         }
         setFotoError(null);
-        fotoInputRef.current?.click();
-    }, [canUploadFoto]);
-
-    const handleFotoSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
+        const additions: FotoDraftPending[] = Array.from(files).map((file) => ({
+            kind: 'pending',
+            id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+            file,
+            previewUrl: URL.createObjectURL(file),
+        }));
+        setPendingFotoAdds((prev) => [...prev, ...additions]);
         e.target.value = '';
-        if (!file || !client || !bienId) return;
-        setFotoUploading(true);
+    }, [canEditFotos]);
+
+    const handleDeleteFotoItem = useCallback((item: FotoDraftItem) => {
+        if (!canEditFotos) return;
         setFotoError(null);
-        try {
-            const form = new FormData();
-            form.append('client', client);
-            form.append('bienId', bienId);
-            form.append('file', file);
-            const res = await fetch('/api/fixedAssets/foto', { method: 'POST', body: form });
-            const data = await res.json();
-            if (!res.ok || !data?.ok) {
-                setFotoError(data?.message ?? 'Error al guardar la foto');
-                return;
-            }
-            const relative = typeof data.foto === 'string' ? data.foto : null;
-            setFotoRelative(relative);
-            setFotoVersion((v) => v + 1);
-            setBienData((prev) => (prev ? { ...prev, _foto: relative } : prev));
-        } catch {
-            setFotoError('Error al guardar la foto');
-        } finally {
-            setFotoUploading(false);
+        if (item.kind === 'pending') {
+            URL.revokeObjectURL(item.previewUrl);
+            setPendingFotoAdds((prev) => prev.filter((p) => p.id !== item.id));
+        } else {
+            setPendingFotoDeletes((prev) => (prev.includes(item.path) ? prev : [...prev, item.path]));
         }
-    }, [client, bienId]);
+        if (fotoModalItem && fotoDraftKey(fotoModalItem) === fotoDraftKey(item)) {
+            closeFotoModal();
+        }
+    }, [canEditFotos, fotoModalItem, closeFotoModal]);
 
     const [horizontalTabCabecera, setHorizontalTabCabecera] = useState<'distribucion' | 'notas' | 'fotos' | 'documentos' | 'tecnica'>('distribucion');
 
@@ -993,17 +1140,6 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
         if (def && cabeceraCuenta === '') setCabeceraCuenta(def);
     }, [cabeceraData?.defaultActivo, librosData?.cuentas, cabeceraCuenta]);
 
-    // Sync valorOrigenGral → librosValori en clonar y alta agregado (mismo comportamiento que alta pura)
-    useEffect(() => {
-        if (!librosData || !(cloneMode || altaAgregadoMode)) return;
-        const valGral = parseLocalizedNumber(valorOrigenGral || '0');
-        const valoriMap: Record<string, string> = {};
-        librosData.acordeones.forEach((ac) => {
-            valoriMap[ac.prefijo] = String(valGral);
-        });
-        setLibrosValori((prev) => ({ ...prev, ...valoriMap }));
-    }, [librosData, valorOrigenGral, cloneMode, altaAgregadoMode]);
-
     // Initialize reactive fields when librosData loads; update vida util when cabeceraCuenta changes
     // Skip when bienData exists - the bienData effect populates libros from API; this would overwrite
     useEffect(() => {
@@ -1012,6 +1148,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
         const tipoAmorMap: Record<string, string> = {};
         const vidautilMap: Record<string, string> = {};
         const valoriMap: Record<string, string> = {};
+        const valoriDraftMap: Record<string, string> = {};
         const activoToUse = cabeceraCuenta || cabeceraData?.defaultActivo ?? librosData.cuentas[0]?.key ?? '';
         librosData.acordeones.forEach((ac) => {
             const idMoneda = getLibroIdMoneda(ac.prefijo);
@@ -1023,14 +1160,17 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
             );
             vidautilMap[ac.prefijo] = vuRow ? String(vuRow.meses) : '';
             const valGral = parseLocalizedNumber(valorOrigenGral || '0');
-            valoriMap[ac.prefijo] = String(valGral); // raw = valor en pesos (moneda de referencia)
+            const raw = String(valGral);
+            valoriMap[ac.prefijo] = raw;
+            valoriDraftMap[ac.prefijo] = valorConCotizacion(raw, ac.prefijo);
         });
         setLibrosFecori(fecoriMap);
         setLibrosTipoAmor(tipoAmorMap);
         setLibrosVidautil(vidautilMap);
         setLibrosValori(valoriMap);
+        setLibrosValoriDraft(valoriDraftMap);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [librosData, cabeceraData, cabeceraCuenta, valorOrigenGral, bienData]);
+    }, [librosData, cabeceraData, cabeceraCuenta, bienData]);
 
     /** Parse MM/YYYY string into a Date (day=1) or null */
     const parseFecMMYYYY = (val: string): Date | null => {
@@ -1100,6 +1240,14 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
     return (
         <>
         <form ref={formRef} onSubmit={(e) => { e.preventDefault(); if (!consultMode) handleGuardar(); }} className="flex h-full min-h-0 w-full flex-col">
+            <input
+                ref={fotoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,.jpg,.jpeg,.png,.webp,.gif,.bmp"
+                multiple
+                className="hidden"
+                onChange={handleFotoSelected}
+            />
             <div key={formKey} className="main-content flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto pl-10 pr-5">
                 <div className="flex flex-col w-full rounded-xl bg-gabu-700 pb-5 pt-3 my-5">
                     <div className="flex w-full justify-center relative">
@@ -1468,13 +1616,12 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                                     label="Valor de origen general"
                                     fieldId="VALORORIGENGRAL"
                                     hasToBeProportional={false}
-                                    defaultValue="0"
+                                    value={valorOrigenGral}
                                     isError={false}
                                     errorMessage={null}
                                     setErrors={() => {}}
                                     onValueChange={(val) => setValorOrigenGral(val)}
-                                    inputType="number"
-                                    inputStep="0.01"
+                                    inputType="text"
                                     disabled={consultMode}
                                 />
                             </div>
@@ -1549,12 +1696,11 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                                                                     </div>
                                                                     <div className="flex rounded-md border border-gabu-900 items-center h-8 bg-gabu-300 flex-1 min-w-0">
                                                                         <input
-                                                                            type="number"
+                                                                            type="text"
                                                                             readOnly={consultMode}
                                                                             className={`appearance-none focus:outline-none text-gabu-900 h-full px-3 w-[85%] bg-transparent ${consultMode ? 'bg-gabu-500' : ''}`}
                                                                             value={row.porcentaje}
                                                                             onChange={(e) => !consultMode && updateDistribucionPorcentaje(row.id, e.target.value)}
-                                                                            onWheel={(e) => e.currentTarget.blur()}
                                                                         />
                                                                         <div className="flex border-l border-l-gabu-900 justify-center items-center w-[15%] h-full">
                                                                             <Percentage />
@@ -1603,52 +1749,57 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                                                         </div>
                                                     )}
                                                     {tab.id === 'fotos' && (
-                                                        <div className="flex flex-col gap-2">
-                                                            <input
-                                                                ref={fotoInputRef}
-                                                                type="file"
-                                                                accept="image/jpeg,image/png,image/webp,image/gif,image/bmp"
-                                                                className="hidden"
-                                                                onChange={(ev) => { void handleFotoSelected(ev); }}
-                                                            />
-                                                            <div className="flex justify-around items-center gap-3">
-                                                                <div className="h-40 w-40 bg-gabu-300 rounded-lg border border-gabu-900 overflow-hidden flex items-center justify-center shrink-0">
-                                                                    {fotoPreviewUrl ? (
-                                                                        // eslint-disable-next-line @next/next/no-img-element
-                                                                        <img
-                                                                            src={fotoPreviewUrl}
-                                                                            alt="Foto del bien"
-                                                                            className="h-full w-full object-cover"
-                                                                        />
-                                                                    ) : (
-                                                                        <span className="text-xs text-gabu-500 px-2 text-center">Sin foto</span>
-                                                                    )}
-                                                                </div>
-                                                                <div className="flex flex-col gap-3 w-[70%]">
-                                                                    {canUploadFoto && !fotoRelative && (
+                                                        <div className="flex flex-col gap-3">
+                                                            <div className="flex flex-wrap gap-3 items-start max-h-52 overflow-y-auto pr-1">
+                                                                {fotoDisplayItems.length > 0 ? (
+                                                                    fotoDisplayItems.map((item) => (
                                                                         <button
+                                                                            key={fotoDraftKey(item)}
                                                                             type="button"
-                                                                            disabled={fotoUploading}
-                                                                            className="w-full bg-gabu-700 text-center py-2 text-gabu-100 rounded-lg cursor-pointer hover:bg-gabu-500 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
-                                                                            onClick={triggerFotoPicker}
+                                                                            className="group relative h-28 w-28 bg-gabu-300 rounded-lg border border-gabu-900 overflow-hidden shrink-0 cursor-pointer hover:ring-2 hover:ring-gabu-700 transition-all"
+                                                                            onClick={() => openFotoModal(item)}
+                                                                            title="Ver foto"
                                                                         >
-                                                                            {fotoUploading ? 'Subiendo…' : 'Agregar foto'}
+                                                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                                            <img
+                                                                                src={getFotoDisplayUrl(item)}
+                                                                                alt="Foto del bien"
+                                                                                className="h-full w-full object-cover"
+                                                                            />
+                                                                            {item.kind === 'pending' && (
+                                                                                <span className="absolute top-1 right-1 bg-gabu-700/90 text-gabu-100 text-[9px] px-1 rounded">
+                                                                                    Borrador
+                                                                                </span>
+                                                                            )}
+                                                                            <span className="absolute inset-x-0 bottom-0 bg-gabu-900/70 text-gabu-100 text-[10px] py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                Ver
+                                                                            </span>
                                                                         </button>
-                                                                    )}
-                                                                    {canUploadFoto && fotoRelative && (
-                                                                        <button
-                                                                            type="button"
-                                                                            disabled={fotoUploading}
-                                                                            className="w-full bg-gabu-700 text-center py-2 text-gabu-100 rounded-lg cursor-pointer hover:bg-gabu-500 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
-                                                                            onClick={triggerFotoPicker}
-                                                                        >
-                                                                            {fotoUploading ? 'Subiendo…' : 'Cambiar foto'}
-                                                                        </button>
-                                                                    )}
-                                                                    {consultMode && !fotoRelative && (
-                                                                        <p className="text-sm text-gabu-500 text-center">Sin foto</p>
-                                                                    )}
-                                                                </div>
+                                                                    ))
+                                                                ) : (
+                                                                    <div className="h-28 w-28 bg-gabu-300 rounded-lg border border-gabu-900 flex items-center justify-center shrink-0">
+                                                                        <span className="text-xs text-gabu-500 px-2 text-center">Sin fotos</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex flex-col gap-2">
+                                                                {canEditFotos && (
+                                                                    <button
+                                                                        type="button"
+                                                                        className="w-full bg-gabu-700 text-center py-2 text-gabu-100 rounded-lg cursor-pointer hover:bg-gabu-500 transition-all duration-150"
+                                                                        onClick={triggerFotoPicker}
+                                                                    >
+                                                                        Agregar foto
+                                                                    </button>
+                                                                )}
+                                                                {canEditFotos && (pendingFotoAdds.length > 0 || pendingFotoDeletes.length > 0) && (
+                                                                    <p className="text-xs text-gabu-500 text-center">
+                                                                        Los cambios en fotos se guardan al pulsar Guardar bien
+                                                                    </p>
+                                                                )}
+                                                                {consultMode && fotoDisplayItems.length === 0 && (
+                                                                    <p className="text-sm text-gabu-500 text-center">Sin fotos</p>
+                                                                )}
                                                             </div>
                                                             {fotoError && (
                                                                 <p className="text-sm text-gabu-error text-center">{fotoError}</p>
@@ -1711,7 +1862,8 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                                                 const campoUp = field.idCampo.toUpperCase();
                                                 const isDisabled = LIBRO_DISABLED_FIELDS.has(campoUp);
                                                 const isFullWidth = campoUp === 'VALORI';
-                                                const isReactive = campoUp === 'FECDEP' || campoUp === 'FECFIN' || campoUp === 'VALORI';
+                                                const isValori = campoUp === 'VALORI';
+                                                const isReactive = campoUp === 'FECDEP' || campoUp === 'FECFIN';
                                                 const defaultVal = getLibroDefault(acordeon.prefijo, field.idCampo);
                                                 if (LIBRO_SELECT_FIELDS.has(campoUp)) {
                                                     const opts = getLibroFieldOptions(field.idCampo) ?? [];
@@ -1735,31 +1887,27 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                                                         />
                                                     );
                                                 }
-                                                const isNumericField = campoUp === 'VIDAUTIL';
                                                 return (
                                                     <HorizontalInput
                                                         key={field.idCampo}
                                                         label={field.browNombre}
                                                         fieldId={`${acordeon.prefijo}.${field.idCampo}`}
-                                                        defaultValue={isReactive ? undefined : defaultVal}
+                                                        defaultValue={isReactive || isValori ? undefined : defaultVal}
                                                         fixedValue={isReactive ? (defaultVal ?? '') : undefined}
+                                                        value={isValori ? (librosValoriDraft[acordeon.prefijo] ?? '') : undefined}
                                                         hasToBeProportional={isFullWidth}
                                                         colSpan={isFullWidth ? 'col-span-2' : undefined}
                                                         disabled={consultMode || isDisabled}
                                                         isError={!!getLibroFieldError(acordeon.prefijo, field.idCampo)}
                                                         errorMessage={getLibroFieldError(acordeon.prefijo, field.idCampo)}
                                                         setErrors={() => clearLibroFieldError(acordeon.prefijo, field.idCampo)}
-                                                        inputType={isNumericField ? 'number' : 'text'}
-                                                        inputStep={campoUp === 'VALORI' ? '0.01' : campoUp === 'VIDAUTIL' ? '1' : undefined}
+                                                        inputType="text"
                                                         onValueChange={campoUp === 'FECORI' ? (val) => {
                                                             setLibrosFecori((prev) => ({ ...prev, [acordeon.prefijo]: val }));
                                                         } : campoUp === 'VIDAUTIL' ? (val) => {
                                                             setLibrosVidautil((prev) => ({ ...prev, [acordeon.prefijo]: val }));
                                                         } : campoUp === 'VALORI' ? (val) => {
-                                                            const num = parseLocalizedNumber(val);
-                                                            const cot = getCotizacion(acordeon.prefijo);
-                                                            const raw = cot !== 0 ? num * cot : num; // display = raw/cot, luego raw = display*cot
-                                                            setLibrosValori((prev) => ({ ...prev, [acordeon.prefijo]: String(raw) }));
+                                                            setLibrosValoriDraft((prev) => ({ ...prev, [acordeon.prefijo]: val }));
                                                         } : undefined}
                                                     />
                                                 );
@@ -1792,28 +1940,18 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                                                                     const fieldSuffix = suffixMap[tab.id] ?? 'Referencial';
                                                                     const fieldId = `${acordeon.prefijo}.${base}${fieldSuffix}`;
                                                                     const fixedVal = (() => {
-                                                                        // En clonar y alta agregado: mismo comportamiento que alta pura — valores actuales derivados de valores de origen (librosValori / valorOrigenGral)
-                                                                        if (cloneMode || altaAgregadoMode) {
-                                                                            if (isVrepoe) {
-                                                                                const r = librosValori[acordeon.prefijo];
-                                                                                const raw = r !== undefined && r !== '' ? r : (valorOrigenGral ?? '0');
-                                                                                return valorConCotizacion(raw || '0', acordeon.prefijo);
-                                                                            }
-                                                                            return '0';
-                                                                        }
                                                                         if (isVrepoe) {
+                                                                            const draft = librosValoriDraft[acordeon.prefijo];
+                                                                            if (draft !== undefined && draft !== '') return draft;
+                                                                            if (cloneMode || altaAgregadoMode) {
+                                                                                return valorConCotizacion(parseLocalizedNumber(valorOrigenGral || '0'), acordeon.prefijo);
+                                                                            }
                                                                             const fromBien = bienId && bienData ? getRowVal(bienData, fieldId) : undefined;
                                                                             if (fromBien != null && fromBien !== '') {
                                                                                 const num = parseLocalizedNumber(fromBien);
-                                                                                return !isNaN(num) ? formatNumberEs(num, 2, 2) : (() => {
-                                                                                    const r = librosValori[acordeon.prefijo];
-                                                                                    const raw = r !== undefined && r !== '' ? r : (valorOrigenGral ?? '0');
-                                                                                    return valorConCotizacion(raw || '0', acordeon.prefijo);
-                                                                                })();
+                                                                                return !isNaN(num) ? formatNumberEs(num, 2, 2) : '0';
                                                                             }
-                                                                            const r = librosValori[acordeon.prefijo];
-                                                                            const raw = r !== undefined && r !== '' ? r : (valorOrigenGral ?? '0');
-                                                                            return valorConCotizacion(raw || '0', acordeon.prefijo);
+                                                                            return '0';
                                                                         }
                                                                         const fromBien = bienId && bienData ? getRowVal(bienData, fieldId) : undefined;
                                                                         if (fromBien != null && fromBien !== '') {
@@ -1884,9 +2022,6 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                     onChange={(e) => !consultMode && setNotaModalDraft(e.target.value)}
                     placeholder="Escriba aquí la anotación del bien…"
                 />
-                {notaSaveError && (
-                    <p className="shrink-0 text-sm text-gabu-error">{notaSaveError}</p>
-                )}
             </div>
             <div className="flex shrink-0 justify-end gap-3 pt-3 mt-3 border-t border-gabu-500">
                 <Button
@@ -1897,13 +2032,62 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                 />
                 {!consultMode && (
                     <Button
-                        text={notaSaving ? 'Guardando…' : 'Guardar'}
+                        text="Aceptar"
                         type="button"
-                        disabled={notaSaving}
-                        handleClick={() => { void saveNotaModal(); }}
+                        handleClick={applyNotaModal}
                         style="font-normal text-gabu-100 bg-gabu-900 rounded-md hover:bg-gabu-500 cursor-pointer transition-colors duration-300 px-4 py-2"
                     />
                 )}
+            </div>
+        </Modal>
+        <Modal
+            isOpen={fotoModalOpen}
+            style="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col rounded-xl bg-gabu-700 border border-gabu-900 shadow-xl p-4 w-[min(96vw,52rem)] max-h-[92vh] relative z-[10010]"
+        >
+            <div className="flex shrink-0 justify-between items-center border-b border-gabu-500 pb-3 mb-3">
+                <p className="text-lg text-gabu-100 font-medium">Foto del bien</p>
+                <button
+                    type="button"
+                    onClick={closeFotoModal}
+                    className="p-1 rounded hover:bg-gabu-500 transition-colors"
+                    aria-label="Cerrar"
+                >
+                    <Cross style="h-6 w-6 fill-current text-gabu-100 cursor-pointer" onClick={closeFotoModal} />
+                </button>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 overflow-hidden">
+                {fotoModalItem && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                        src={getFotoDisplayUrl(fotoModalItem)}
+                        alt="Foto del bien ampliada"
+                        className="max-h-[min(70vh,40rem)] max-w-full object-contain rounded-lg border border-gabu-900 bg-gabu-900/20"
+                    />
+                )}
+            </div>
+            <div className="flex shrink-0 justify-end gap-3 pt-3 mt-3 border-t border-gabu-500 flex-wrap">
+                {fotoModalItem && (
+                    <Button
+                        text="Descargar"
+                        type="button"
+                        handleClick={() => downloadFotoItem(fotoModalItem)}
+                        style="font-normal text-gabu-900 bg-gabu-300 rounded-md hover:bg-gabu-100 cursor-pointer transition-colors duration-300 px-4 py-2"
+                    />
+                )}
+                {canEditFotos && fotoModalItem && (
+                    <Button
+                        text="Eliminar"
+                        type="button"
+                        handleClick={() => handleDeleteFotoItem(fotoModalItem)}
+                        style="font-normal text-gabu-100 bg-gabu-error rounded-md hover:opacity-90 cursor-pointer transition-colors duration-300 px-4 py-2"
+                    />
+                )}
+                <Button
+                    text="Cerrar"
+                    type="button"
+                    handleClick={closeFotoModal}
+                    style="font-normal text-gabu-100 bg-gabu-900 rounded-md hover:bg-gabu-500 cursor-pointer transition-colors duration-300 px-4 py-2"
+                />
             </div>
         </Modal>
         </>
