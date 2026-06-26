@@ -4,10 +4,10 @@ import FixedAsset, { type AbmDatosGeneralesData, type AbmCabeceraData, type AbmL
 export type ErrorResponse = { message: string; status: number };
 
 type UserPostRequest =
-    | { petition: "GetFormData"; client: string; data: {} }
+    | { petition: "GetFormData"; client: string; data: Record<string, never> }
     | { petition: "GetCabeceraFormData"; client: string; data: { simulationOnly?: boolean } }
     | { petition: "GetLibrosFormData"; client: string; data: { simulationOnly?: boolean } }
-    | { petition: "GetCCostosOptions"; client: string; data: {} }
+    | { petition: "GetCCostosOptions"; client: string; data: Record<string, never> }
     | { petition: "Add"; client: string; data: Record<string, unknown> }
     | { petition: "GetBienData"; client: string; data: { bienId: string; simulationOnly?: boolean } }
     | { petition: "UpdateAnotaciones"; client: string; data: { bienId: string; anotaciones: string } }

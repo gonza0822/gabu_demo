@@ -22,8 +22,8 @@ type MoextraItem = { idMoextra: string; Descripcion: string | null };
 
 type UserPostRequest =
     | { petition: "Get"; client: string; data: { simulationOnly?: boolean } }
-    | { petition: "GetTipAmor"; client: string; data: {} }
-    | { petition: "GetParametrosFields"; client: string; data: {} }
+    | { petition: "GetTipAmor"; client: string; data: Record<string, never> }
+    | { petition: "GetParametrosFields"; client: string; data: Record<string, never> }
     | { petition: "GetMoextra"; client: string; data: { simulationOnly?: boolean } }
     | { petition: "Update"; client: string; data: ParametrosEditable };
 

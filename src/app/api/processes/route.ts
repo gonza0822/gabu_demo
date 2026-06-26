@@ -7,7 +7,7 @@ type UserPostRequest =
     | { petition: "GetRows"; client: string; data: { simulationOnly?: boolean } }
     | { petition: "RunCalculoAmortizacion"; client: string; data: { row: ProcessTableRow } }
     | { petition: "RunGeneracionAsientos"; client: string; data: { row: ProcessTableRow } }
-    | { petition: "FinalizeCalculoAmortizacion"; client: string; data: {} }
+    | { petition: "FinalizeCalculoAmortizacion"; client: string; data: Record<string, never> }
     | { petition: "RunCierreMensual"; client: string; data: { row: ProcessTableRow } }
     | { petition: "RunCierreEjercicio"; client: string; data: { row: ProcessTableRow } };
 

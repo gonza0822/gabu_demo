@@ -33,7 +33,7 @@ export default function TableForm<TData>({fields, selectedRow, hasAnotherTable, 
         if(selectedRow && data){
             fields.forEach(field => {
                 if(selectedRow[field.IdCampo as keyof TData]){
-                    let fieldValidations = data[field.IdCampo as keyof TData];
+                    const fieldValidations = data[field.IdCampo as keyof TData];
                     if(fieldValidations){
                         setActualValidation(prevValidation => {
                             if(prevValidation){

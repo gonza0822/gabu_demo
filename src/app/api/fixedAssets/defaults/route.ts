@@ -6,9 +6,9 @@ export type ErrorResponse = { message: string; status: number };
 type DefaultsField = { IdCampo: string; BrowNombre: string | null };
 
 type UserPostRequest =
-    | { petition: "Get"; client: string; data: {} }
+    | { petition: "Get"; client: string; data: Record<string, never> }
     | { petition: "GetOptions"; client: string; data: { idcampo: string } }
-    | { petition: "GetDefaultsFields"; client: string; data: {} }
+    | { petition: "GetDefaultsFields"; client: string; data: Record<string, never> }
     | { petition: "Update"; client: string; data: { idcampo: string; iddefault: string | null } };
 
 export async function POST(

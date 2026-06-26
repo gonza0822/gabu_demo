@@ -31,8 +31,8 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
     type BajaFisicaData = { bienId: string };
 
     type UserPostRequest =
-        | { petition: "Get"; client: string; data: {} }
-        | { petition: "GetSimulacion"; client: string; data: {} }
+        | { petition: "Get"; client: string; data: Record<string, never> }
+        | { petition: "GetSimulacion"; client: string; data: Record<string, never> }
         | { petition: "UpdateOrder"; client: string; data: ReOrderData }
         | { petition: "SetListShow"; client: string; data: SetListShowData }
         | { petition: "SetListShowBatch"; client: string; data: SetListShowBatchData }

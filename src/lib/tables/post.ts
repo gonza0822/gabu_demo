@@ -23,7 +23,7 @@ export async function handlePost<
 ): Promise<NextResponse<TOne | TAll | ConverFieldModel[] | AllData<TOne> | Validation<TOne> | boolean | TwoTableData<TOne, unknown> | ErrorResponse >> {
 
     type UserPostRequest =
-        | { petition: "Get"; client: string; data: {} }
+        | { petition: "Get"; client: string; data: Record<string, never> }
         | { petition: "GetOne"; client: string; data: { id: string } }
         | { petition: "UpdateOne"; client: string; data: TwoTableData<TOne, unknown> }
         | { petition: "UpdateOrder"; client: string; data: TOrder }

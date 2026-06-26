@@ -7,8 +7,10 @@ import {
     PointElement,
     LineElement,
     BarElement,
+    BarController,
     Filler,
     Chart,
+    Tooltip,
     TooltipItem,
     CategoryScale,
     ArcElement,
@@ -21,9 +23,11 @@ Chart.register(
     PointElement,
     LineElement,
     BarElement,
+    BarController,
     Filler,
     CategoryScale,
-    ArcElement
+    ArcElement,
+    Tooltip
 );
 
 type ValuesData = {

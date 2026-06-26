@@ -122,7 +122,7 @@ export default function TableContainer<T>({connPath}: {connPath: string }) : Rea
                 if(maxRowsField){
                     setSecondaryTableData(prevTableData => {
                         return prevTableData.map((row) => {
-                            let updatedRow = { ...row };
+                            const updatedRow = { ...row };
                             data.secondaryTable?.fieldsManage.forEach(field => {
                                 dataRes.secondaryTableData.forEach((secRow: {[key: string]: string}) => {
                                     if(secRow[maxRowsField.IdCampo] === row[maxRowsField.IdCampo]){

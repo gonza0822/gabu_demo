@@ -1944,7 +1944,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                                                                             const draft = librosValoriDraft[acordeon.prefijo];
                                                                             if (draft !== undefined && draft !== '') return draft;
                                                                             if (cloneMode || altaAgregadoMode) {
-                                                                                return valorConCotizacion(parseLocalizedNumber(valorOrigenGral || '0'), acordeon.prefijo);
+                                                                                return valorConCotizacion(valorOrigenGral || '0', acordeon.prefijo);
                                                                             }
                                                                             const fromBien = bienId && bienData ? getRowVal(bienData, fieldId) : undefined;
                                                                             if (fromBien != null && fromBien !== '') {

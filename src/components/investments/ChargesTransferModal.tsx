@@ -105,7 +105,7 @@ export default function ChargesTransferModal({
     selectedRows: RowData[];
     target?: "fixedAssets" | "simulation";
     onSuccess?: () => void;
-}): React.ReactElement {
+}): React.ReactElement | null {
     const [transferMode, setTransferMode] = useState<"new" | "improve">("new");
     const [amountCurrency, setAmountCurrency] = useState<"pesos" | "dolares">("pesos");
     const [costCenters, setCostCenters] = useState<{ idCencos: string; codcia: string }[]>([]);

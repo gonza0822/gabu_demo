@@ -17,7 +17,10 @@ import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { formatNumericDisplayValue, isLikelyNumericField } from "@/util/number/formatNumberEs";
 
-function formatCellDisplay(value: unknown, field: ConverFieldModel): string {
+function formatCellDisplay(
+    value: unknown,
+    field: Pick<ConverFieldModel, "IdCampo" | "BrowNombre">
+): string {
     const raw = normalizeChargeCellValue(value, { dateOnly: true });
     const formatted = formatNumericDisplayValue(raw, field.IdCampo, {
         parseNumericStrings: isLikelyNumericField(field.IdCampo, field.BrowNombre ?? undefined),
@@ -104,7 +107,7 @@ export default function AssetChargesGrid({
         getSortedRowModel: getSortedRowModel(),
         sortingFns: {
             myCustomSorting: (rowA, rowB, columnId) => {
-                const fieldMeta = fields.find((f) => f.IdCampo === columnId) ?? { IdCampo: columnId };
+                const fieldMeta = fields.find((f) => f.IdCampo === columnId) ?? { IdCampo: columnId, BrowNombre: null };
                 const a = formatCellDisplay(rowA.getValue(columnId), fieldMeta);
                 const b = formatCellDisplay(rowB.getValue(columnId), fieldMeta);
                 const na = Number(String(a).replace(/\./g, "").replace(",", "."));

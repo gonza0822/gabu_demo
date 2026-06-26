@@ -23,12 +23,12 @@ export default function DraggableCell<TData>({ cell, index }: { cell: Cell<TData
     const renderedCell = flexRender(cell.column.columnDef.cell, cell.getContext());
     const rawValue = cell.getValue();
     const formattedRawValue = formatNumericDisplayValue(rawValue, String(cell.column.id));
-    const displayCell =
+    const displayCell: React.ReactNode =
         typeof renderedCell === "number" || typeof renderedCell === "string"
-            ? formatNumericDisplayValue(renderedCell, String(cell.column.id))
+            ? (formatNumericDisplayValue(renderedCell, String(cell.column.id)) as React.ReactNode)
             : !React.isValidElement(renderedCell) && (typeof formattedRawValue === "string" || typeof formattedRawValue === "number")
               ? formattedRawValue
-              : renderedCell;
+              : (renderedCell as React.ReactNode);
 
     return (
         <td
