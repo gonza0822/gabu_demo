@@ -3,15 +3,19 @@ import { Menu } from '@/store/navSlice';
 import { setSessionStore, getSessionValue } from '@/lib/session/sessionStore';
 import LZString from 'lz-string';
 import menuConfig from '@/config/menu.json';
+import { createRequestId, errorJson, logApiError } from '@/lib/logger';
 
 type ErrorResponse = {
     message: string,
-    status: number
+    status: number,
+    requestId?: string,
 }
 
 type PostResponse = {
     success: boolean
 }
+
+const ROUTE = '/api/menu';
 
 function sameSubmenu(a: { submenuTitle: string; table: string; path: string }, b: { submenuTitle: string; table: string; path: string }): boolean {
     return a.submenuTitle === b.submenuTitle && a.table === b.table && a.path === b.path;
@@ -75,13 +79,12 @@ function mergeSessionMenuWithConfig(sessionMenu: Menu): Menu {
 }
 
 export async function POST(request: Request) : Promise<NextResponse<PostResponse | ErrorResponse>> {
+    const requestId = createRequestId();
+
     try {
         const token = await getSessionValue("token");
         if(!token){
-            return NextResponse.json({
-                message: "No autorizado",
-                status: 401
-            });
+            return errorJson("No autorizado", 401, requestId);
         }
 
         const menuJson : string = await request.text();
@@ -90,15 +93,14 @@ export async function POST(request: Request) : Promise<NextResponse<PostResponse
         
         return NextResponse.json({ success: true });
     } catch (err) {
-
-        return NextResponse.json({
-            message: "Error guardando el menu",
-            status: 500
-        });
+        const loggedId = await logApiError({ route: ROUTE, err, petition: 'POST', requestId });
+        return errorJson("Error guardando el menu", 500, loggedId);
     }
 }
 
 export async function GET() : Promise<NextResponse<Menu | ErrorResponse>> {
+    const requestId = createRequestId();
+
     try {
         const compressedMenu : string | null = await getSessionValue("menu");
 
@@ -115,10 +117,7 @@ export async function GET() : Promise<NextResponse<Menu | ErrorResponse>> {
             throw new Error("No se encontro el menu en la sesion.");
         }
     } catch (err) {
-
-        return NextResponse.json({
-            message: "Error obteniendo el menu",
-            status: 500
-        });
+        const loggedId = await logApiError({ route: ROUTE, err, petition: 'GET', requestId });
+        return errorJson("Error obteniendo el menu", 500, loggedId);
     }
 }

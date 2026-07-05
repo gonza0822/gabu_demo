@@ -1,0 +1,27 @@
+{
+  "projectId": "67ae7fd1-1b5f-428e-987f-96200f885259",
+  "type": "frontend",
+  "name": "Login — campos vacios muestran validacion",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Navigate to / and wait for the login page to load"
+    },
+    {
+      "type": "action",
+      "description": "Open the 'Seleccione una empresa' dropdown and click the option 'Admagro'"
+    },
+    {
+      "type": "action",
+      "description": "Leave Usuario and Contraseña empty and click the 'Ingresar' button"
+    },
+    {
+      "type": "assertion",
+      "description": "Validation messages 'The username is required' and 'The password is required' are visible under the respective fields"
+    },
+    {
+      "type": "assertion",
+      "description": "The browser URL path remains / and the user is not redirected to /home"
+    }
+  ]
+}

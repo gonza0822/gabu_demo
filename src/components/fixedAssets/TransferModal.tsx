@@ -8,6 +8,7 @@ import Input from "../ui/Input";
 import Cross from "../svg/Cross";
 import Order from "../svg/table/Order";
 import Checked from "../svg/Checked";
+import { formatApiErrorFromBody } from "@/lib/logger/apiError";
 import Percentage from "../svg/Percentage";
 import { FixedAssets, type LibroAccordionData } from "@/lib/models/fixedAssets/FixedAsset";
 import { getLibrosFormDataCached, getLibrosFormDataFromCache } from "@/lib/cache/librosFormCache";
@@ -345,10 +346,9 @@ export default function TransferModal({
                     },
                 }),
             });
-            const json = await res.json();
+            const json = await res.json() as { message?: string; requestId?: string };
             if (!res.ok) {
-                const msg = json?.message ?? `Error ${res.status}`;
-                throw new Error(msg);
+                throw new Error(formatApiErrorFromBody(json, `Error ${res.status}`));
             }
             onSuccess?.();
             onClose();

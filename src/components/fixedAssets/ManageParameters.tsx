@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button";
 import { parseStringDate, parseDateString } from "@/util/date/parseDate";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
+import { formatApiErrorFromBody } from "@/lib/logger/apiError";
 
 type ParametroRow = {
     idmoextra: string;
@@ -268,8 +269,8 @@ export default function ManageParameters({ simulationOnly = false }: { simulatio
                     }),
                 });
                 if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    alert(err?.message ?? "Error al guardar");
+                    const err = await res.json().catch(() => ({})) as { message?: string; requestId?: string };
+                    alert(formatApiErrorFromBody(err, "Error al guardar"));
                     return;
                 }
             }

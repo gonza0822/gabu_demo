@@ -6,6 +6,7 @@ import { RootState } from "@/store";
 import { overlayActions } from "@/store/overlaySlice";
 import Modal from "@/components/ui/Modal";
 import Cross from "@/components/svg/Cross";
+import { formatApiErrorFromBody } from "@/lib/logger/apiError";
 
 type LibroOpt = { idMoextra: string; Descripcion: string | null };
 
@@ -46,7 +47,7 @@ export default function RestartSimulation(): React.ReactElement {
                 });
                 const data = await res.json();
                 if (!res.ok) {
-                    throw new Error(data?.message ?? `Error ${res.status}`);
+                    throw new Error(formatApiErrorFromBody(data, `Error ${res.status}`));
                 }
                 if (!cancelled && Array.isArray(data)) {
                     setLibros(data);
@@ -86,7 +87,7 @@ export default function RestartSimulation(): React.ReactElement {
             });
             const data = await res.json();
             if (!res.ok) {
-                throw new Error(data?.message ?? `Error ${res.status}`);
+                throw new Error(formatApiErrorFromBody(data, `Error ${res.status}`));
             }
             setSuccessMsg("Se reinició la simulación con éxito.");
         } catch (e) {

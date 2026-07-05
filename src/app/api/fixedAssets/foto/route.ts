@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import FixedAsset from '@/lib/models/fixedAssets/FixedAsset';
+import { createRequestId, errorJson, logApiError } from '@/lib/logger';
 import {
     MAX_FOTO_BYTES,
     assertFotoBelongsToBien,
@@ -9,19 +10,25 @@ import {
     resolveAbsoluteFotoPath,
 } from '@/lib/uploads/assetFotoStorage';
 
-export type ErrorResponse = { message: string; status: number };
+export type ErrorResponse = { message: string; status: number; requestId?: string };
+
+const ROUTE = '/api/fixedAssets/foto';
 
 function fotoFileName(relativePath: string): string {
     return relativePath.split('/').pop() ?? 'foto';
 }
 
 export async function GET(request: Request): Promise<NextResponse<Buffer | { fotos: string[] } | ErrorResponse>> {
+    const requestId = createRequestId();
+    let client: string | null = null;
+    let bienId: string | null = null;
+
     try {
         const params = new URL(request.url).searchParams;
-        const client = params.get('client');
-        const bienId = params.get('bienId');
+        client = params.get('client');
+        bienId = params.get('bienId');
         if (!client || !bienId) {
-            return NextResponse.json({ message: 'client y bienId son requeridos', status: 400 }, { status: 400 });
+            return errorJson('client y bienId son requeridos', 400, requestId);
         }
 
         const model = new FixedAsset(client);
@@ -37,14 +44,14 @@ export async function GET(request: Request): Promise<NextResponse<Buffer | { fot
             const decoded = decodeURIComponent(pathParam);
             relative = assertFotoBelongsToBien(bienId, decoded);
             if (!stored.includes(relative)) {
-                return NextResponse.json({ message: 'Foto no encontrada', status: 404 }, { status: 404 });
+                return errorJson('Foto no encontrada', 404, requestId);
             }
         } else {
             relative = stored[0] ?? null;
         }
 
         if (!relative) {
-            return NextResponse.json({ message: 'Sin foto', status: 404 }, { status: 404 });
+            return errorJson('Sin foto', 404, requestId);
         }
 
         const absolute = resolveAbsoluteFotoPath(relative);
@@ -61,31 +68,46 @@ export async function GET(request: Request): Promise<NextResponse<Buffer | { fot
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         const status = /no encontrada|Sin foto|inválid/i.test(msg) ? 404 : 500;
-        return NextResponse.json({ message: msg, status }, { status });
+        if (status >= 500) {
+            const loggedId = await logApiError({
+                route: ROUTE,
+                err,
+                client: client ?? undefined,
+                bienId: bienId ?? undefined,
+                petition: 'GET',
+                requestId,
+            });
+            return errorJson(msg, status, loggedId);
+        }
+        return errorJson(msg, status, requestId);
     }
 }
 
 export async function POST(request: Request): Promise<NextResponse<{ ok: boolean; foto: string; fotos: string[] } | ErrorResponse>> {
+    const requestId = createRequestId();
+    let client = '';
+    let bienId = '';
+
     try {
         const form = await request.formData();
-        const client = String(form.get('client') ?? '').trim();
-        const bienId = String(form.get('bienId') ?? '').trim();
+        client = String(form.get('client') ?? '').trim();
+        bienId = String(form.get('bienId') ?? '').trim();
         const file = form.get('file');
 
         if (!client) {
-            return NextResponse.json({ message: 'Client is required', status: 400 }, { status: 400 });
+            return errorJson('Client is required', 400, requestId);
         }
         if (!bienId) {
-            return NextResponse.json({ message: 'bienId is required', status: 400 }, { status: 400 });
+            return errorJson('bienId is required', 400, requestId);
         }
         if (!file || !(file instanceof File)) {
-            return NextResponse.json({ message: 'Archivo requerido', status: 400 }, { status: 400 });
+            return errorJson('Archivo requerido', 400, requestId);
         }
         if (!isAllowedFotoUpload(file.name, file.type)) {
-            return NextResponse.json({ message: 'Formato de imagen no permitido', status: 400 }, { status: 400 });
+            return errorJson('Formato de imagen no permitido', 400, requestId);
         }
         if (file.size > MAX_FOTO_BYTES) {
-            return NextResponse.json({ message: 'La imagen supera el tamaño máximo (10 MB)', status: 400 }, { status: 400 });
+            return errorJson('La imagen supera el tamaño máximo (10 MB)', 400, requestId);
         }
 
         const buffer = Buffer.from(await file.arrayBuffer());
@@ -95,19 +117,31 @@ export async function POST(request: Request): Promise<NextResponse<{ ok: boolean
 
         return NextResponse.json({ ok: true, foto: relative, fotos });
     } catch (err) {
+        const loggedId = await logApiError({
+            route: ROUTE,
+            err,
+            client: client || undefined,
+            bienId: bienId || undefined,
+            petition: 'POST',
+            requestId,
+        });
         const msg = err instanceof Error ? err.message : String(err);
-        return NextResponse.json({ message: msg, status: 500 }, { status: 500 });
+        return errorJson(msg, 500, loggedId);
     }
 }
 
 export async function DELETE(request: Request): Promise<NextResponse<{ ok: boolean; fotos: string[] } | ErrorResponse>> {
+    const requestId = createRequestId();
+    let client: string | null = null;
+    let bienId: string | null = null;
+
     try {
         const params = new URL(request.url).searchParams;
-        const client = params.get('client');
-        const bienId = params.get('bienId');
+        client = params.get('client');
+        bienId = params.get('bienId');
         const pathParam = params.get('path');
         if (!client || !bienId || !pathParam) {
-            return NextResponse.json({ message: 'client, bienId y path son requeridos', status: 400 }, { status: 400 });
+            return errorJson('client, bienId y path son requeridos', 400, requestId);
         }
 
         const relative = assertFotoBelongsToBien(bienId, decodeURIComponent(pathParam));
@@ -119,6 +153,17 @@ export async function DELETE(request: Request): Promise<NextResponse<{ ok: boole
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         const status = /no encontrada|inválid/i.test(msg) ? 404 : 500;
-        return NextResponse.json({ message: msg, status }, { status });
+        if (status >= 500) {
+            const loggedId = await logApiError({
+                route: ROUTE,
+                err,
+                client: client ?? undefined,
+                bienId: bienId ?? undefined,
+                petition: 'DELETE',
+                requestId,
+            });
+            return errorJson(msg, status, loggedId);
+        }
+        return errorJson(msg, status, requestId);
     }
 }

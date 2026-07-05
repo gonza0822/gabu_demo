@@ -9,6 +9,7 @@ import SelectPointerLogin from '@/components/svg/SelectPointerLogin';
 import LoginForm from '@/components/login/LoginForm';
 import { motion, AnimatePresence } from "motion/react";
 import Alert from "@/components/ui/Alert";
+import { formatApiErrorFromBody } from "@/lib/logger/apiError";
 import { getClients } from "@/store/authorizationActions";
 import { authorizationActions } from "@/store/authorizationSlice";
 
@@ -53,7 +54,7 @@ export default function LoginContainer({ alertMessage } : { alertMessage: string
 
             if(!res.ok || (data.status && data.status === 500)){
                 setLoginError({
-                    message: data.message,
+                    message: formatApiErrorFromBody(data, "Error al conectar con el cliente"),
                     isError: true
                 });
             } else {

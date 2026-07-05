@@ -1,17 +1,22 @@
 import { NextResponse } from "next/server";
 import { deleteSessionStore, setSessionStore, getSessionValue } from "@/lib/session/sessionStore";
-import { th } from "motion/react-client";
+import { createRequestId, errorJson, logApiError } from "@/lib/logger";
 
 type ErrorResponse = {
     message: string,
-    status: number
+    status: number,
+    requestId?: string,
 }
 
 type SessionGetResponse = {
     sessionExists: boolean
 }
 
+const ROUTE = '/api/session';
+
 export async function GET(request: Request) : Promise<NextResponse<SessionGetResponse | ErrorResponse>> {
+    const requestId = createRequestId();
+
     try {
         const params = new URL(request.url)
         const isInSession : string | null = params.searchParams.get("isInSession");
@@ -34,17 +39,12 @@ export async function GET(request: Request) : Promise<NextResponse<SessionGetRes
             throw new Error("Paremetros invalidos.");
         }
     } catch(err) {
+        const loggedId = await logApiError({ route: ROUTE, err, petition: 'GET', requestId });
         if(err instanceof Error){
-            return NextResponse.json({
-                message: err.message,
-                status: 500
-            })
+            return errorJson(err.message, 500, loggedId);
         }
 
-        return NextResponse.json({
-            message: 'Error desconocido en el servidor.',
-            status: 500
-        });
+        return errorJson('Error desconocido en el servidor.', 500, loggedId);
     }
 
 }

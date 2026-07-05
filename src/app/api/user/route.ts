@@ -2,6 +2,7 @@ import User from '@/lib/models/User';
 import Client from '@/lib/models/Client';
 import { NextResponse } from 'next/server';
 import { deleteSessionStore, setSessionStore } from '@/lib/session/sessionStore';
+import { createRequestId, errorJson, logApiError } from '@/lib/logger';
 
 type UserPostRequest = {
     userName: string,
@@ -16,8 +17,11 @@ type UserPostResponse = {
 
 type ErrorResponse = {
     message: string,
-    status: number
+    status: number,
+    requestId?: string,
 }
+
+const ROUTE = '/api/user';
 
 function getLoginErrorMessage(
     reason: "connection_error" | "invalid_credentials" | "invalid_response" | "expired",
@@ -36,9 +40,14 @@ function getLoginErrorMessage(
 }
 
 export async function POST(request: Request) : Promise<NextResponse<UserPostResponse | ErrorResponse>> {
+    const requestId = createRequestId();
+    let client: string | undefined;
+
     try {
         await new Promise(resolve => setTimeout(resolve, 2000));
-        const { userName, password, client } : UserPostRequest = await request.json();
+        const body : UserPostRequest = await request.json();
+        client = body.client;
+        const { userName, password } = body;
 
         if(!userName || !password){
             throw new Error("Por favor intruduzca el usuario y contraseña.");
@@ -59,24 +68,22 @@ export async function POST(request: Request) : Promise<NextResponse<UserPostResp
             }
         }
     } catch(err){
+        const loggedId = await logApiError({ route: ROUTE, err, client, petition: 'POST', requestId });
         if(err instanceof Error){
-            return NextResponse.json({
-                message: err.message,
-                status: 500
-            })
+            return errorJson(err.message, 500, loggedId);
         }
 
-        return NextResponse.json({
-            message: 'Error desconocido en el servidor.',
-            status: 500
-        });
+        return errorJson('Error desconocido en el servidor.', 500, loggedId);
     }
 }
 
 export async function GET(request: Request) : Promise<NextResponse<boolean | ErrorResponse>> {
+    const requestId = createRequestId();
+    let clientName: string | null = null;
+
     try {
         const params = new URL(request.url)
-        const clientName = params.searchParams.get("client");
+        clientName = params.searchParams.get("client");
         
         if(clientName){
             const client = new Client(clientName);
@@ -93,18 +100,18 @@ export async function GET(request: Request) : Promise<NextResponse<boolean | Err
         
         throw new Error("No se eligio un cliente");
     } catch(err) {
+        const loggedId = await logApiError({
+            route: ROUTE,
+            err,
+            client: clientName ?? undefined,
+            petition: 'GET',
+            requestId,
+        });
         if(err instanceof Error){
-            return NextResponse.json({
-                message: err.message,
-                status: 500
-            })
+            return errorJson(err.message, 500, loggedId);
         }
 
-        return NextResponse.json({
-            message: 'Error desconocido en el servidor.',
-            status: 500
-        });
+        return errorJson('Error desconocido en el servidor.', 500, loggedId);
     }
 
 }
-

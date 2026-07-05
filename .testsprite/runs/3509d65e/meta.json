@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "cli-v1",
+  "snapshotId": "snap_4d016688349054c1",
+  "testId": "f8c54c15-c7b2-4ad1-b86b-60e822ce7a63",
+  "projectId": "67ae7fd1-1b5f-428e-987f-96200f885259",
+  "codeVersion": "v1",
+  "runIdIfAvailable": "3509d65e-c692-4e5d-935e-378914bd9c62",
+  "targetUrl": "https://castle-tomorrow-winning-florists.trycloudflare.com",
+  "failedStepIndex": 7,
+  "failureKind": null,
+  "capturedAt": "2026-07-05T23:09:37.265Z",
+  "fetchedAt": "2026-07-05T23:09:45.392Z"
+}

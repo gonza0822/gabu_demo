@@ -1,0 +1,18 @@
+{
+  "testId": "41560026-2900-406b-b401-4238437b8e60",
+  "status": "blocked",
+  "startedAt": "2026-07-05T23:00:35.311Z",
+  "finishedAt": "2026-07-05T23:05:16.587Z",
+  "videoUrl": "https://testsprite-videos.s3.us-east-1.amazonaws.com/e4b81478-9011-7005-4ca4-f2a1cad792f4/1783292716347354//tmp/2a89d3ff-dd48-44d2-ac63-c21a87bd59ca/result.webm",
+  "failureAnalysisUrl": null,
+  "snapshotId": "snap_34a2756920d15395",
+  "runIdIfAvailable": "f8992e13-6189-4746-b07c-5d42ff6adf8b",
+  "codeVersion": "v1",
+  "targetUrl": "https://floppy-lands-dig.loca.lt",
+  "targetUrlSource": "run",
+  "failedStepIndex": 5,
+  "failureKind": null,
+  "verdict": "blocked",
+  "executionStatus": "completed",
+  "summary": "Blocked before a verdict could be produced: TEST BLOCKED\n\nThe test could not be run — the login submission cannot be executed because the 'Ingresar' button is disabled and the form controls are not exposed as interactive elements.\n\nObservations:\n- The page visually displays 'Usuario' and 'Contraseña' fields and a greyed 'Ingresar' button (visible in the screenshot), but the inputs and button are not available as interactive elements to the agent.\n- Repeated attempts to locate interactive input/…"
+}

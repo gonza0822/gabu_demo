@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSelector } from "react-redux";
 import { RootState } from "@/store";
 import Alert from "@/components/ui/Alert";
+import { formatApiErrorFromBody } from "@/lib/logger/apiError";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import type { BookParamBounds, BookPeriodBoundsByBook, ReportType } from "@/lib/models/reports/Reports";
@@ -856,9 +857,9 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                         data: { simulationOnly },
                     }),
                 });
-                const data = (await res.json()) as ReportsConfigResponse | { message?: string };
+                const data = (await res.json()) as ReportsConfigResponse | { message?: string; requestId?: string };
                 if (!res.ok) {
-                    throw new Error((data as { message?: string }).message ?? "Error cargando configuración de reportes");
+                    throw new Error(formatApiErrorFromBody(data as { message?: string; requestId?: string }, "Error cargando configuración de reportes"));
                 }
                 if (cancelled) return;
                 const config = data as ReportsConfigResponse;
@@ -1035,9 +1036,9 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                     data: generatePayload,
                 }),
             });
-            const data = (await res.json()) as Record<string, unknown>[] | { message?: string };
+            const data = (await res.json()) as Record<string, unknown>[] | { message?: string; requestId?: string };
             if (!res.ok) {
-                throw new Error((data as { message?: string }).message ?? "Error generando el reporte");
+                throw new Error(formatApiErrorFromBody(data as { message?: string; requestId?: string }, "Error generando el reporte"));
             }
             const resultRows = Array.isArray(data) ? data : [];
             let withChargeComposition = false;
@@ -1059,9 +1060,9 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                             data: { bienIds },
                         }),
                     });
-                    const chargeData = (await chargeRes.json()) as ChargeCompositionResponse | { message?: string };
+                    const chargeData = (await chargeRes.json()) as ChargeCompositionResponse | { message?: string; requestId?: string };
                     if (!chargeRes.ok) {
-                        throw new Error((chargeData as { message?: string }).message ?? "Error cargando composición de cargos");
+                        throw new Error(formatApiErrorFromBody(chargeData as { message?: string; requestId?: string }, "Error cargando composición de cargos"));
                     }
                     setChargeCompositionFields((chargeData as ChargeCompositionResponse).fields ?? []);
                     setChargeCompositionByBienId((chargeData as ChargeCompositionResponse).byBienId ?? {});

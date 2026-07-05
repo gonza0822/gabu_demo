@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { formatApiErrorFromBody } from '@/lib/logger/apiError';
 
 type UseFetchConfig<T> = {
     initialData?: T | null;
@@ -26,7 +27,14 @@ export function useFetch<T>(url: string, options?: RequestInit, config?: UseFetc
         try {
             const response = await fetch(url, options);
             if (!response.ok) {
-                throw new Error(`Error: ${response.statusText}`);
+                let message = `Error: ${response.statusText}`;
+                try {
+                    const body = await response.json() as { message?: string; requestId?: string };
+                    message = formatApiErrorFromBody(body, message);
+                } catch {
+                    /* noop */
+                }
+                throw new Error(message);
             }
             const result: T = await response.json();
             setData(result);

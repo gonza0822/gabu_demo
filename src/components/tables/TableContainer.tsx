@@ -15,12 +15,17 @@ import SecondaryTable, { SecondaryTableData } from "./SecondaryTable";
 import { isValidDate } from "@/util/date/validate";
 import Skeleton from "react-loading-skeleton";
 import 'react-loading-skeleton/dist/skeleton.css';
+import { formatApiErrorFromBody } from "@/lib/logger/apiError";
 
 export type FieldsWithRelationAndErrors = FieldsWithRelation & {
     errors: {
         isError: boolean,
         errorMessage: string | null
     }
+}
+
+function serverErrorMessage(dataRes: { message?: string; requestId?: string }, fallback = 'Error'): string {
+    return formatApiErrorFromBody(dataRes, fallback);
 }
 
 export default function TableContainer<T>({connPath}: {connPath: string }) : React.ReactElement {
@@ -111,7 +116,7 @@ export default function TableContainer<T>({connPath}: {connPath: string }) : Rea
         const dataRes = await res.json();
 
         if(dataRes.status){
-            setServerResponse({ loading: false, success: false, message: dataRes.message, loadingMessage: null });
+            setServerResponse({ loading: false, success: false, message: serverErrorMessage(dataRes), loadingMessage: null });
             setTimeout(() => {
                 setServerResponse({ loading: false, success: null, message: null, loadingMessage: null });
             }, 5000);
@@ -172,7 +177,7 @@ export default function TableContainer<T>({connPath}: {connPath: string }) : Rea
         const dataRes = await res.json();
 
         if(dataRes.status){
-            setServerResponse({ loading: false, success: false, message: dataRes.message, loadingMessage: null });
+            setServerResponse({ loading: false, success: false, message: serverErrorMessage(dataRes), loadingMessage: null });
         } else {
             setServerResponse({ loading: false, success: true, message: "El registro se actualizó correctamente.", loadingMessage: null });
             setData(prevData => {
@@ -272,7 +277,7 @@ export default function TableContainer<T>({connPath}: {connPath: string }) : Rea
 
         const dataRes = await res.json();
         if(dataRes.status){
-            setServerResponse({ loading: false, success: false, message: dataRes.message, loadingMessage: null });
+            setServerResponse({ loading: false, success: false, message: serverErrorMessage(dataRes), loadingMessage: null });
         } else {
             setServerResponse({ loading: false, success: true, message: "El registro se agregó correctamente.", loadingMessage: null });
             setData(prevData => {
@@ -315,7 +320,7 @@ export default function TableContainer<T>({connPath}: {connPath: string }) : Rea
             const dataRes = await res.json();
 
             if(dataRes.status){
-                setServerResponse({ loading: false, success: false, message: dataRes.message, loadingMessage: null });
+                setServerResponse({ loading: false, success: false, message: serverErrorMessage(dataRes), loadingMessage: null });
             } else {
                 setServerResponse({ loading: false, success: true, message: "El registro se elimino correctamente.", loadingMessage: null });
                 setData(prevData => {

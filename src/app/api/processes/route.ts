@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import Processes, { type ProcessTableRow } from "@/lib/models/processes/Processes";
+import { createRequestId, errorJson, logApiError } from "@/lib/logger";
 
-type ErrorResponse = { message: string; status: number };
+type ErrorResponse = { message: string; status: number; requestId?: string };
+
+const ROUTE = "/api/processes";
 
 type UserPostRequest =
     | { petition: "GetRows"; client: string; data: { simulationOnly?: boolean } }
@@ -14,26 +17,32 @@ type UserPostRequest =
 export async function POST(
     request: Request
 ): Promise<NextResponse<ProcessTableRow[] | { ok: boolean } | ErrorResponse>> {
+    const requestId = createRequestId();
+    let client: string | undefined;
+    let petition: string | undefined;
+
     try {
-        const { client, petition, data } = (await request.json()) as UserPostRequest;
+        const body = (await request.json()) as UserPostRequest;
+        client = body.client;
+        petition = body.petition;
         if (!client) {
-            return NextResponse.json({ message: "Client is required", status: 400 }, { status: 400 });
+            return errorJson("Client is required", 400, requestId);
         }
 
         const processes = new Processes(client);
 
         switch (petition) {
             case "GetRows":
-                return NextResponse.json(await processes.getProcessRows(Boolean(data?.simulationOnly)));
+                return NextResponse.json(await processes.getProcessRows(Boolean((body as Extract<UserPostRequest, { petition: "GetRows" }>).data?.simulationOnly)));
             case "RunCalculoAmortizacion": {
-                const row = data?.row;
-                if (!row) return NextResponse.json({ message: "row is required", status: 400 }, { status: 400 });
+                const row = (body as Extract<UserPostRequest, { petition: "RunCalculoAmortizacion" }>).data?.row;
+                if (!row) return errorJson("row is required", 400, requestId);
                 await processes.runCalculoAmortizacion(row);
                 return NextResponse.json({ ok: true });
             }
             case "RunGeneracionAsientos": {
-                const row = data?.row;
-                if (!row) return NextResponse.json({ message: "row is required", status: 400 }, { status: 400 });
+                const row = (body as Extract<UserPostRequest, { petition: "RunGeneracionAsientos" }>).data?.row;
+                if (!row) return errorJson("row is required", 400, requestId);
                 await processes.runGeneracionAsientos(row);
                 return NextResponse.json({ ok: true });
             }
@@ -41,25 +50,25 @@ export async function POST(
                 await processes.syncCabeceraFecproFromParametroMl();
                 return NextResponse.json({ ok: true });
             case "RunCierreMensual": {
-                const row = data?.row;
-                if (!row) return NextResponse.json({ message: "row is required", status: 400 }, { status: 400 });
+                const row = (body as Extract<UserPostRequest, { petition: "RunCierreMensual" }>).data?.row;
+                if (!row) return errorJson("row is required", 400, requestId);
                 await processes.runCierreMensual(row);
                 return NextResponse.json({ ok: true });
             }
             case "RunCierreEjercicio": {
-                const row = data?.row;
-                if (!row) return NextResponse.json({ message: "row is required", status: 400 }, { status: 400 });
+                const row = (body as Extract<UserPostRequest, { petition: "RunCierreEjercicio" }>).data?.row;
+                if (!row) return errorJson("row is required", 400, requestId);
                 await processes.runCierreEjercicio(row);
                 return NextResponse.json({ ok: true });
             }
             default:
-                return NextResponse.json({ message: "Petición desconocida", status: 400 }, { status: 400 });
+                return errorJson("Petición desconocida", 400, requestId);
         }
     } catch (err) {
+        const loggedId = await logApiError({ route: ROUTE, err, client, petition, requestId });
         if (err instanceof Error) {
-            console.error(err);
-            return NextResponse.json({ message: err.message, status: 500 }, { status: 500 });
+            return errorJson(err.message, 500, loggedId);
         }
-        return NextResponse.json({ message: "Error desconocido", status: 500 }, { status: 500 });
+        return errorJson("Error desconocido", 500, loggedId);
     }
 }

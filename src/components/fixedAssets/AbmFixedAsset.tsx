@@ -26,6 +26,7 @@ import {
     setLibrosDataInCache,
 } from "@/lib/cache/fixedAssetsBootstrapCache";
 import { formatNumberEs } from "@/util/number/formatNumberEs";
+import { formatApiErrorFromBody, formatApiErrorMessage } from "@/lib/logger/apiError";
 import AssetChargesGrid from "@/components/fixedAssets/AssetChargesGrid";
 
 type AbmDatosGeneralesData = {
@@ -635,7 +636,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                 const res = await fetch(`/api/fixedAssets/foto?${params.toString()}`, { method: 'DELETE' });
                 const data = await res.json();
                 if (!res.ok || !data?.ok) {
-                    return (data?.message as string | undefined) ?? 'Error al eliminar una foto';
+                    return formatApiErrorFromBody(data as { message?: string; requestId?: string }, 'Error al eliminar una foto');
                 }
             }
             for (const item of pendingFotoAdds) {
@@ -646,7 +647,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                 const res = await fetch('/api/fixedAssets/foto', { method: 'POST', body: form });
                 const data = await res.json();
                 if (!res.ok || !data?.ok) {
-                    return (data?.message as string | undefined) ?? 'Error al guardar una foto';
+                    return formatApiErrorFromBody(data as { message?: string; requestId?: string }, 'Error al guardar una foto');
                 }
             }
             pendingFotoAddsRef.current.forEach((p) => URL.revokeObjectURL(p.previewUrl));
@@ -921,7 +922,8 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                 const friendlyMsg = res.status >= 500 || /Invalid|invocation|Transaction|timeout|ETIMEOUT/i.test(String(rawMsg))
                     ? 'Error al guardar. Por favor intente nuevamente.'
                     : rawMsg;
-                setSaveError(friendlyMsg);
+                const ref = typeof data?.requestId === 'string' ? data.requestId : null;
+                setSaveError(formatApiErrorMessage(friendlyMsg, ref));
             }
         } finally {
             setSaving(false);

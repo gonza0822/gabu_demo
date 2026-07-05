@@ -1,20 +1,28 @@
 import { NextResponse } from "next/server";
 import FixedAsset from "@/lib/models/fixedAssets/FixedAsset";
+import { createRequestId, errorJson, logApiError } from "@/lib/logger";
 
 /** Límite de runtime en hosts que lo respetan (p. ej. Vercel); el batch puede tardar varios minutos. */
 export const maxDuration = 900;
+
+const ROUTE = "/api/simulations/restart";
 
 type Body =
     | { petition: "GetLibros"; client: string }
     | { petition: "Reiniciar"; client: string; data: { idMoextra: string } };
 
 export async function POST(request: Request): Promise<NextResponse> {
+    const requestId = createRequestId();
+    let client: string | undefined;
+    let petition: string | undefined;
+
     try {
         const body = (await request.json()) as Body;
-        const { client, petition } = body;
+        client = body.client;
+        petition = body.petition;
 
         if (!client) {
-            return NextResponse.json({ message: "Client is required", status: 400 }, { status: 400 });
+            return errorJson("Client is required", 400, requestId);
         }
 
         const fixedAssetModel = new FixedAsset(client);
@@ -24,22 +32,26 @@ export async function POST(request: Request): Promise<NextResponse> {
         }
 
         if (petition === "Reiniciar") {
+            if (!("data" in body)) {
+                return errorJson("idMoextra es requerido", 400, requestId);
+            }
             const idMoextra = body.data?.idMoextra;
             if (!idMoextra || typeof idMoextra !== "string") {
-                return NextResponse.json({ message: "idMoextra es requerido", status: 400 }, { status: 400 });
+                return errorJson("idMoextra es requerido", 400, requestId);
             }
             try {
                 const result = await fixedAssetModel.reiniciarSimulacionDesdeLibro(idMoextra);
                 return NextResponse.json(result);
             } catch (err) {
                 const msg = err instanceof Error ? err.message : String(err);
-                return NextResponse.json({ message: msg, status: 400 }, { status: 400 });
+                return errorJson(msg, 400, requestId);
             }
         }
 
-        return NextResponse.json({ message: "Petición no reconocida", status: 400 }, { status: 400 });
+        return errorJson("Petición no reconocida", 400, requestId);
     } catch (e) {
+        const loggedId = await logApiError({ route: ROUTE, err: e, client, petition, requestId });
         const msg = e instanceof Error ? e.message : String(e);
-        return NextResponse.json({ message: msg, status: 500 }, { status: 500 });
+        return errorJson(msg, 500, loggedId);
     }
 }

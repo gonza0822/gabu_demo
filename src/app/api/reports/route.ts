@@ -4,8 +4,11 @@ import Reports, {
     type ReportsConfig,
     type ChargeCompositionData,
 } from "@/lib/models/reports/Reports";
+import { createRequestId, errorJson, logApiError } from "@/lib/logger";
 
-type ErrorResponse = { message: string; status: number };
+type ErrorResponse = { message: string; status: number; requestId?: string };
+
+const ROUTE = "/api/reports";
 
 type GenerateData = {
     reportType: ReportType;
@@ -30,34 +33,40 @@ export async function POST(
             ReportsConfig | Record<string, unknown>[] | ChargeCompositionData | { labels: Record<string, string> } | { ok: boolean } | ErrorResponse
         >
     > {
+    const requestId = createRequestId();
+    let client: string | undefined;
+    let petition: string | undefined;
+
     try {
-        const { client, petition, data } = (await request.json()) as UserPostRequest;
+        const body = (await request.json()) as UserPostRequest;
+        client = body.client;
+        petition = body.petition;
         if (!client) {
-            return NextResponse.json({ message: "Client is required", status: 400 }, { status: 400 });
+            return errorJson("Client is required", 400, requestId);
         }
 
         const reports = new Reports(client);
 
         switch (petition) {
             case "GetConfig":
-                return NextResponse.json(await reports.getConfig(Boolean(data?.simulationOnly)));
+                return NextResponse.json(await reports.getConfig(Boolean((body as Extract<UserPostRequest, { petition: "GetConfig" }>).data?.simulationOnly)));
             case "GetAsientosFieldLabels": {
-                const d = data as { book?: string; bookTableName?: string };
+                const d = (body as Extract<UserPostRequest, { petition: "GetAsientosFieldLabels" }>).data;
                 if (!d?.book || !d?.bookTableName) {
-                    return NextResponse.json({ message: "Faltan datos del libro", status: 400 }, { status: 400 });
+                    return errorJson("Faltan datos del libro", 400, requestId);
                 }
                 return NextResponse.json({
                     labels: await reports.getAsientosConverFieldLabels(d.book, d.bookTableName),
                 });
             }
             case "Generate": {
-                const payload = data;
+                const payload = (body as Extract<UserPostRequest, { petition: "Generate" }>).data;
                 if (!payload?.reportType || !payload?.book || !payload?.bookTableName) {
-                    return NextResponse.json({ message: "Faltan datos para generar el reporte", status: 400 }, { status: 400 });
+                    return errorJson("Faltan datos para generar el reporte", 400, requestId);
                 }
                 const period = payload.period ?? "";
                 if (payload.reportType !== "ASIENTOS" && !period) {
-                    return NextResponse.json({ message: "Faltan datos para generar el reporte", status: 400 }, { status: 400 });
+                    return errorJson("Faltan datos para generar el reporte", 400, requestId);
                 }
                 return NextResponse.json(
                     await reports.runReport({
@@ -71,17 +80,17 @@ export async function POST(
                 );
             }
             case "GetChargeComposition": {
-                const d = data as { bienIds?: string[] };
+                const d = (body as Extract<UserPostRequest, { petition: "GetChargeComposition" }>).data;
                 return NextResponse.json(await reports.getChargeCompositionForBienIds(d?.bienIds ?? []));
             }
             default:
-                return NextResponse.json({ message: "Petición desconocida", status: 400 }, { status: 400 });
+                return errorJson("Petición desconocida", 400, requestId);
         }
     } catch (err) {
+        const loggedId = await logApiError({ route: ROUTE, err, client, petition, requestId });
         if (err instanceof Error) {
-            console.error(err);
-            return NextResponse.json({ message: err.message, status: 500 }, { status: 500 });
+            return errorJson(err.message, 500, loggedId);
         }
-        return NextResponse.json({ message: "Error desconocido", status: 500 }, { status: 500 });
+        return errorJson("Error desconocido", 500, loggedId);
     }
 }

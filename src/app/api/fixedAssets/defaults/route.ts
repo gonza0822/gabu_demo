@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import Defaults, { type DefaultRow, type OptionItem } from "@/lib/models/Defaults";
+import { createRequestId, errorJson, logApiError } from "@/lib/logger";
 
-export type ErrorResponse = { message: string; status: number };
+export type ErrorResponse = { message: string; status: number; requestId?: string };
+
+const ROUTE = "/api/fixedAssets/defaults";
 
 type DefaultsField = { IdCampo: string; BrowNombre: string | null };
 
@@ -14,10 +17,17 @@ type UserPostRequest =
 export async function POST(
     request: Request
 ): Promise<NextResponse<DefaultRow[] | OptionItem[] | DefaultRow | DefaultsField[] | ErrorResponse>> {
+    const requestId = createRequestId();
+    let client: string | undefined;
+    let petition: string | undefined;
+
     try {
-        const { client, petition, data } = (await request.json()) as UserPostRequest;
+        const body = (await request.json()) as UserPostRequest;
+        client = body.client;
+        petition = body.petition;
+        const { data } = body;
         if (!client) {
-            return NextResponse.json({ message: "Client is required", status: 400 }, { status: 400 });
+            return errorJson("Client is required", 400, requestId);
         }
         const defaultsModel = new Defaults(client);
 
@@ -33,10 +43,7 @@ export async function POST(
             case "Update": {
                 const payload = data as { idcampo: string; iddefault: string | null };
                 if (payload.idcampo == null || payload.idcampo === "") {
-                    return NextResponse.json(
-                        { message: "idcampo is required", status: 400 },
-                        { status: 400 }
-                    );
+                    return errorJson("idcampo is required", 400, requestId);
                 }
                 const updated = await defaultsModel.update(
                     payload.idcampo,
@@ -48,10 +55,10 @@ export async function POST(
                 throw new Error("Petición desconocida");
         }
     } catch (err) {
+        const loggedId = await logApiError({ route: ROUTE, err, client, petition, requestId });
         if (err instanceof Error) {
-            console.log(err);
-            return NextResponse.json({ message: err.message, status: 500 }, { status: 500 });
+            return errorJson(err.message, 500, loggedId);
         }
-        return NextResponse.json({ message: "Error desconocido", status: 500 }, { status: 500 });
+        return errorJson("Error desconocido", 500, loggedId);
     }
 }

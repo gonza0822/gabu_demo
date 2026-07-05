@@ -109,8 +109,10 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     const [showFilterAppliedAlert, setShowFilterAppliedAlert] = useState(false);
     const [showBajaSuccessAlert, setShowBajaSuccessAlert] = useState(false);
     const [showBajaErrorAlert, setShowBajaErrorAlert] = useState(false);
+    const [bajaErrorMessage, setBajaErrorMessage] = useState("Ocurrió un error al dar de baja el bien");
     const [showTransferSuccessAlert, setShowTransferSuccessAlert] = useState(false);
     const [showTransferErrorAlert, setShowTransferErrorAlert] = useState(false);
+    const [transferErrorMessage, setTransferErrorMessage] = useState("Ocurrió un error al transferir el bien");
     const filterAppliedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const bajaAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const transferAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -135,6 +137,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     const [bajaFisicaBienId, setBajaFisicaBienId] = useState('');
     const [showBajaFisicaSuccessAlert, setShowBajaFisicaSuccessAlert] = useState(false);
     const [showBajaFisicaErrorAlert, setShowBajaFisicaErrorAlert] = useState(false);
+    const [bajaFisicaErrorMessage, setBajaFisicaErrorMessage] = useState("Ocurrió un error al eliminar el bien");
     const bajaFisicaAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const sensors = useSensors(
@@ -733,7 +736,8 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                         setShowTransferSuccessAlert(false);
                     }, 3000);
                 }}
-                onError={() => {
+                onError={(message) => {
+                    setTransferErrorMessage(message || "Ocurrió un error al transferir el bien");
                     setShowTransferErrorAlert(true);
                     if (transferAlertTimeoutRef.current) clearTimeout(transferAlertTimeoutRef.current);
                     transferAlertTimeoutRef.current = setTimeout(() => {
@@ -763,7 +767,8 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                         setShowBajaSuccessAlert(false);
                     }, 3000);
                 }}
-                onError={() => {
+                onError={(message) => {
+                    setBajaErrorMessage(message || "Ocurrió un error al dar de baja el bien");
                     setShowBajaErrorAlert(true);
                     if (bajaAlertTimeoutRef.current) clearTimeout(bajaAlertTimeoutRef.current);
                     bajaAlertTimeoutRef.current = setTimeout(() => {
@@ -789,7 +794,8 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                         setShowBajaFisicaSuccessAlert(false);
                     }, 3000);
                 }}
-                onError={() => {
+                onError={(message) => {
+                    setBajaFisicaErrorMessage(message || "Ocurrió un error al eliminar el bien");
                     setShowBajaFisicaErrorAlert(true);
                     if (bajaFisicaAlertTimeoutRef.current) clearTimeout(bajaFisicaAlertTimeoutRef.current);
                     bajaFisicaAlertTimeoutRef.current = setTimeout(() => {
@@ -1020,7 +1026,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                     show={showBajaSuccessAlert} 
                 />
                 <Alert 
-                    message="Ocurrió un error al dar de baja el bien" 
+                    message={bajaErrorMessage} 
                     type="error" 
                     show={showBajaErrorAlert} 
                 />
@@ -1030,7 +1036,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                     show={showTransferSuccessAlert}
                 />
                 <Alert
-                    message="Ocurrió un error al transferir el bien"
+                    message={transferErrorMessage}
                     type="error"
                     show={showTransferErrorAlert}
                 />
@@ -1040,7 +1046,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                     show={showBajaFisicaSuccessAlert}
                 />
                 <Alert
-                    message="Ocurrió un error al eliminar el bien"
+                    message={bajaFisicaErrorMessage}
                     type="error"
                     show={showBajaFisicaErrorAlert}
                 />

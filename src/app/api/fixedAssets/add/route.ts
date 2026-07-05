@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import FixedAsset, { type AbmDatosGeneralesData, type AbmCabeceraData, type AbmLibrosData } from "@/lib/models/fixedAssets/FixedAsset";
+import { createRequestId, errorJson, logApiError } from "@/lib/logger";
 
-export type ErrorResponse = { message: string; status: number };
+export type ErrorResponse = { message: string; status: number; requestId?: string };
+
+const ROUTE = "/api/fixedAssets/add";
 
 type UserPostRequest =
     | { petition: "GetFormData"; client: string; data: Record<string, never> }
@@ -16,12 +19,17 @@ type UserPostRequest =
 export async function POST(
     request: Request
 ): Promise<NextResponse<AbmDatosGeneralesData | AbmCabeceraData | AbmLibrosData | { key: string; value: string }[] | { ok: boolean } | Record<string, unknown> | ErrorResponse>> {
+    const requestId = createRequestId();
+    let client: string | undefined;
+    let petition: string | undefined;
+
     try {
         const body = await request.json() as UserPostRequest;
-        const { client, petition } = body;
+        client = body.client;
+        petition = body.petition;
 
         if (!client) {
-            return NextResponse.json({ message: "Client is required", status: 400 }, { status: 400 });
+            return errorJson("Client is required", 400, requestId);
         }
 
         const fixedAssetModel = new FixedAsset(client);
@@ -40,45 +48,47 @@ export async function POST(
             case "GetBienData": {
                 const data = (body as { data?: { bienId: string; simulationOnly?: boolean } }).data;
                 if (!data?.bienId) {
-                    return NextResponse.json({ message: "bienId is required", status: 400 }, { status: 400 });
+                    return errorJson("bienId is required", 400, requestId);
                 }
                 const bien = await fixedAssetModel.getBienById(data.bienId, { simulationOnly: Boolean(data.simulationOnly) });
                 if (!bien) {
-                    return NextResponse.json({ message: "Bien no encontrado", status: 404 }, { status: 404 });
+                    return errorJson("Bien no encontrado", 404, requestId);
                 }
                 return NextResponse.json(bien);
             }
             case "UpdateAnotaciones": {
                 const data = (body as { data?: { bienId: string; anotaciones: string } }).data;
                 if (!data?.bienId) {
-                    return NextResponse.json({ message: "bienId is required", status: 400 }, { status: 400 });
+                    return errorJson("bienId is required", 400, requestId);
                 }
                 try {
                     await fixedAssetModel.updateAnotaciones(data.bienId, data.anotaciones ?? '');
                     return NextResponse.json({ ok: true });
                 } catch (err) {
+                    const loggedId = await logApiError({ route: ROUTE, err, client, petition, bienId: data.bienId, requestId });
                     const msg = err instanceof Error ? err.message : String(err);
-                    return NextResponse.json({ message: msg, status: 500 }, { status: 500 });
+                    return errorJson(msg, 500, loggedId);
                 }
             }
             case "Update": {
                 const data = (body as { data?: { bienId: string } & Record<string, unknown> }).data;
                 if (!data?.bienId || typeof data.bienId !== 'string') {
-                    return NextResponse.json({ message: "bienId is required", status: 400 }, { status: 400 });
+                    return errorJson("bienId is required", 400, requestId);
                 }
                 const { bienId, ...payload } = data;
                 try {
                     await fixedAssetModel.updateBien(bienId, payload as Parameters<typeof fixedAssetModel.updateBien>[1]);
                     return NextResponse.json({ ok: true });
-                } catch (updateErr) {
-                    const msg = updateErr instanceof Error ? updateErr.message : String(updateErr);
-                    return NextResponse.json({ message: msg, status: 500 }, { status: 500 });
+                } catch (err) {
+                    const loggedId = await logApiError({ route: ROUTE, err, client, petition, bienId, requestId });
+                    const msg = err instanceof Error ? err.message : String(err);
+                    return errorJson(msg, 500, loggedId);
                 }
             }
             case "Add": {
                 const data = (body as { data?: Record<string, unknown> }).data;
                 if (!data || typeof data !== 'object') {
-                    return NextResponse.json({ message: "Data is required", status: 400 }, { status: 400 });
+                    return errorJson("Data is required", 400, requestId);
                 }
                 try {
                     const result = await fixedAssetModel.addBien(data as Parameters<typeof fixedAssetModel.addBien>[0]);
@@ -89,19 +99,25 @@ export async function POST(
                     const cause = addErr && typeof addErr === 'object' && 'cause' in addErr ? (addErr as { cause?: unknown }).cause : null;
                     const full = msg + (cause ? String(cause) : '');
                     if (/truncat|String or binary data would be truncated|DriverAdapterError/i.test(full)) {
-                        const payload = JSON.stringify(data, null, 2);
-                        console.error('[Add] String truncation - payload (revisar longitudes):', payload);
                         const lenReport = Object.entries(data).flatMap(([k, v]) => {
                             if (v && typeof v === 'object' && !Array.isArray(v)) {
                                 return Object.entries(v as Record<string, unknown>).map(([f, val]) => `${k}.${f}: ${String(val).length} chars`);
                             }
                             return [`${k}: ${String(v).length} chars`];
                         });
-                        console.error('[Add] Longitudes:', lenReport.join(', '));
-                        return NextResponse.json({
-                            message: "Algún campo excede la longitud permitida. Revisar en consola del servidor: cabecera (idDescripcion=6, idActivo=15, idFactura=30, idCencos=5, idPlanta=5), distribucion (idCencos=5), libros (idMoneda=2).",
-                            status: 500,
-                        }, { status: 500 });
+                        await logApiError({
+                            route: ROUTE,
+                            err: addErr,
+                            client,
+                            petition,
+                            requestId,
+                            extra: { truncation: true, fieldLengths: lenReport.join(', ') },
+                        });
+                        return errorJson(
+                            "Algún campo excede la longitud permitida. Revisar en consola del servidor: cabecera (idDescripcion=6, idActivo=15, idFactura=30, idCencos=5, idPlanta=5), distribucion (idCencos=5), libros (idMoneda=2).",
+                            500,
+                            requestId
+                        );
                     }
                     throw addErr;
                 }
@@ -110,10 +126,10 @@ export async function POST(
                 return NextResponse.json({ ok: true });
         }
     } catch (err) {
+        const loggedId = await logApiError({ route: ROUTE, err, client, petition, requestId });
         if (err instanceof Error) {
-            console.error(err);
-            return NextResponse.json({ message: err.message, status: 500 }, { status: 500 });
+            return errorJson(err.message, 500, loggedId);
         }
-        return NextResponse.json({ message: "Error desconocido", status: 500 }, { status: 500 });
+        return errorJson("Error desconocido", 500, loggedId);
     }
 }

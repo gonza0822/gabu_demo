@@ -5,6 +5,7 @@ import Modal from "@/components/ui/Modal";
 import Cross from "@/components/svg/Cross";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { formatNumberEs } from "@/util/number/formatNumberEs";
+import { formatApiErrorFromBody } from "@/lib/logger/apiError";
 import { findIdCencosByCodcia } from "@/util/costCenter/findIdCencosByCodcia";
 
 type RowData = Record<string, unknown>;
@@ -238,9 +239,9 @@ export default function ChargesTransferModal({
                     },
                 }),
             });
-            const json = (await response.json()) as { message?: string };
+            const json = (await response.json()) as { message?: string; requestId?: string };
             if (!response.ok) {
-                throw new Error(json.message ?? "Error al transferir cargos.");
+                throw new Error(formatApiErrorFromBody(json, "Error al transferir cargos."));
             }
             onSuccess?.();
             onClose();

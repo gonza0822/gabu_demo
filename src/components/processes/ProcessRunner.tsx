@@ -6,6 +6,7 @@ import { RootState } from "@/store";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import Alert from "@/components/ui/Alert";
+import { formatApiErrorFromBody } from "@/lib/logger/apiError";
 import Modal from "@/components/ui/Modal";
 import { usePathname } from "next/navigation";
 import { navActions, type Menu } from "@/store/navSlice";
@@ -93,8 +94,8 @@ export default function ProcessRunner({ mode, simulationOnly = false }: { mode: 
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ petition: "GetRows", client, data: { simulationOnly } }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data?.message ?? "Error cargando parámetros del proceso");
+            const data = await res.json() as { message?: string; requestId?: string };
+            if (!res.ok) throw new Error(formatApiErrorFromBody(data, "Error cargando parámetros del proceso"));
             if (!Array.isArray(data)) throw new Error("Respuesta inválida del servidor");
             const list = (data as ProcessRow[]).filter((row) => {
                 if (mode !== "generacion-asientos") return true;
@@ -167,8 +168,8 @@ export default function ProcessRunner({ mode, simulationOnly = false }: { mode: 
                         data: { row },
                     }),
                 });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data?.message ?? "Error ejecutando proceso");
+                const data = await res.json() as { message?: string; requestId?: string };
+                if (!res.ok) throw new Error(formatApiErrorFromBody(data, "Error ejecutando proceso"));
                 setStates((prev) => ({ ...prev, [key]: "OK" }));
             } catch (err) {
                 setStates((prev) => ({ ...prev, [key]: "Error" }));
@@ -190,8 +191,8 @@ export default function ProcessRunner({ mode, simulationOnly = false }: { mode: 
                         data: {},
                     }),
                 });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data?.message ?? "Error finalizando cálculo de amortizaciones");
+                const data = await res.json() as { message?: string; requestId?: string };
+                if (!res.ok) throw new Error(formatApiErrorFromBody(data, "Error finalizando cálculo de amortizaciones"));
             } catch (err) {
                 setErrorMessage(err instanceof Error ? err.message : String(err));
                 setShowErrorAlert(true);

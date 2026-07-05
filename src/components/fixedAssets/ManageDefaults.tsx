@@ -7,6 +7,7 @@ import Select from "@/components/ui/Select";
 import Button from "@/components/ui/Button";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
+import { formatApiErrorFromBody } from "@/lib/logger/apiError";
 
 type DefaultRow = { idcampo: string; iddefault: string | null };
 
@@ -133,8 +134,8 @@ export default function ManageDefaults(): React.ReactElement {
                     }),
                 });
                 if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    alert(err?.message ?? "Error al guardar");
+                    const err = await res.json().catch(() => ({})) as { message?: string; requestId?: string };
+                    alert(formatApiErrorFromBody(err, "Error al guardar"));
                     return;
                 }
             }

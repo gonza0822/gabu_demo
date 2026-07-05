@@ -10,6 +10,7 @@ import { authorizationActions } from "@/store/authorizationSlice";
 import { useRouter } from "next/navigation";
 import { prefetchFixedAssetsBootstrap } from "@/lib/cache/fixedAssetsBootstrapCache";
 import { prefetchHomeDashboard } from "@/lib/cache/homeDashboardCache";
+import { formatApiErrorFromBody } from "@/lib/logger/apiError";
 
 export default function LoginForm({ children, onLoginError, loginError } : { children : React.ReactNode, onLoginError: (message: string | null, isError: boolean) => void, loginError: { message: string | null, isError: boolean } }) : ReactElement {
     const isConnected : boolean = useSelector((state : RootState) => state.authorization.connected);
@@ -65,7 +66,7 @@ export default function LoginForm({ children, onLoginError, loginError } : { chi
             }));
             router.push('/home');
         } else {
-            onLoginError(data.message, true);
+            onLoginError(formatApiErrorFromBody(data, "Error al iniciar sesión"), true);
             dispatch(authorizationActions.LogginIn({isLogging: false}));
             console.log(data);
         }

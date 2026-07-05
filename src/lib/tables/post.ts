@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { Table, AllData, Validation, TwoTableData } from "@/lib/models/tables/Table";
 import { ConverFieldModel } from "@/generated/prisma/models";
+import { createRequestId, errorJson, logApiError, type ApiErrorResponse } from "@/lib/logger";
 
-export type ErrorResponse = { message: string, status: number }
 type Petition =
     | "Get"
     | "GetOne"
@@ -20,7 +20,7 @@ export async function handlePost<
 >(
     request: Request,
     Model: new (client: string) => TModel
-): Promise<NextResponse<TOne | TAll | ConverFieldModel[] | AllData<TOne> | Validation<TOne> | boolean | TwoTableData<TOne, unknown> | ErrorResponse >> {
+): Promise<NextResponse<TOne | TAll | ConverFieldModel[] | AllData<TOne> | Validation<TOne> | boolean | TwoTableData<TOne, unknown> | ApiErrorResponse >> {
 
     type UserPostRequest =
         | { petition: "Get"; client: string; data: Record<string, never> }
@@ -31,17 +31,22 @@ export async function handlePost<
         | { petition: "getValidations"; client: string; data: TOne }
         | { petition: "DeleteOne"; client: string; data: { id: string, secId?: string } };
 
+    const requestId = createRequestId();
+    const route = new URL(request.url).pathname;
+    let client: string | undefined;
+    let petition: string | undefined;
+
     try {
         const body = await request.json() as Partial<UserPostRequest>;
-        const client = body.client?.trim();
-        const petition = body.petition as Petition | undefined;
+        client = body.client?.trim();
+        petition = body.petition as Petition | undefined;
         const data = body.data;
 
         if (!client) {
-            return NextResponse.json({ message: "Client is required", status: 400 }, { status: 400 });
+            return errorJson("Client is required", 400, requestId);
         }
         if (!petition) {
-            return NextResponse.json({ message: "Petición requerida", status: 400 }, { status: 400 });
+            return errorJson("Petición requerida", 400, requestId);
         }
 
         const model = new Model(client);
@@ -75,10 +80,10 @@ export async function handlePost<
         }
 
     } catch (err) {
+        const loggedId = await logApiError({ route, err, client, petition, requestId });
         if (err instanceof Error) {
-            console.error(err);
-            return NextResponse.json({ message: err.message, status: 500 }, { status: 500 });
+            return errorJson(err.message, 500, loggedId);
         }
-        return NextResponse.json({ message: "Error desconocido", status: 500 }, { status: 500 });
+        return errorJson("Error desconocido", 500, loggedId);
     }
 }

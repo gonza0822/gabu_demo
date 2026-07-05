@@ -1,0 +1,40 @@
+{
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Navigate to / and wait for the login page to load"
+    },
+    {
+      "type": "assertion",
+      "description": "The page shows the heading 'Hola, Bienvenido!' and the label 'Seleccione una empresa'"
+    },
+    {
+      "type": "action",
+      "description": "Click the dropdown control under the label 'Seleccione una empresa' (the bordered box with the down arrow) to open the options list"
+    },
+    {
+      "type": "action",
+      "description": "Click the list item with visible text 'Admagro' inside the opened options list, then wait 5 seconds for the client connection to complete"
+    },
+    {
+      "type": "assertion",
+      "description": "The selected empresa shows 'Admagro' in the dropdown, and the 'Usuario' and 'Contraseña' inputs plus the 'Ingresar' button are enabled (not greyed out or disabled)"
+    },
+    {
+      "type": "action",
+      "description": "Type 'HOC' into the Usuario field and '1327' into the Contraseña field"
+    },
+    {
+      "type": "action",
+      "description": "Click the 'Ingresar' button and wait until the loading message 'Validando usuario...' disappears (allow up to 10 seconds)"
+    },
+    {
+      "type": "assertion",
+      "description": "The browser URL path is /home"
+    },
+    {
+      "type": "assertion",
+      "description": "The page shows the dashboard statistic title 'Total de bienes' and the sidebar navigation with the GABU logo"
+    }
+  ]
+}

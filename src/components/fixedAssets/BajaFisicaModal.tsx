@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Modal from "../ui/Modal";
 import Cross from "../svg/Cross";
+import { formatApiErrorFromBody } from "@/lib/logger/apiError";
 
 export default function BajaFisicaModal({
     isOpen,
@@ -37,9 +38,9 @@ export default function BajaFisicaModal({
                     data: { bienId },
                 }),
             });
-            const json = await res.json();
+            const json = await res.json() as { message?: string; requestId?: string };
             if (!res.ok) {
-                throw new Error(json?.message ?? `Error ${res.status}`);
+                throw new Error(formatApiErrorFromBody(json, `Error ${res.status}`));
             }
             onSuccess?.();
             onClose();

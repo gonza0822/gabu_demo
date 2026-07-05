@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { ParametrosModel } from "@/generated/prisma/models";
 import Parameters from "@/lib/models/Parameters";
+import { createRequestId, errorJson, logApiError } from "@/lib/logger";
 
-export type ErrorResponse = { message: string; status: number };
+export type ErrorResponse = { message: string; status: number; requestId?: string };
+
+const ROUTE = "/api/fixedAssets/parameters";
 
 type ParametrosEditable = {
     idmoextra: string;
@@ -30,8 +33,15 @@ type UserPostRequest =
 export async function POST(
     request: Request
 ): Promise<NextResponse<Omit<ParametrosModel, "fecrev">[] | ParametrosModel | { key: string; value: string }[] | ParametrosField[] | MoextraItem[] | ErrorResponse>> {
+    const requestId = createRequestId();
+    let client: string | undefined;
+    let petition: string | undefined;
+
     try {
-        const { client, petition, data } = (await request.json()) as UserPostRequest;
+        const body = (await request.json()) as UserPostRequest;
+        client = body.client;
+        petition = body.petition;
+        const { data } = body;
         const parametersModel = new Parameters(client, "00");
 
         switch (petition) {
@@ -56,10 +66,7 @@ export async function POST(
             case "Update": {
                 const payload = data as ParametrosEditable;
                 if (payload.idmoextra === "03" && !payload.simulationOnly) {
-                    return NextResponse.json(
-                        { message: "No se puede editar el registro con idmoextra 03", status: 400 },
-                        { status: 400 }
-                    );
+                    return errorJson("No se puede editar el registro con idmoextra 03", 400, requestId);
                 }
                 const updateData: {
                     fecini?: Date | null;
@@ -82,10 +89,10 @@ export async function POST(
                 throw new Error("Petición desconocida");
         }
     } catch (err) {
+        const loggedId = await logApiError({ route: ROUTE, err, client, petition, requestId });
         if (err instanceof Error) {
-            console.log(err);
-            return NextResponse.json({ message: err.message, status: 500 }, { status: 500 });
+            return errorJson(err.message, 500, loggedId);
         }
-        return NextResponse.json({ message: "Error desconocido", status: 500 }, { status: 500 });
+        return errorJson("Error desconocido", 500, loggedId);
     }
 }

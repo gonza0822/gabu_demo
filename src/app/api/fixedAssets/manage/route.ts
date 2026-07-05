@@ -3,8 +3,11 @@ import { ConverFieldModel } from "@/generated/prisma/models";
 import { FixedAssetsData } from "@/lib/models/fixedAssets/FixedAsset";
 import FixedAsset from "@/lib/models/fixedAssets/FixedAsset";
 import { ReOrderData } from "@/lib/models/tables/Table";
+import { createRequestId, errorJson, logApiError } from "@/lib/logger";
 
-export type ErrorResponse = { message: string, status: number }
+export type ErrorResponse = { message: string; status: number; requestId?: string };
+
+const ROUTE = "/api/fixedAssets/manage";
 
 export async function POST(request: Request): Promise<NextResponse<FixedAssetsData | ConverFieldModel | unknown[] | { ok: boolean } | ErrorResponse>> {
 
@@ -40,9 +43,16 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
         | { petition: "Transfer"; client: string; data: TransferData }
         | { petition: "BajaFisica"; client: string; data: BajaFisicaData };
 
+    const requestId = createRequestId();
+    let client: string | undefined;
+    let petition: string | undefined;
+
     try {
 
-        const { client, petition, data } = await request.json() as UserPostRequest;
+        const body = await request.json() as UserPostRequest;
+        client = body.client;
+        petition = body.petition;
+        const { data } = body;
         const fixedAssetsModel = new FixedAsset(client);
 
         switch (petition) {
@@ -67,7 +77,7 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
             case "Baja": {
                 const bajaData = data as BajaData;
                 if (!bajaData?.selectedAssets?.length) {
-                    return NextResponse.json({ message: "No hay bienes seleccionados", status: 400 }, { status: 400 });
+                    return errorJson("No hay bienes seleccionados", 400, requestId);
                 }
                 const result = await fixedAssetsModel.bajaBienes({
                     selectedAssets: bajaData.selectedAssets,
@@ -82,10 +92,10 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
             case "Transfer": {
                 const transferData = data as TransferData;
                 if (!transferData?.selectedAssets?.length) {
-                    return NextResponse.json({ message: "No hay bienes seleccionados", status: 400 }, { status: 400 });
+                    return errorJson("No hay bienes seleccionados", 400, requestId);
                 }
                 if (!transferData?.cuentaDestino?.trim()) {
-                    return NextResponse.json({ message: "Cuenta destino requerida", status: 400 }, { status: 400 });
+                    return errorJson("Cuenta destino requerida", 400, requestId);
                 }
                 const result = await fixedAssetsModel.transferBienes({
                     selectedAssets: transferData.selectedAssets,
@@ -99,7 +109,7 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
             case "BajaFisica": {
                 const bajaFisicaData = data as BajaFisicaData;
                 if (!bajaFisicaData?.bienId?.trim()) {
-                    return NextResponse.json({ message: "bienId requerido", status: 400 }, { status: 400 });
+                    return errorJson("bienId requerido", 400, requestId);
                 }
                 const result = await fixedAssetsModel.bajaFisica(bajaFisicaData.bienId);
                 return NextResponse.json(result);
@@ -109,10 +119,10 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
         }
 
     } catch (err) {
+        const loggedId = await logApiError({ route: ROUTE, err, client, petition, requestId });
         if (err instanceof Error) {
-            console.log(err);
-            return NextResponse.json({ message: err.message, status: 500 }, { status: 500 });
+            return errorJson(err.message, 500, loggedId);
         }
-        return NextResponse.json({ message: "Error desconocido", status: 500 }, { status: 500 });
+        return errorJson("Error desconocido", 500, loggedId);
     }
 }

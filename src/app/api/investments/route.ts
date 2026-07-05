@@ -9,8 +9,11 @@ import Investments, {
 } from "@/lib/models/investments/Investments";
 import { ConverFieldModel } from "@/generated/prisma/models";
 import { ReOrderData } from "@/lib/models/tables/Table";
+import { createRequestId, errorJson, logApiError } from "@/lib/logger";
 
-type ErrorResponse = { message: string; status: number };
+type ErrorResponse = { message: string; status: number; requestId?: string };
+
+const ROUTE = "/api/investments";
 
 type UserPostRequest =
     | { petition: "Get"; client: string; data: { type: InvestmentType } }
@@ -27,16 +30,22 @@ export async function POST(
 ): Promise<
     NextResponse<InvestmentsData | TransferSupportData | ChargesTransferResult | ConverFieldModel | ConverFieldModel[] | ErrorResponse>
 > {
+    const requestId = createRequestId();
+    let client: string | undefined;
+    let petition: string | undefined;
+
     try {
-        const { client, petition, data } = (await request.json()) as UserPostRequest;
+        const body = (await request.json()) as UserPostRequest;
+        client = body.client;
+        petition = body.petition;
         if (!client) {
-            return NextResponse.json({ message: "Client is required", status: 400 }, { status: 400 });
+            return errorJson("Client is required", 400, requestId);
         }
-        if (!data?.type) {
-            return NextResponse.json({ message: "Type is required", status: 400 }, { status: 400 });
+        if (!body.data?.type) {
+            return errorJson("Type is required", 400, requestId);
         }
 
-        const model = new Investments(client, data.type);
+        const model = new Investments(client, body.data.type);
 
         switch (petition) {
             case "Get":
@@ -46,31 +55,36 @@ export async function POST(
             case "GetTransferSupportSimulation":
                 return NextResponse.json(await model.getTransferSupportData(true));
             case "TransferCharges":
-                return NextResponse.json(await model.transferChargesToFixedAsset(data));
+                return NextResponse.json(await model.transferChargesToFixedAsset((body as Extract<UserPostRequest, { petition: "TransferCharges" }>).data));
             case "TransferChargesSimulation":
-                return NextResponse.json(await model.transferChargesToSimulation(data));
-            case "SetListShow":
-                return NextResponse.json(await model.setListShow(data.fieldId, data.listShow));
-            case "UpdateOrder":
-                return NextResponse.json(await model.changeOrder(data.order));
+                return NextResponse.json(await model.transferChargesToSimulation((body as Extract<UserPostRequest, { petition: "TransferChargesSimulation" }>).data));
+            case "SetListShow": {
+                const d = (body as Extract<UserPostRequest, { petition: "SetListShow" }>).data;
+                return NextResponse.json(await model.setListShow(d.fieldId, d.listShow));
+            }
+            case "UpdateOrder": {
+                const d = (body as Extract<UserPostRequest, { petition: "UpdateOrder" }>).data;
+                return NextResponse.json(await model.changeOrder(d.order));
+            }
             case "GetByBien": {
-                const bienId = (data as { bienId?: string }).bienId;
+                const d = (body as Extract<UserPostRequest, { petition: "GetByBien" }>).data;
+                const bienId = d.bienId;
                 if (!bienId?.trim()) {
-                    return NextResponse.json({ message: "bienId is required", status: 400 }, { status: 400 });
+                    return errorJson("bienId is required", 400, requestId);
                 }
-                if (data.type !== "charges") {
-                    return NextResponse.json({ message: "GetByBien sólo aplica a cargos", status: 400 }, { status: 400 });
+                if (d.type !== "charges") {
+                    return errorJson("GetByBien sólo aplica a cargos", 400, requestId);
                 }
                 return NextResponse.json(await model.getChargesByBienId(bienId.trim()));
             }
             default:
-                return NextResponse.json({ message: "Peticion desconocida", status: 400 }, { status: 400 });
+                return errorJson("Peticion desconocida", 400, requestId);
         }
     } catch (err) {
+        const loggedId = await logApiError({ route: ROUTE, err, client, petition, requestId });
         if (err instanceof Error) {
-            console.error(err);
-            return NextResponse.json({ message: err.message, status: 500 }, { status: 500 });
+            return errorJson(err.message, 500, loggedId);
         }
-        return NextResponse.json({ message: "Error desconocido", status: 500 }, { status: 500 });
+        return errorJson("Error desconocido", 500, loggedId);
     }
 }

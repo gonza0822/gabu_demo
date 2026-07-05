@@ -38,6 +38,8 @@ yarn-error.log*
 mcp.env.example
 /scripts/mcp-sqlserver-launcher.mjs
 /logs/mcp-mssqlserver*.log
+/logs/app-*.log
+/logs/error-*.log
 
 # vercel
 .vercel

@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ConverFieldModel } from "@/generated/prisma/models";
 import { InvestmentsData } from "@/lib/models/investments/Investments";
+import { formatApiErrorFromBody } from "@/lib/logger/apiError";
 import { ChargeRowData, getRowValueByField, normalizeChargeCellValue } from "@/lib/investments/chargesRowUtils";
 import {
     createColumnHelper,
@@ -60,8 +61,8 @@ export default function AssetChargesGrid({
                         data: { type: "charges", bienId },
                     }),
                 });
-                const json = (await response.json()) as InvestmentsData & { message?: string };
-                if (!response.ok) throw new Error(json.message ?? "Error al cargar cargos del bien");
+                const json = (await response.json()) as InvestmentsData & { message?: string; requestId?: string };
+                if (!response.ok) throw new Error(formatApiErrorFromBody(json, "Error al cargar cargos del bien"));
                 if (ignore) return;
                 setFields(json.fieldsManage ?? []);
                 setRows((json.table ?? []) as ChargeRowData[]);
