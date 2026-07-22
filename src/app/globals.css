@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,300..900;1,300..900&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -9,7 +8,7 @@
   --color-gabu-100: #CDD5D8;
   --color-gabu-error: #D9534F;
   --color-gabu-success: #29800f;
-  --font-style-rubik: 'Rubik', sans-serif;
+  --font-style-rubik: "Rubik Variable", "Rubik", sans-serif;
 }
 
 body {
