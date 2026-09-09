@@ -1,5 +1,0 @@
-{
-  "rootCauseHypothesis": "TEST BLOCKED\n\nThe test could not be run — the login submission cannot be executed because the 'Ingresar' button is disabled and the form controls are not exposed as interactive elements.\n\nObservations:\n- The page visually displays 'Usuario' and 'Contraseña' fields and a greyed 'Ingresar' button (visible in the screenshot), but the inputs and button are not available as interactive elements to the agent.\n- Repeated attempts to locate interactive input/button indexes and scrolling did not change the page or reveal interactive controls.\n- Because the submit action cannot be performed, the validation messages and redirect to /home cannot be triggered or verified.",
-  "recommendedFixTarget": null,
-  "evidence": []
-}

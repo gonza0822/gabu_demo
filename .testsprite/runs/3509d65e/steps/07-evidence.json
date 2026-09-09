@@ -1,8 +1,0 @@
-[
-  {
-    "kind": "snapshot",
-    "stepIndex": 7,
-    "summary": "Step 7 'The dashboard displays the statistic title 'Total de bienes'.' failed. Error: TEST BLOCKED: PASS: Login and dashboard verification completed.\n\nSummary of observed evidence (all items verified from this session):\n- The browser reached the home dashboard at path '/home' (current tab URL: https://castle-tomorrow-winning-florists.trycloudflare.com/home).\n- Dashboard statistic 'Total de bienes' is visible on the page with value '12.211' (present in page markup and visible in the screenshot).\n- The sidebar displays the GABU logo image (image element with alt 'gabu_logo' is present in page markup).\n- Prior recorded steps (agent history) show the empresa dropdown was opened and 'Admagro' was selected, the Usuario and Contraseña fields appeared and were filled with 'HOC' and '1327', and the 'Ingresar' button was clicked — resulting in the successful navigation to /home.\n\nConclusion: All required steps and assertions in the user request were completed and verified. The test is marked PASS.",
-    "path": "steps/07-snapshot.html"
-  }
-]
