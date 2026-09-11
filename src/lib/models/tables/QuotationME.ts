@@ -3,6 +3,7 @@ import { getPrisma } from '@/lib/prisma/prisma';
 import { Table, AllData, ReOrderData, Validation } from "./Table";
 import { PrismaClient } from '@/generated/prisma/client';
 import { parseStringDate, parseDateString } from '@/util/date/parseDate';
+import { converFieldPk } from "@/lib/models/converFieldKeys";
 
 type QuotationMEWithStringDate = Omit<CotextranjeraModel, "Fecha"> & { Fecha: string };
 
@@ -79,7 +80,8 @@ class QuotationME extends Table<
                             })
                         ],
                         options: {
-                            required: true
+                            required: true,
+                            maxLength: 2,
                         }
                     };
                 }
@@ -174,12 +176,7 @@ class QuotationME extends Table<
 
         for (const item of newOrder) {
             const updated : ConverFieldModel = await this.prisma.converField.update({
-                where: { 
-                    IdTabla_IdCampo: {
-                        IdTabla: item.tableId,
-                        IdCampo: item.fieldId 
-                    }  
-                },
+                where: converFieldPk(item.tableId, item.fieldId),
                 data: { lisordencampos: item.order }
             });
             updatedRecords.push(updated);

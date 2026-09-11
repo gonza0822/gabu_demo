@@ -1,17 +1,24 @@
 'use client';
 
-import React, { ReactElement, useState } from "react";
+import React, { ReactElement } from "react";
 import SubmenuItem from "./SubmenuItem";
 import Arrow from "../svg/Arrow";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { MenuObj } from "@/store/navSlice";
 import { getIcon } from "@/store/navActions";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store";
 
-export default function MenuItem({menuItem, active, onClick, menuId} : {menuItem : MenuObj, active: boolean, onClick: () => void, menuId: number}) : ReactElement {
+export default function MenuItem({menuItem, active, onClick, menuId} : {menuItem : MenuObj, active: boolean, onClick: () => void, menuId: number}) : ReactElement | null {
     const Icon : React.ComponentType = getIcon(menuItem.icon);
     const isSupervisor = useSelector((state: RootState) => state.authorization.supervisor);
+    const visibleSubmenus = menuItem.submenu.filter((s) => {
+        if (s.hiddenFromSidebar) return false;
+        if (s.table === "UsersTable" && !isSupervisor) return false;
+        return true;
+    });
+
+    if (visibleSubmenus.length === 0) return null;
 
     return (
         <li className="flex flex-col cursor-pointer select-none" onClick={onClick}>
@@ -24,17 +31,10 @@ export default function MenuItem({menuItem, active, onClick, menuId} : {menuItem
             </div>
             <motion.div className="overflow-hidden ease-linear" initial={false} animate={{height: active ? "auto" : 0}} transition={{duration: 0.3, ease: "easeInOut"}} onClick={(e : React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}>
                 <ul className="tabla-submenu-list ml-[6%] xl:ml-[10%] overflow-y-auto overflow-x-hidden max-h-[5.75rem] xl:max-h-[10.5rem] 2xl:max-h-[13.5rem]">
-                    {(() => {
-                    const visibleSubmenus = menuItem.submenu.filter((s) => {
-                        if (s.hiddenFromSidebar) return false;
-                        if (s.table === "UsersTable" && !isSupervisor) return false;
-                        return true;
-                    });
-                    return visibleSubmenus.map((menu) => {
+                    {visibleSubmenus.map((menu) => {
                         const submenuIndex = menuItem.submenu.indexOf(menu);
                         return <SubmenuItem key={submenuIndex} submenuId={submenuIndex} menuId={menuId} submenuItem={menu}/>;
-                    });
-                })()}
+                    })}
                 </ul>
             </motion.div>
         </li>

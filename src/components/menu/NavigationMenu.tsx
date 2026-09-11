@@ -49,7 +49,7 @@ export default function NavigationMenu() : ReactElement {
             const maxOrder : number = data.menu.flatMap((m : MenuObj) => m.submenu).reduce((max : number, submenu : Submenu) => submenu.order > max ? submenu.order : max, 0);
             dispatch(navActions.setCompletemNav({
                 menu: {
-                    client: client,
+                    client: data.client ?? client,
                     menu: data.menu,
                     maxOrder: maxOrder
                 },

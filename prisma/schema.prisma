@@ -1040,9 +1040,9 @@ model ConverField {
   listShow       Boolean
   lisordencampos Int?    @db.SmallInt
   idIdioma       String? @db.NVarChar(5)
-  idusuario      String? @db.NVarChar(30)
+  idusuario      String  @db.NVarChar(30)
 
-  @@id([IdTabla, IdCampo], map: "PK_ConverField", clustered: false)
+  @@id([IdTabla, IdCampo, idusuario], map: "PK_ConverField", clustered: false)
 }
 
 model Cotextranjera {

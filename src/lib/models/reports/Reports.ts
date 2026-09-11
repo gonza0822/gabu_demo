@@ -580,13 +580,15 @@ class Reports {
                 c.*
             FROM (VALUES ${tupleValues}) AS t(idcodigo, idsubien, idsubtra, idsufijo)
             INNER JOIN dbo.relacargoactivo r
-                ON CAST(r.idcodigo AS NVARCHAR(50)) = t.idcodigo
-               AND RIGHT('000' + CAST(r.idsubien AS NVARCHAR(10)), 3) = t.idsubien
-               AND CAST(r.idsubtra AS NVARCHAR(10)) = t.idsubtra
-               AND CAST(r.idsufijo AS NVARCHAR(10)) = t.idsufijo
+                ON CAST(r.idcodigo AS NVARCHAR(50)) COLLATE DATABASE_DEFAULT = t.idcodigo COLLATE DATABASE_DEFAULT
+               AND RIGHT('000' + CAST(r.idsubien AS NVARCHAR(10)), 3) COLLATE DATABASE_DEFAULT = t.idsubien COLLATE DATABASE_DEFAULT
+               AND CAST(r.idsubtra AS NVARCHAR(10)) COLLATE DATABASE_DEFAULT = t.idsubtra COLLATE DATABASE_DEFAULT
+               AND CAST(r.idsufijo AS NVARCHAR(10)) COLLATE DATABASE_DEFAULT = t.idsufijo COLLATE DATABASE_DEFAULT
             INNER JOIN dbo.cargosmagic c
-                ON c.nrocbt = r.nrocbt
-               AND c.IDArticulo = r.IDArticulo
+                ON CAST(LTRIM(RTRIM(CAST(c.nrocbt AS VARCHAR(50)))) AS FLOAT) = CAST(LTRIM(RTRIM(CAST(r.nrocbt AS VARCHAR(50)))) AS FLOAT)
+               AND CAST(LTRIM(RTRIM(CAST(c.IDArticulo AS VARCHAR(50)))) AS FLOAT) = CAST(LTRIM(RTRIM(CAST(r.IDArticulo AS VARCHAR(50)))) AS FLOAT)
+               AND CONVERT(CHAR(6), c.feccbt, 112) = CONVERT(CHAR(6), r.feccbt, 112)
+               AND LTRIM(RTRIM(CAST(c.cdobra AS VARCHAR(50)))) COLLATE DATABASE_DEFAULT = LTRIM(RTRIM(CAST(r.CDOBRA AS VARCHAR(50)))) COLLATE DATABASE_DEFAULT
             ORDER BY __bienId ASC, c.cdobra ASC, c.feccbt ASC, c.nrocbt ASC
         `);
 

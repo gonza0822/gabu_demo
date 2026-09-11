@@ -14,6 +14,7 @@ import DraggableCell from "./DraggableCell";
 import DraggableHeader from "./DraggableHeader";
 import ExcelJS from "exceljs";
 import { formatNumericDisplayValue, isLikelyNumericField } from "@/util/number/formatNumberEs";
+import { estimateColumnSize, sampleColumnValues } from "@/util/table/estimateColumnSize";
 
 /** Encabezado principal (cuentas): cyan */
 const EXCEL_FILL_CUENTAS_HEADER = "FF4DD0E1";
@@ -96,6 +97,8 @@ export default function MainTable<TData>({
         columnHelper.display({
             id: 'get',
             header: 'Seleccionar',
+            size: 88,
+            minSize: 72,
             cell: ({row}) => (
                 <>
                     <input type="checkbox" className="peer checked:bg-gabu-900 appearance-none text-center bg-gabu-300 w-4 h-4 border border-gabu-900 cursor-pointer rounded-md focus:outline-none" onChange={handleChooseRow} checked={selectedRow === row.id}/>
@@ -106,6 +109,20 @@ export default function MainTable<TData>({
         ...fields.map(field => columnHelper.accessor((row: TData) => row[field.IdCampo as keyof TData], {
             id: field.IdCampo,
             header: field.BrowNombre ?? '',
+            size: estimateColumnSize(
+                field.BrowNombre ?? field.IdCampo,
+                sampleColumnValues(data, (row) => {
+                    const raw = row[field.IdCampo as keyof TData];
+                    const isPasswordField = String(field.IdCampo ?? "").toLowerCase() === "clave";
+                    if (isUsersGrid && isPasswordField) {
+                        const value = String(raw ?? "");
+                        return value.length > 0 ? "*".repeat(Math.min(value.length, 12)) : "";
+                    }
+                    return formatNumericDisplayValue(raw, String(field.IdCampo), {
+                        parseNumericStrings: isLikelyNumericField(field.IdCampo, field.BrowNombre ?? undefined),
+                    });
+                })
+            ),
             cell: info => {
                 const isPasswordField = String(field.IdCampo ?? "").toLowerCase() === "clave";
                 if (isUsersGrid && isPasswordField) {
@@ -119,7 +136,7 @@ export default function MainTable<TData>({
             },
             sortingFn: "myCustomSorting" as SortingFnOption<TData>,
         }))
-    ], [fields, columnHelper]);
+    ], [fields, columnHelper, data, isUsersGrid]);
 
     useEffect(() => {
         if(record){
@@ -443,7 +460,7 @@ export default function MainTable<TData>({
             <div className="w-full overflow-auto table-container grid">
                 <div className="min-w-full">
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToHorizontalAxis]}>
-                        <table className="border-collapse divide-y-2 divide-gabu-900/25 table-fixed w-full" {...{style: {minWidth: table.getTotalSize()}}}>
+                        <table className="border-collapse divide-y-2 divide-gabu-900/25 table-fixed" style={{ width: table.getTotalSize(), minWidth: table.getTotalSize() }}>
                         <thead>
                             {table.getHeaderGroups().map(headerGroup => (
                                 <tr key={headerGroup.id}>

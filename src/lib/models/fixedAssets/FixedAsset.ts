@@ -2,6 +2,7 @@ import { getPrisma } from "@/lib/prisma/prisma";
 import { PrismaClient } from '@/generated/prisma/client';
 import { ConverFieldModel } from "@/generated/prisma/models";
 import { ReOrderData } from "@/lib/models/tables/Table";
+import { converFieldPk, DEFAULT_CONVER_USER } from "@/lib/models/converFieldKeys";
 import {
     deleteFotoFileIfExists,
     parseFotoPathsStored,
@@ -9,6 +10,7 @@ import {
     serializeFotoPathsStored,
     writeFotoFile,
 } from '@/lib/uploads/assetFotoStorage';
+import { parseMmYyyyToUtcDate } from '@/util/date/parseDate';
 
 export type FixedAssets = {[key: string]: unknown};
 
@@ -94,17 +96,80 @@ export type AbmLibrosData = {
 
 class FixedAsset {
         prisma : PrismaClient;
+        private userId: string;
     
-        constructor(client: string){
+        constructor(client: string, userId?: string | null){
             this.prisma = getPrisma(client);
+            this.userId = (userId ?? "").trim();
+        }
+
+        private getGridUserId(): string {
+            return this.userId || DEFAULT_CONVER_USER;
+        }
+
+        private async findGridFields(idTabla: string): Promise<ConverFieldModel[]> {
+            const userId = this.getGridUserId();
+            if (userId !== DEFAULT_CONVER_USER) {
+                const userFields = await this.prisma.converField.findMany({
+                    where: { IdTabla: idTabla, idusuario: userId },
+                    orderBy: { lisordencampos: "asc" },
+                });
+                if (userFields.length > 0) return userFields;
+            }
+            return this.prisma.converField.findMany({
+                where: { IdTabla: idTabla, idusuario: DEFAULT_CONVER_USER },
+                orderBy: { lisordencampos: "asc" },
+            });
+        }
+
+        private async ensureUserGridFields(idTabla: string): Promise<string> {
+            const userId = this.getGridUserId();
+            if (userId === DEFAULT_CONVER_USER) return userId;
+
+            await this.prisma.$transaction(async (tx) => {
+                const existing = await tx.converField.count({
+                    where: { IdTabla: idTabla, idusuario: userId },
+                });
+                if (existing > 0) return;
+
+                const defaults = await tx.converField.findMany({
+                    where: { IdTabla: idTabla, idusuario: DEFAULT_CONVER_USER },
+                });
+                if (defaults.length === 0) return;
+
+                await tx.converField.createMany({
+                    data: defaults.map((row) => ({
+                        IdTabla: row.IdTabla,
+                        IdCampo: row.IdCampo,
+                        browformat: row.browformat,
+                        BrowNombre: row.BrowNombre,
+                        listShow: row.listShow,
+                        lisordencampos: row.lisordencampos,
+                        idIdioma: row.idIdioma,
+                        idusuario: userId,
+                    })),
+                });
+            });
+
+            return userId;
+        }
+
+        private async resolveIdCampoMap(idTabla: string, userId: string): Promise<Map<string, string>> {
+            const rows = await this.prisma.converField.findMany({
+                where: { IdTabla: idTabla, idusuario: userId },
+                select: { IdCampo: true },
+            });
+            return new Map(rows.map((row) => [row.IdCampo.toLowerCase(), row.IdCampo]));
+        }
+
+        private async resolveIdCampo(idTabla: string, idCampo: string, userId: string): Promise<string | null> {
+            const byLower = await this.resolveIdCampoMap(idTabla, userId);
+            return byLower.get(idCampo.toLowerCase()) ?? null;
         }
 
         async getAll() : Promise<FixedAssetsData> {
             const [fieldsManage, fixedAssets, parametrosRows, internaBajaRows, cuentasDestino] = await Promise.all([
-                this.prisma.converField.findMany({
-                    where: { IdTabla: 'actifijo' },
-                    orderBy: { lisordencampos: 'asc' },
-                }),
+                this.findGridFields('actifijo'),
                 this.prisma.$queryRaw<{ [key: string]: unknown}[]>`SELECT * FROM dbo.actifijo`,
                 this.prisma.parametros.findMany({
                     where: { idmoextra: { in: ['01', 'ml'] } },
@@ -147,19 +212,21 @@ class FixedAsset {
 
     async changeOrder(newOrder: ReOrderData): Promise<ConverFieldModel[]> {
         if (newOrder.length === 0) return [];
-        return this.prisma.$transaction(
-            newOrder.map((item) =>
+        const tableId = newOrder[0]?.tableId || "actifijo";
+        const userId = await this.ensureUserGridFields(tableId);
+        const byLower = await this.resolveIdCampoMap(tableId, userId);
+        const updates = newOrder.flatMap((item) => {
+            const idCampo = byLower.get(item.fieldId.toLowerCase());
+            if (!idCampo) return [];
+            return [
                 this.prisma.converField.update({
-                    where: {
-                        IdTabla_IdCampo: {
-                            IdTabla: item.tableId,
-                            IdCampo: item.fieldId,
-                        }
-                    },
-                    data: { lisordencampos: item.order }
-                })
-            )
-        );
+                    where: converFieldPk(item.tableId, idCampo, userId),
+                    data: { lisordencampos: item.order },
+                }),
+            ];
+        });
+        if (updates.length === 0) return [];
+        return this.prisma.$transaction(updates);
     }
 
     /**
@@ -222,10 +289,7 @@ class FixedAsset {
         });
         const simulaIds = simulaRows.map((row) => row.idMoextra);
         const [fieldsManage, fixedAssets, parametrosRows, internaBajaRows, cuentasDestino] = await Promise.all([
-            this.prisma.converField.findMany({
-                where: { IdTabla: 'simulacion' },
-                orderBy: { lisordencampos: 'asc' },
-            }),
+            this.findGridFields('simulacion'),
             this.prisma.$queryRaw<{ [key: string]: unknown}[]>`SELECT * FROM dbo.simulacion`,
             this.prisma.parametros.findMany({
                 where: { idmoextra: { in: simulaIds } },
@@ -282,39 +346,39 @@ class FixedAsset {
     }
 
     /**
-     * Actualiza listShow en ConverField para IdTabla 'actifijo'.
+     * Actualiza listShow en ConverField para la grilla (por usuario; clona default si hace falta).
      * @param idCampo - Id del campo a mostrar u ocultar
      * @param listShow - true = mostrar, false = ocultar
+     * @param idTabla - Tabla de ConverField (`actifijo` o `simulacion`)
      */
-    async setListShow(idCampo: string, listShow: boolean): Promise<ConverFieldModel> {
-        const updated = await this.prisma.converField.update({
-            where: {
-                IdTabla_IdCampo: {
-                    IdTabla: 'actifijo',
-                    IdCampo: idCampo,
-                }
-            },
-            data: { listShow }
+    async setListShow(idCampo: string, listShow: boolean, idTabla = "actifijo"): Promise<ConverFieldModel> {
+        const userId = await this.ensureUserGridFields(idTabla);
+        const resolved = await this.resolveIdCampo(idTabla, idCampo, userId);
+        if (!resolved) throw new Error(`Campo no encontrado: ${idCampo}`);
+        return this.prisma.converField.update({
+            where: converFieldPk(idTabla, resolved, userId),
+            data: { listShow },
         });
-        return updated;
     }
 
     /** Varias visibilidades en una sola petición HTTP/ transacción (evita N llamadas a /api/fixedAssets/manage). */
-    async setListShowBatch(updates: { idCampo: string; listShow: boolean }[]): Promise<{ ok: boolean }> {
+    async setListShowBatch(updates: { idCampo: string; listShow: boolean }[], idTabla = "actifijo"): Promise<{ ok: boolean }> {
         if (updates.length === 0) return { ok: true };
-        await this.prisma.$transaction(
-            updates.map((u) =>
+        const userId = await this.ensureUserGridFields(idTabla);
+        const byLower = await this.resolveIdCampoMap(idTabla, userId);
+        const ops = updates.flatMap((u) => {
+            const resolved = byLower.get(u.idCampo.toLowerCase());
+            if (!resolved) return [];
+            return [
                 this.prisma.converField.update({
-                    where: {
-                        IdTabla_IdCampo: {
-                            IdTabla: 'actifijo',
-                            IdCampo: u.idCampo,
-                        },
-                    },
+                    where: converFieldPk(idTabla, resolved, userId),
                     data: { listShow: u.listShow },
-                })
-            )
-        );
+                }),
+            ];
+        });
+        if (ops.length > 0) {
+            await this.prisma.$transaction(ops);
+        }
         return { ok: true };
     }
 
@@ -324,8 +388,8 @@ class FixedAsset {
      */
     async getAbmCabeceraData(simulationOnly = false): Promise<AbmCabeceraData> {
         const cabeceraConverWhere = simulationOnly
-            ? { IdTabla: 'simulacion', IdCampo: { startsWith: 'cabecera.' } }
-            : { IdTabla: 'actifijo', IdCampo: { startsWith: 'cabecera.' } };
+            ? { IdTabla: 'simulacion', IdCampo: { startsWith: 'cabecera.' }, idusuario: DEFAULT_CONVER_USER }
+            : { IdTabla: 'actifijo', IdCampo: { startsWith: 'cabecera.' }, idusuario: DEFAULT_CONVER_USER };
 
         const [converFields, defaultsRows, unidadesNegocio, cuentas, modelos, origenes, proyectos, situaciones] = await Promise.all([
             this.prisma.converField.findMany({
@@ -393,11 +457,13 @@ class FixedAsset {
         const libroConverWhere = simulationOnly
             ? {
                 IdTabla: 'simulacion',
+                idusuario: DEFAULT_CONVER_USER,
                 NOT: { IdCampo: { startsWith: 'cabecera.' } },
                 OR: campoCases,
             }
             : {
                 IdTabla: 'actifijo',
+                idusuario: DEFAULT_CONVER_USER,
                 NOT: { IdCampo: { startsWith: 'cabecera.' } },
                 OR: campoCases,
             };
@@ -689,11 +755,7 @@ class FixedAsset {
                 return t ? t.slice(0, max) : null;
             };
 
-            const parseMmYyyy = (s: string): Date | null => {
-                const m = String(s || '').match(/^(\d{1,2})[\/\-](\d{4})$/);
-                if (!m) return null;
-                return new Date(Number(m[2]), Number(m[1]) - 1, 1);
-            };
+            const parseMmYyyy = (s: string): Date | null => parseMmYyyyToUtcDate(s);
 
             await cabeHead.create({
                 data: {
@@ -719,9 +781,9 @@ class FixedAsset {
                     trFecProyecto: parseMmYyyy(String(cab.trFecProyecto ?? '')) ?? null,
                     idOrigen: trim(cab.idOrigen as string, 2),
                     idProveedor: trim(cab.idProveedor as string, 15),
-                    escencial: cab.escencial === true || cab.escencial === 'true',
+                    escencial: cab.escencial === true || cab.escencial === 'true' || cab.escencial === '1' || cab.escencial === 1,
                     idFabricante: trim(cab.idFabricante as string, 50),
-                    nuevo: cab.nuevo === true || cab.nuevo === 'true',
+                    nuevo: cab.nuevo === true || cab.nuevo === 'true' || cab.nuevo === '1' || cab.nuevo === 1,
                     idProyecto: trim(cab.idProyecto as string, 8),
                     tridProyecto: trim(cab.tridProyecto as string, 8),
                     trFecUNegocio: parseMmYyyy(String(cab.trFecUNegocio ?? '')) ?? null,
@@ -753,11 +815,7 @@ class FixedAsset {
                 }
             }
 
-            const parseMmYyyyLibro = (s: string): Date | null => {
-                const m = String(s || '').match(/^(\d{1,2})[\/\-](\d{4})$/);
-                if (!m) return null;
-                return new Date(Number(m[2]), Number(m[1]) - 1, 1);
-            };
+            const parseMmYyyyLibro = (s: string): Date | null => parseMmYyyyToUtcDate(s);
 
             const getIdMoneda = (prefijo: string): string => {
                 const up = prefijo.toUpperCase();
@@ -1299,6 +1357,7 @@ class FixedAsset {
             const converFields = await this.prisma.converField.findMany({
                 where: {
                     IdTabla: 'simulacion',
+                    idusuario: DEFAULT_CONVER_USER,
                     NOT: { IdCampo: { startsWith: 'cabecera.' } },
                 },
                 select: { IdCampo: true },
@@ -1351,8 +1410,8 @@ class FixedAsset {
 
         const converFields = await this.prisma.converField.findMany({
             where: simulationOnly
-                ? { IdTabla: 'simulacion', NOT: { IdCampo: { startsWith: 'cabecera.' } } }
-                : { IdTabla: 'actifijo', NOT: { IdCampo: { startsWith: 'cabecera.' } } },
+                ? { IdTabla: 'simulacion', idusuario: DEFAULT_CONVER_USER, NOT: { IdCampo: { startsWith: 'cabecera.' } } }
+                : { IdTabla: 'actifijo', idusuario: DEFAULT_CONVER_USER, NOT: { IdCampo: { startsWith: 'cabecera.' } } },
             select: { IdCampo: true },
         });
         let prefixes = [...new Set(converFields.map((f) => {
@@ -1418,11 +1477,7 @@ class FixedAsset {
                 const t = String(s).trim();
                 return t ? t.slice(0, max) : null;
             };
-            const parseMmYyyy = (s: string): Date | null => {
-                const m = String(s || '').match(/^(\d{1,2})[\/\-](\d{4})$/);
-                if (!m) return null;
-                return new Date(Number(m[2]), Number(m[1]) - 1, 1);
-            };
+            const parseMmYyyy = (s: string): Date | null => parseMmYyyyToUtcDate(s);
 
             const dg = data.datosGenerales;
             const cab = data.cabecera;
@@ -1450,9 +1505,9 @@ class FixedAsset {
                     trFecProyecto: parseMmYyyy(String(cab.trFecProyecto ?? '')) ?? null,
                     idOrigen: trim(cab.idOrigen as string, 2),
                     idProveedor: trim(cab.idProveedor as string, 15),
-                    escencial: cab.escencial === true || cab.escencial === 'true',
+                    escencial: cab.escencial === true || cab.escencial === 'true' || cab.escencial === '1' || cab.escencial === 1,
                     idFabricante: trim(cab.idFabricante as string, 50),
-                    nuevo: cab.nuevo === true || cab.nuevo === 'true',
+                    nuevo: cab.nuevo === true || cab.nuevo === 'true' || cab.nuevo === '1' || cab.nuevo === 1,
                     idProyecto: trim(cab.idProyecto as string, 8),
                     tridProyecto: trim(cab.tridProyecto as string, 8),
                     trFecUNegocio: parseMmYyyy(String(cab.trFecUNegocio ?? '')) ?? null,
@@ -1480,11 +1535,7 @@ class FixedAsset {
                 });
             }
 
-            const parseMmYyyyLibro = (s: string): Date | null => {
-                const m = String(s || '').match(/^(\d{1,2})[\/\-](\d{4})$/);
-                if (!m) return null;
-                return new Date(Number(m[2]), Number(m[1]) - 1, 1);
-            };
+            const parseMmYyyyLibro = (s: string): Date | null => parseMmYyyyToUtcDate(s);
             const getIdMoneda = (prefijo: string): string => {
                 const up = prefijo.toUpperCase();
                 if (up === 'MONEDALOCAL' || prefijo.toLowerCase() === 'impuestos') return '01';
@@ -1636,11 +1687,7 @@ class FixedAsset {
         const pct = parseFloat(porcentajeBaja.replace(',', '.')) || 100;
         const precioNum = parseFloat(precioVenta.replace(',', '.')) || 0;
 
-        const parseMmYyyy = (s: string): Date | null => {
-            const m = String(s || '').match(/^(\d{1,2})[\/\-](\d{4})$/);
-            if (!m) return null;
-            return new Date(Number(m[2]), Number(m[1]) - 1, 1);
-        };
+        const parseMmYyyy = (s: string): Date | null => parseMmYyyyToUtcDate(s);
         const fecBajDate = parseMmYyyy(fechaBaja);
         if (!fecBajDate) throw new Error('Fecha de baja inválida. Use formato MM/YYYY.');
         const tipoBajaVal = tipoBaja.trim() || null;
@@ -1681,7 +1728,7 @@ class FixedAsset {
                 prefixes = ['ME03'];
             } else {
                 const converFields = await tx.converField.findMany({
-                    where: { IdTabla: 'actifijo', NOT: { IdCampo: { startsWith: 'cabecera.' } } },
+                    where: { IdTabla: 'actifijo', idusuario: DEFAULT_CONVER_USER, NOT: { IdCampo: { startsWith: 'cabecera.' } } },
                     select: { IdCampo: true },
                 });
                 const prefixesFromConver = [...new Set(converFields.map((f) => {
@@ -1845,11 +1892,7 @@ class FixedAsset {
         if (!cuentaDestinoVal) throw new Error('Cuenta destino requerida');
         const pct = parseFloat(porcentajeTransferencia.replace(',', '.')) || 100;
 
-        const parseMmYyyy = (s: string): Date | null => {
-            const m = String(s || '').match(/^(\d{1,2})[\/\-](\d{4})$/);
-            if (!m) return null;
-            return new Date(Number(m[2]), Number(m[1]) - 1, 1);
-        };
+        const parseMmYyyy = (s: string): Date | null => parseMmYyyyToUtcDate(s);
         const trFecActivoDate = parseMmYyyy(fechaTransferencia);
         if (!trFecActivoDate) throw new Error('Fecha de transferencia inválida. Use formato MM/YYYY.');
 
@@ -1871,7 +1914,7 @@ class FixedAsset {
                 prefixes = ['ME03'];
             } else {
                 const converFields = await tx.converField.findMany({
-                    where: { IdTabla: 'actifijo', NOT: { IdCampo: { startsWith: 'cabecera.' } } },
+                    where: { IdTabla: 'actifijo', idusuario: DEFAULT_CONVER_USER, NOT: { IdCampo: { startsWith: 'cabecera.' } } },
                     select: { IdCampo: true },
                 });
                 const prefixesFromConver = [...new Set(converFields.map((f) => {
@@ -2235,7 +2278,7 @@ SELECT COUNT_BIG(1) AS cnt FROM dbo.cabesimu
             if (!cabecera) throw new Error(`Bien ${bienId} no encontrado`);
 
             const converFields = await tx.converField.findMany({
-                where: { IdTabla: 'actifijo', NOT: { IdCampo: { startsWith: 'cabecera.' } } },
+                where: { IdTabla: 'actifijo', idusuario: DEFAULT_CONVER_USER, NOT: { IdCampo: { startsWith: 'cabecera.' } } },
                 select: { IdCampo: true },
             });
             const prefixesFromConver = [...new Set(converFields.map((f) => {

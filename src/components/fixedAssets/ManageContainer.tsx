@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { syncWorkspacePath } from "@/util/navigation/syncWorkspacePath";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
 import { navActions } from "@/store/navSlice";
@@ -34,9 +35,10 @@ import BajaFisicaModal from "./BajaFisicaModal";
 import { getColumnType, type ColumnFilterValue } from "./ColumnFilter";
 import AssetActions from "./AssetActions";
 import ManageFieldsPanel from "./ManageFieldsPanel";
-import { parseStringDate, parseDateString } from "@/util/date/parseDate";
+import { parseDateString, formatValueToYyyyMmDd } from "@/util/date/parseDate";
 import { getManageDataFromCache, setManageDataInCache, setSelectedBienFromGrid } from "@/lib/cache/fixedAssetsBootstrapCache";
 import { formatNumberEs } from "@/util/number/formatNumberEs";
+import { estimateColumnSize, sampleColumnValues } from "@/util/table/estimateColumnSize";
 
 const PAGE_SIZE_OPTIONS = [
     { key: "5", value: "5" },
@@ -55,6 +57,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     const router = useRouter();
     const dispatch = useDispatch();
     const client : string = useSelector((state : RootState) => state.authorization.client);
+    const user : string = useSelector((state : RootState) => state.authorization.user ?? "");
     const clientMenu : Menu = useSelector((state: RootState) => state.nav.find((m : Menu) => m.client === client)!);
 
     const options: RequestInit = useMemo(() => ({
@@ -70,8 +73,8 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     }), [client, mode]);
 
     /** Versión de forma de datos (hidratar simulación); subir si cambia el API para no servir caché vieja en memoria. */
-    const MANAGE_CACHE_DATA_VER = '3';
-    const manageCacheKey = useMemo(() => `${client}::${mode}::${MANAGE_CACHE_DATA_VER}`, [client, mode]);
+    const MANAGE_CACHE_DATA_VER = '5';
+    const manageCacheKey = useMemo(() => `${client}::${mode}::${user}::${MANAGE_CACHE_DATA_VER}`, [client, mode, user]);
     const cachedManageData = useMemo(() => getManageDataFromCache(manageCacheKey), [manageCacheKey]);
     const fetchConfig = useMemo(() => ({
         initialData: cachedManageData,
@@ -129,6 +132,12 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     const [manageFieldsTriggerRect, setManageFieldsTriggerRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
     const manageFieldsTriggerRef = useRef<HTMLElement | null>(null);
 
+    const [isExportingExcel, setIsExportingExcel] = useState(false);
+    const [showExcelSuccessAlert, setShowExcelSuccessAlert] = useState(false);
+    const [showExcelErrorAlert, setShowExcelErrorAlert] = useState(false);
+    const [excelErrorMessage, setExcelErrorMessage] = useState("Ocurrió un error al exportar a Excel");
+    const excelAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     const [isBajaModalOpen, setIsBajaModalOpen] = useState(false);
     const [bajaModalAssets, setBajaModalAssets] = useState<FixedAssets[]>([]);
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -157,6 +166,32 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     const fixedAssetsContextKey = isSimulationMode ? `${client}::simulacion` : client;
 
     useEffect(() => {
+        if (isSimulationMode || typeof window === "undefined") return;
+        const filtro = new URLSearchParams(window.location.search).get("filtro");
+        if (filtro !== "altas-ejercicio" && filtro !== "bajas-ejercicio") return;
+
+        setFilterValues({
+            cuenta: "",
+            centroCosto: "",
+            planta: "",
+            unidadNegocio: "",
+            ubicacion: "",
+            baja: filtro,
+            origen: "",
+        });
+        setColumnFilters({});
+        setSearchTerm("");
+        setDebouncedSearchTerm("");
+        if (searchInputRef.current) searchInputRef.current.value = "";
+        setShowFilterAppliedAlert(true);
+        if (filterAppliedTimeoutRef.current) clearTimeout(filterAppliedTimeoutRef.current);
+        filterAppliedTimeoutRef.current = setTimeout(() => {
+            filterAppliedTimeoutRef.current = null;
+            setShowFilterAppliedAlert(false);
+        }, 3000);
+    }, [isSimulationMode]);
+
+    useEffect(() => {
         actionsOpenRowIdRef.current = actionsOpenRowId;
     }, [actionsOpenRowId]);
 
@@ -175,8 +210,16 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
             if (filterAppliedTimeoutRef.current) clearTimeout(filterAppliedTimeoutRef.current);
             if (bajaAlertTimeoutRef.current) clearTimeout(bajaAlertTimeoutRef.current);
             if (transferAlertTimeoutRef.current) clearTimeout(transferAlertTimeoutRef.current);
+            if (excelAlertTimeoutRef.current) clearTimeout(excelAlertTimeoutRef.current);
         };
     }, []);
+
+    function openManageFieldsFromElement(el: HTMLElement) {
+        manageFieldsTriggerRef.current = el;
+        const rect = el.getBoundingClientRect();
+        setManageFieldsTriggerRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+        setManageFieldsOpen(true);
+    }
 
     useEffect(() => {
         if (searchDebounceRef.current) {
@@ -211,14 +254,10 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         });
     }, [viewportCompact]);
 
-    /** Solo formatea a MM/YYYY si el valor es Date. Si viene string desde DB, se respeta tal cual. */
     function formatCellDate(value: unknown): string | number {
         if (value == null || value === '') return '';
-        if (value instanceof Date) {
-            if (isNaN(value.getTime())) return String(value);
-            return parseStringDate(value);
-        }
-        return typeof value === 'number' ? value : String(value);
+        if (typeof value === 'number') return value;
+        return formatValueToYyyyMmDd(value);
     }
 
     function isBusinessCodeColumn(columnId: string): boolean {
@@ -237,7 +276,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         );
     }
 
-    /** Formato de celda: fechas MM/YYYY; índices con 7 decimales; resto de números siempre con 2 decimales. */
+    /** Formato de celda: fechas yyyy-MM-dd (sin hora); índices con 7 decimales; resto de números siempre con 2 decimales. */
     function formatCellValue(value: unknown, columnId: string): React.ReactNode {
         if (value == null || value === '') return '';
         if (isBusinessCodeColumn(columnId)) return formatCellDate(value);
@@ -246,7 +285,6 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
             if (isIndice) return formatNumberEs(value, 7, 7);
             return formatNumberEs(value, 2, 2);
         }
-        if (typeof value === 'string') return value;
         return formatCellDate(value);
     }
 
@@ -294,7 +332,11 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     const columns = useMemo(() => [
         ...(fixedAssetsData?.fieldsManage ?? []).map(field => columnHelper.accessor((row : FixedAssets) => getFieldValue(row, field.IdCampo), {
             id: field.IdCampo,
-            size: 200,
+            size: estimateColumnSize(
+                field.BrowNombre ?? field.IdCampo,
+                sampleColumnValues(fixedAssetsData?.fixedAssets ?? [], (row) => formatCellValue(getFieldValue(row, field.IdCampo), field.IdCampo)),
+                { extraPad: 36 }
+            ),
             header: field.BrowNombre ?? '',
             cell: info => {
                 const value = info.getValue();
@@ -339,19 +381,34 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                 </div>
             ),
         }),
-    ], [fixedAssetsData?.fieldsManage, columnHelper, isSimulationMode]);
+    ], [fixedAssetsData?.fieldsManage, fixedAssetsData?.fixedAssets, columnHelper, isSimulationMode]);
 
     const visibleColumnIds = useMemo(() => {
         const fields = fixedAssetsData?.fieldsManage ?? [];
         return fields.filter(f => columnVisibility[f.IdCampo] !== false).map(f => f.IdCampo);
     }, [fixedAssetsData?.fieldsManage, columnVisibility]);
 
+    const syncListShowInCache = useCallback((changes: Record<string, boolean>) => {
+        const cached = getManageDataFromCache(manageCacheKey);
+        if (!cached?.fieldsManage?.length) return;
+        setManageDataInCache(manageCacheKey, {
+            ...cached,
+            fieldsManage: cached.fieldsManage.map((f) =>
+                Object.prototype.hasOwnProperty.call(changes, f.IdCampo)
+                    ? { ...f, listShow: changes[f.IdCampo] }
+                    : f
+            ),
+        });
+    }, [manageCacheKey]);
+
     const handleVisibilityChange = useCallback((fieldId: string, listShow: boolean) => {
         setColumnVisibility(prev => ({ ...prev, [fieldId]: listShow }));
-    }, []);
+        syncListShowInCache({ [fieldId]: listShow });
+    }, [syncListShowInCache]);
     const handleVisibilityBatchChange = useCallback((changes: Record<string, boolean>) => {
         setColumnVisibility((prev) => ({ ...prev, ...changes }));
-    }, []);
+        syncListShowInCache(changes);
+    }, [syncListShowInCache]);
 
     const filterFieldIds = useMemo(() => {
         const fields = fixedAssetsData?.fieldsManage ?? [];
@@ -392,6 +449,19 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         }
         const fecbajKey = Object.keys(r).find((k) => k.toLowerCase().includes('fecbaj'));
         return fecbajKey != null ? r[fecbajKey] : undefined;
+    }
+
+    /** Fecha de origen (alta): mismo criterio que el home (fecori >= inicio de ejercicio). */
+    function getFecOri(row: FixedAssets): unknown {
+        const r = row as Record<string, unknown>;
+        const keys = isSimulationMode
+            ? ['me03.fecori', 'me03.FecOri', 'ME03.FecOri', 'fecori', 'FecOri', 'me01.fecori', 'me01.FecOri']
+            : ['me01.fecori', 'me01.FecOri', 'FecOri', 'fecori'];
+        for (const k of keys) {
+            if (r[k] !== undefined) return r[k];
+        }
+        const fecoriKey = Object.keys(r).find((k) => k.toLowerCase().includes('fecori'));
+        return fecoriKey != null ? r[fecoriKey] : undefined;
     }
 
     function rowPassesColumnFilters(row: FixedAssets): boolean {
@@ -441,6 +511,12 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         if (filters.unidadNegocio && String(getRowVal(row, filterFieldIds.unidadNegocio ?? 'IdUNegocio') ?? '') !== filters.unidadNegocio) return false;
         if (filters.ubicacion && String(getRowVal(row, filterFieldIds.ubicacion ?? 'idZona') ?? getRowVal(row, 'IdZona') ?? '') !== filters.ubicacion) return false;
         if (filters.origen && String(getRowVal(row, filterFieldIds.origen ?? 'IdOrigen') ?? '') !== filters.origen) return false;
+        if (filters.baja === 'altas-ejercicio') {
+            const dIni = fixedAssetsData?.feciniEjercicio != null ? toComparableDate(fixedAssetsData.feciniEjercicio) : null;
+            if (dIni == null) return false;
+            const dOri = toComparableDate(getFecOri(row));
+            if (dOri == null || dOri < dIni) return false;
+        }
         if (filters.baja === 'bajas-ejercicio') {
             const dIni = fixedAssetsData?.feciniEjercicio != null ? toComparableDate(fixedAssetsData.feciniEjercicio) : null;
             if (dIni == null) return false;
@@ -684,33 +760,69 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     const pageSizeOptions = PAGE_SIZE_OPTIONS;
 
     async function exportToExcel() {
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Data');
+        if (isExportingExcel) return;
+        setIsExportingExcel(true);
+        setShowExcelSuccessAlert(false);
+        setShowExcelErrorAlert(false);
+        try {
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Data');
 
-        const visibleColumns = table.getVisibleFlatColumns().filter(col => col.id !== 'get');
+            const visibleColumns = table.getVisibleFlatColumns().filter((col) => col.id !== 'get');
 
-        worksheet.columns = visibleColumns.map(col => ({ header: col.columnDef.header as string, key: col.id, width: 20 }));
+            worksheet.columns = visibleColumns.map((col) => ({
+                header: String(col.columnDef.header ?? col.id),
+                key: col.id,
+                width: 20,
+            }));
 
-        const rows = table.getPrePaginationRowModel().rows;
+            const rows = table.getPrePaginationRowModel().rows;
+            const aoa: string[][] = new Array(rows.length);
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const line = new Array<string>(visibleColumns.length);
+                for (let c = 0; c < visibleColumns.length; c++) {
+                    const col = visibleColumns[c];
+                    const val = row.getValue(col.id);
+                    if (val == null || val === '') {
+                        line[c] = '';
+                        continue;
+                    }
+                    const formatted = formatCellValue(val, col.id);
+                    line[c] = formatted != null && formatted !== '' ? String(formatted) : '';
+                }
+                aoa[i] = line;
+            }
+            worksheet.addRows(aoa);
 
-        rows.forEach(row => {
-            const rowData: { [key: string]: string } = {};
-            visibleColumns.forEach(col => {
-                const val = row.getValue(col.id);
-                const formatted = formatCellValue(val, col.id);
-                rowData[col.id] = formatted != null && formatted !== '' ? String(formatted) : '';
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             });
-            worksheet.addRow(rowData);
-        });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${fixedAssetsData?.fieldsManage?.[0]?.IdTabla ?? 'actifijo'}.xlsx`;
+            a.click();
+            URL.revokeObjectURL(url);
 
-        const buffer = await workbook.xlsx.writeBuffer();
-        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${fixedAssetsData?.fieldsManage?.[0]?.IdTabla}.xlsx`;
-        a.click();
-        URL.revokeObjectURL(url);
+            setShowExcelSuccessAlert(true);
+            if (excelAlertTimeoutRef.current) clearTimeout(excelAlertTimeoutRef.current);
+            excelAlertTimeoutRef.current = setTimeout(() => {
+                excelAlertTimeoutRef.current = null;
+                setShowExcelSuccessAlert(false);
+            }, 3000);
+        } catch (err) {
+            setExcelErrorMessage(err instanceof Error ? err.message : "Ocurrió un error al exportar a Excel");
+            setShowExcelErrorAlert(true);
+            if (excelAlertTimeoutRef.current) clearTimeout(excelAlertTimeoutRef.current);
+            excelAlertTimeoutRef.current = setTimeout(() => {
+                excelAlertTimeoutRef.current = null;
+                setShowExcelErrorAlert(false);
+            }, 5000);
+        } finally {
+            setIsExportingExcel(false);
+        }
     }
 
     return (
@@ -856,7 +968,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                             hiddenFromSidebar: true,
                         }));
                         dispatch(openPagesActions.addOpenPage({ page: tableName }));
-                        router.push(path);
+                        syncWorkspacePath(path, router);
                         return;
                     }
                     if (isSimulationMode && actionId !== 'baja' && actionId !== 'transferencia') {
@@ -876,7 +988,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                             hiddenFromSidebar: true,
                         }));
                         dispatch(openPagesActions.addOpenPage({ page: tableName }));
-                        router.push(path);
+                        syncWorkspacePath(path, router);
                     } else if (actionId === 'consultar') {
                         const tableName = `AbmFixedAssetConsult-${id}`;
                         const path = `/fixedAssets/consult/${id}`;
@@ -888,7 +1000,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                             hiddenFromSidebar: true,
                         }));
                         dispatch(openPagesActions.addOpenPage({ page: tableName }));
-                        router.push(path);
+                        syncWorkspacePath(path, router);
                     } else if (actionId === 'clonar') {
                         const tableName = `AbmFixedAssetClone-${id}`;
                         const path = `/fixedAssets/clone/${id}`;
@@ -900,7 +1012,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                             hiddenFromSidebar: true,
                         }));
                         dispatch(openPagesActions.addOpenPage({ page: tableName }));
-                        router.push(path);
+                        syncWorkspacePath(path, router);
                     } else if (actionId === 'alta-agregado') {
                         const tableName = `AbmFixedAssetAltaAgregado-${id}`;
                         const path = `/fixedAssets/alta-agregado/${id}`;
@@ -912,7 +1024,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                             hiddenFromSidebar: true,
                         }));
                         dispatch(openPagesActions.addOpenPage({ page: tableName }));
-                        router.push(path);
+                        syncWorkspacePath(path, router);
                     } else if (actionId === 'baja') {
                         const idCodigoVal = String(
                             getRowVal(rowData, 'idCodigo') ?? getRowVal(rowData, 'cabecera.idcodigo') ?? getRowVal(rowData, 'cabesimu.idcodigo') ?? ''
@@ -949,6 +1061,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                 onVisibilityChange={handleVisibilityChange}
                 onVisibilityBatchChange={handleVisibilityBatchChange}
                 client={client}
+                tableId={fixedAssetsData?.fieldsManage?.[0]?.IdTabla ?? (isSimulationMode ? "simulacion" : "actifijo")}
             />
             <div className="mt-2 border-bottom border-gabu-300 h-[12%] flex items-end p-1.5 justify-between gap-2 px-3 xl:mt-2.5 xl:p-2 xl:px-5 xl:gap-3 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:mt-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:h-auto [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-h-[2.8rem] [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:items-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:mb-1">
                 <div className="d-flex flex justify-start gap-1.5 xl:gap-2 min-w-0 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1">
@@ -976,8 +1089,14 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                     <div className="btn btn-sm bg-gabu-700 rounded-md p-1 xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center justify-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-w-7 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-h-7" onClick={() => refetch()} title="Recargar tabla">
                         <Reload style="!h-3.5 !w-3.5 xl:!h-4 xl:!w-4 shrink-0 fill-current text-gabu-100"/>
                     </div>
-                    <div className="btn btn-sm bg-gabu-700 rounded-md p-1 xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center justify-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-w-7 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-h-7">
-                        <Excel style="!h-3.5 !w-3.5 xl:!h-4 xl:!w-4 shrink-0 fill-current text-gabu-100" onClick={exportToExcel}/>
+                    <div
+                        className={`btn btn-sm bg-gabu-700 rounded-md p-1 xl:p-1.5 flex items-center justify-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-w-7 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-h-7 ${isExportingExcel ? 'pointer-events-none opacity-50 cursor-wait' : 'cursor-pointer hover:bg-gabu-300 transition-colors duration-100'}`}
+                        onClick={exportToExcel}
+                        title={isExportingExcel ? 'Exportando…' : 'Exportar a Excel'}
+                        aria-busy={isExportingExcel}
+                        id="export-excel-btn"
+                    >
+                        <Excel style="!h-3.5 !w-3.5 xl:!h-4 xl:!w-4 shrink-0 fill-current text-gabu-100" onClick={() => {}}/>
                     </div>
                     <div className="btn btn-sm bg-gabu-700 rounded-md py-0.5 px-2.5 xl:py-1 xl:px-4 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center gap-1 xl:gap-1.5 relative filter-button [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2" onClick={() => setIsFilterModalOpen(true)}>
                         <Filter style="h-4 w-4 xl:h-5 xl:w-5 stroke-current text-gabu-100 shrink-0"/>
@@ -997,7 +1116,8 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                             )?.find(({ s }) => s.path === targetPath);
                             if (found) {
                                 dispatch(navActions.openPage({ client, menuId: found.menuId, submenuId: found.submenuId }));
-                                router.push(targetPath);
+                                dispatch(openPagesActions.addOpenPage({ page: found.s.table }));
+                                syncWorkspacePath(targetPath, router);
                             }
                         }}
                     >
@@ -1050,6 +1170,16 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                     type="error"
                     show={showBajaFisicaErrorAlert}
                 />
+                <Alert
+                    message="Excel exportado con éxito"
+                    type="success"
+                    show={showExcelSuccessAlert}
+                />
+                <Alert
+                    message={excelErrorMessage}
+                    type="error"
+                    show={showExcelErrorAlert}
+                />
                 {loading && (
                     <div className="relative w-full h-full overflow-x-auto table-scroll">
                         <div className="w-full overflow-auto table-container grid">
@@ -1070,7 +1200,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                             >
                                 <div className="min-w-full">
                                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToHorizontalAxis]}>
-                                        <table className="border-collapse divide-y-2 divide-gabu-900/25 table-fixed w-full" {...{style: {minWidth: table.getTotalSize()}}}>
+                                        <table className="border-collapse divide-y-2 divide-gabu-900/25 table-fixed" style={{ width: table.getTotalSize(), minWidth: table.getTotalSize() }}>
                                         <thead>
                                             {table.getHeaderGroups().map(headerGroup => (
                                                 <tr key={headerGroup.id}>
@@ -1101,11 +1231,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                                                                 columnType={getColumnType(header.id, (filteredData[0] ?? fixedAssetsData?.fixedAssets?.[0])?.[header.id as keyof FixedAssets])}
                                                                 columnFilterValue={columnFilters[header.id] ?? null}
                                                                 onOpenManageFields={header.id === 'manage' ? (e) => {
-                                                                    const el = e.currentTarget as HTMLElement;
-                                                                    manageFieldsTriggerRef.current = el;
-                                                                    const rect = el.getBoundingClientRect();
-                                                                    setManageFieldsOpen(true);
-                                                                    setManageFieldsTriggerRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+                                                                    openManageFieldsFromElement(e.currentTarget as HTMLElement);
                                                                 } : undefined}
                                                             />
                                                         ))}

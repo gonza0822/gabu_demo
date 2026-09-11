@@ -8,9 +8,10 @@ import "react-loading-skeleton/dist/skeleton.css";
 import Alert from "@/components/ui/Alert";
 import { formatApiErrorFromBody } from "@/lib/logger/apiError";
 import Modal from "@/components/ui/Modal";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { navActions, type Menu } from "@/store/navSlice";
 import { openPagesActions } from "@/store/openPagesSlice";
+import { syncWorkspacePath } from "@/util/navigation/syncWorkspacePath";
 
 type Estado = "Pendiente" | "Ejecutando" | "OK" | "Error";
 
@@ -67,6 +68,7 @@ function formatYYYYMMToMMYYYY(value: string | null): string {
 export default function ProcessRunner({ mode, simulationOnly = false }: { mode: ProcessMode; simulationOnly?: boolean }): React.ReactElement {
     const dispatch = useDispatch();
     const pathname = usePathname();
+    const router = useRouter();
     const client = useSelector((state: RootState) => state.authorization.client);
     const clientMenu = useSelector((state: RootState) => state.nav.find((m: Menu) => m.client === client));
     const [rows, setRows] = useState<ProcessRow[]>([]);
@@ -134,10 +136,12 @@ export default function ProcessRunner({ mode, simulationOnly = false }: { mode: 
         dispatch(navActions.closePage({ client, submenuId, menuId }));
         dispatch(openPagesActions.removeOpenPage({ page: currentSubmenu.table }));
         if (fallback) {
-            dispatch(openPagesActions.setActivePage({ page: fallback.table }));
-            window.history.replaceState(null, "", fallback.path);
+            dispatch(openPagesActions.addOpenPage({ page: fallback.table }));
+            syncWorkspacePath(fallback.path, router, "replace");
+        } else {
+            syncWorkspacePath("/home", router);
         }
-    }, [client, clientMenu, dispatch, pathname]);
+    }, [client, clientMenu, dispatch, pathname, router]);
 
     useEffect(() => {
         void fetchRows();

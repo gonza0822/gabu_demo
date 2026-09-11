@@ -63,7 +63,7 @@ export function setManageDataInCache(client: string, manageData: FixedAssetsData
   entry.updatedAt = Date.now();
 
   const keyParts = client.split("::");
-  if (keyParts.length >= 3 && keyParts[1] === "activo-fijo") {
+  if (keyParts.length >= 4 && keyParts[1] === "activo-fijo") {
     const baseClient = keyParts[0];
     if (baseClient) {
       const baseEntry = getOrCreateEntry(baseClient);

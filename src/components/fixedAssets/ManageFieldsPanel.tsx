@@ -39,6 +39,7 @@ type Props = {
   onVisibilityChange: (fieldId: string, listShow: boolean) => void;
   onVisibilityBatchChange?: (changes: Record<string, boolean>) => void;
   client: string;
+  tableId?: string;
 };
 
 export default function ManageFieldsPanel({
@@ -51,6 +52,7 @@ export default function ManageFieldsPanel({
   onVisibilityChange,
   onVisibilityBatchChange,
   client,
+  tableId = "actifijo",
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [exitingRect, setExitingRect] = useState<TriggerRect | null>(null);
@@ -101,20 +103,13 @@ export default function ManageFieldsPanel({
   }, [isOpen, onClose]);
 
   const hiddenFields = useMemo(() => fields.filter(f => !visibleIds.includes(f.IdCampo)), [fields, visibleIds]);
-  const shownFields = useMemo(() => fields.filter(f => visibleIds.includes(f.IdCampo)), [fields, visibleIds]);
 
   const searchLower = search.trim().toLowerCase();
-  const filteredShown = useMemo(
+  const filteredFields = useMemo(
     () => searchLower
-      ? shownFields.filter(f => (f.BrowNombre ?? f.IdCampo).toLowerCase().includes(searchLower))
-      : shownFields,
-    [shownFields, searchLower]
-  );
-  const filteredHidden = useMemo(
-    () => searchLower
-      ? hiddenFields.filter(f => (f.BrowNombre ?? f.IdCampo).toLowerCase().includes(searchLower))
-      : hiddenFields,
-    [hiddenFields, searchLower]
+      ? fields.filter(f => (f.BrowNombre ?? f.IdCampo).toLowerCase().includes(searchLower))
+      : fields,
+    [fields, searchLower]
   );
 
   const toggle = async (fieldId: string) => {
@@ -127,7 +122,7 @@ export default function ManageFieldsPanel({
         body: JSON.stringify({
           petition: 'SetListShow',
           client,
-          data: { fieldId, listShow },
+          data: { fieldId, listShow, tableId },
         }),
       });
       if (!res.ok) onVisibilityChange(fieldId, !listShow);
@@ -148,7 +143,7 @@ export default function ManageFieldsPanel({
         body: JSON.stringify({
           petition: "SetListShowBatch",
           client,
-          data: { updates: visibleIds.map((fieldId) => ({ fieldId, listShow: false })) },
+          data: { tableId, updates: visibleIds.map((fieldId) => ({ fieldId, listShow: false })) },
         }),
       });
       if (!res.ok) {
@@ -176,6 +171,7 @@ export default function ManageFieldsPanel({
           petition: "SetListShowBatch",
           client,
           data: {
+            tableId,
             updates: hiddenFields.map((f) => ({ fieldId: f.IdCampo, listShow: true })),
           },
         }),
@@ -227,49 +223,31 @@ export default function ManageFieldsPanel({
               className="focus:outline-none text-gabu-700 w-full bg-transparent"
             />
           </div>
-          <div className="overflow-y-auto flex-1 min-h-0 border-separate border-spacing-3 fields-table">
-            <table className="border-separate border-spacing-3 w-full">
-              <thead>
-                <tr>
-                  <th className="text-sm text-gabu-100 text-start font-normal">Se muestran</th>
-                  <th className="text-xs text-gabu-100 text-end font-normal">
-                    <button type="button" onClick={hideAll} className="cursor-pointer hover:underline whitespace-nowrap">
-                      Ocultar todo
-                    </button>
-                  </th>
-                </tr>
-              </thead>
+          <div className="flex items-center justify-between gap-2 px-1 shrink-0">
+            <span className="text-sm text-gabu-100">Campos</span>
+            <div className="flex items-center gap-3 shrink-0">
+              <button type="button" onClick={hideAll} className="text-xs text-gabu-100 cursor-pointer hover:underline whitespace-nowrap">
+                Ocultar todo
+              </button>
+              <button type="button" onClick={showAll} className="text-xs text-gabu-100 cursor-pointer hover:underline whitespace-nowrap">
+                Mostrar todo
+              </button>
+            </div>
+          </div>
+          <div className="overflow-y-auto overflow-x-hidden flex-1 min-h-0 fields-table">
+            <table className="w-full table-fixed">
               <tbody>
-                {filteredShown.map((field) => (
+                {filteredFields.map((field) => (
                   <tr key={field.IdCampo}>
-                    <td className="text-gabu-100 text-xs">{field.BrowNombre ?? field.IdCampo}</td>
-                    <td>
-                      <div className="flex items-center justify-end">
-                        <ToggleSwitch on onClick={() => toggle(field.IdCampo)} />
-                      </div>
+                    <td
+                      className="text-gabu-100 text-xs py-1.5 pr-2 whitespace-nowrap overflow-hidden text-ellipsis"
+                      title={field.BrowNombre ?? field.IdCampo}
+                    >
+                      {field.BrowNombre ?? field.IdCampo}
                     </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <table className="border-separate border-spacing-3 w-full">
-              <thead>
-                <tr>
-                  <th className="text-sm text-gabu-100 text-start font-normal">Se ocultan</th>
-                  <th className="text-xs text-gabu-100 text-end font-normal">
-                    <button type="button" onClick={showAll} className="cursor-pointer hover:underline">
-                      Mostrar todo
-                    </button>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredHidden.map((field) => (
-                  <tr key={field.IdCampo}>
-                    <td className="text-gabu-100 text-xs">{field.BrowNombre ?? field.IdCampo}</td>
-                    <td>
+                    <td className="w-12 py-1.5">
                       <div className="flex items-center justify-end">
-                        <ToggleSwitch on={false} onClick={() => toggle(field.IdCampo)} />
+                        <ToggleSwitch on={visibleIds.includes(field.IdCampo)} onClick={() => toggle(field.IdCampo)} />
                       </div>
                     </td>
                   </tr>

@@ -1,0 +1,79 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e30] [cursor=pointer]
+  - alert [ref=e34]
+  - generic [ref=e35]:
+    - complementary [ref=e36]:
+      - img "gabu_logo" [ref=e38] [cursor=pointer]
+      - navigation [ref=e39]:
+        - list [ref=e40]:
+          - listitem [ref=e41] [cursor=pointer]:
+            - paragraph [ref=e46]: Tablas
+            - list [ref=e49]:
+              - listitem [ref=e50]
+              - listitem [ref=e54]
+              - listitem [ref=e58]
+              - listitem [ref=e62]
+              - listitem [ref=e66]
+              - listitem [ref=e70]
+              - listitem [ref=e74]
+              - listitem [ref=e78]
+              - listitem [ref=e82]
+              - listitem [ref=e86]
+              - listitem [ref=e90]
+              - listitem [ref=e94]
+          - listitem [ref=e98] [cursor=pointer]:
+            - paragraph [ref=e103]: Activo fijo
+            - list [ref=e106]:
+              - listitem [ref=e107]
+              - listitem [ref=e111]
+              - listitem [ref=e115]
+              - listitem [ref=e119]
+          - listitem [ref=e123] [cursor=pointer]:
+            - paragraph [ref=e128]: Procesos
+            - list [ref=e131]:
+              - listitem [ref=e132]
+              - listitem [ref=e136]
+              - listitem [ref=e140]
+              - listitem [ref=e144]
+          - listitem [ref=e148] [cursor=pointer]:
+            - paragraph [ref=e153]: Inversiones
+            - list [ref=e156]:
+              - listitem [ref=e157]
+              - listitem [ref=e161]
+              - listitem [ref=e165]
+          - listitem [ref=e169] [cursor=pointer]:
+            - paragraph [ref=e174]: Simulaciones
+            - list [ref=e177]:
+              - listitem [ref=e178]
+              - listitem [ref=e182]
+              - listitem [ref=e186]
+              - listitem [ref=e190]
+              - listitem [ref=e194]
+        - list [ref=e198]:
+          - listitem [ref=e199]:
+            - paragraph [ref=e203] [cursor=pointer]: Ayuda
+          - listitem [ref=e204]:
+            - paragraph [ref=e208] [cursor=pointer]: Cerrar sesion
+    - generic [ref=e209]:
+      - banner [ref=e210]:
+        - textbox "Buscar..." [ref=e214]
+      - main [ref=e310]:
+        - list [ref=e312]:
+          - listitem [ref=e313] [cursor=pointer]:
+            - paragraph [ref=e314]: Centro de costo
+        - generic [ref=e324]:
+          - generic [ref=e325]:
+            - generic [ref=e327]:
+              - textbox "Buscar..." [ref=e332]
+              - generic [ref=e337]
+            - generic [ref=e453]:
+              - generic [ref=e454]
+              - generic [ref=e457]
+              - generic [ref=e460]
+              - generic [ref=e490]
+              - generic [ref=e493]
+              - generic [ref=e496]
+              - generic [ref=e536]
+          - generic [ref=e539]:
+            - button "Revertir" [ref=e540] [cursor=pointer]
+            - button "Agregar" [ref=e541] [cursor=pointer]

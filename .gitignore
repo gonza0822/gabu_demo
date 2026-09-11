@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+.playwright-cli/
+.testsprite/
+testsprite-plans/
 
 # next.js
 /.next/
@@ -37,6 +40,7 @@ yarn-error.log*
 .env.mcp
 mcp.env.example
 /scripts/mcp-sqlserver-launcher.mjs
+/scripts/sql/
 /logs/mcp-mssqlserver*.log
 /logs/app-*.log
 /logs/error-*.log

@@ -39,6 +39,13 @@ function getLoginErrorMessage(
     }
 }
 
+/** Errores esperados del login: no se loguean ni llevan requestId. */
+function isExpectedLoginFailure(
+    reason: "connection_error" | "invalid_credentials" | "invalid_response" | "expired"
+): reason is "invalid_credentials" {
+    return reason === "invalid_credentials";
+}
+
 export async function POST(request: Request) : Promise<NextResponse<UserPostResponse | ErrorResponse>> {
     const requestId = createRequestId();
     let client: string | undefined;
@@ -50,23 +57,38 @@ export async function POST(request: Request) : Promise<NextResponse<UserPostResp
         const { userName, password } = body;
 
         if(!userName || !password){
-            throw new Error("Por favor intruduzca el usuario y contraseña.");
-        } else {
-            const user : User = new User(userName, password, client);
-
-            const loginRes = await user.login();
-
-            if(loginRes.result){
-                await setSessionStore('token', loginRes.token, loginRes.expirationSeconds);
-
-                return  NextResponse.json({
-                    user: userName,
-                    supervisor: loginRes.supervisor,
-                })
-            } else {
-                throw new Error(getLoginErrorMessage(loginRes.reason, client));
-            }
+            return errorJson("Por favor intruduzca el usuario y contraseña.", 400);
         }
+
+        const user : User = new User(userName, password, client);
+        const loginRes = await user.login();
+
+        if(loginRes.result){
+            await setSessionStore('token', loginRes.token, loginRes.expirationSeconds);
+            await setSessionStore('user', userName.trim(), loginRes.expirationSeconds);
+            await setSessionStore('client', client, loginRes.expirationSeconds);
+
+            return  NextResponse.json({
+                user: userName,
+                supervisor: loginRes.supervisor,
+            })
+        }
+
+        const message = getLoginErrorMessage(loginRes.reason, client);
+
+        if (isExpectedLoginFailure(loginRes.reason)) {
+            return errorJson(message, 401);
+        }
+
+        const loggedId = await logApiError({
+            route: ROUTE,
+            err: new Error(message),
+            client,
+            petition: 'POST',
+            requestId,
+            extra: { reason: loginRes.reason },
+        });
+        return errorJson(message, 500, loggedId);
     } catch(err){
         const loggedId = await logApiError({ route: ROUTE, err, client, petition: 'POST', requestId });
         if(err instanceof Error){
@@ -95,6 +117,9 @@ export async function GET(request: Request) : Promise<NextResponse<boolean | Err
         
         if(params.searchParams.get("closeSession")){
             await deleteSessionStore('token');
+            await deleteSessionStore('user');
+            await deleteSessionStore('client');
+            await deleteSessionStore('menu');
             return NextResponse.json(true);
         }
         

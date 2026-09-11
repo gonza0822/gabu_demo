@@ -10,6 +10,7 @@ type ErrorResponse = {
 
 type SessionGetResponse = {
     sessionExists: boolean
+    user: string | null
 }
 
 const ROUTE = '/api/session';
@@ -24,14 +25,17 @@ export async function GET(request: Request) : Promise<NextResponse<SessionGetRes
         if(isInSession){
             const token = await getSessionValue("token");
             if(token){
+                const user = (await getSessionValue("user"))?.trim() || null;
                 return NextResponse.json({
-                    sessionExists: true
+                    sessionExists: true,
+                    user,
                 });
             } else {
                 await setSessionStore("alertMessage", "Tu sesion caducó, por favor inicia sesión nuevamente.", 10);
 
                 return NextResponse.json({
-                    sessionExists: false
+                    sessionExists: false,
+                    user: null,
                 });
             }
 

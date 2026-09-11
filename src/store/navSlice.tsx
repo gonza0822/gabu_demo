@@ -8,6 +8,8 @@ export type Submenu = {
     isOpen: boolean,
     active: boolean,
     order: number,
+    /** Id de item_menu en Database (permisos GABU). Ausente en pestañas dinámicas. */
+    itemIdNr?: number,
     hiddenFromSidebar?: boolean,
     /** Si true: no abre pestaña ni navega; dispara overlay (p. ej. modal). */
     modalOnly?: boolean,
@@ -27,7 +29,13 @@ export type MenuObj = {
 
 const menu : Menu[] = menuConfig;
 
-const initialNavState : Menu[] = menu
+const initialNavState : Menu[] = menu.map((clientMenu) => ({
+    ...clientMenu,
+    menu: clientMenu.menu.map((item) => ({
+        ...item,
+        submenu: [] as Submenu[],
+    })),
+}));
 
 function moveOpenSubmenusOneStep(menuObj: Menu): void {
     menuObj.menu.forEach((item) => {
@@ -159,7 +167,13 @@ const navSlice = createSlice({
                 }
                 return;
             }
-            const addMenuIdx = menuObj.menu.findIndex(m => m.submenu.some(s => s.path === '/fixedAssets/add'));
+            const addMenuIdx = menuObj.menu.findIndex((m) =>
+                m.submenu.some((s) =>
+                    action.payload.path.includes("simulation") || action.payload.path.startsWith("/simulations")
+                        ? s.path === "/simulations/add" || s.path === "/simulations/manage"
+                        : s.path === "/fixedAssets/add" || s.path === "/fixedAssets/manage"
+                )
+            );
             if (addMenuIdx < 0) return;
             menuObj.menu.forEach(item => {
                 item.submenu.forEach(subItem => { subItem.active = false; });

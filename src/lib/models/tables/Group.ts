@@ -2,6 +2,7 @@ import { GruposModel, ConverFieldModel } from "@/generated/prisma/models";
 import { getPrisma } from '@/lib/prisma/prisma';
 import { Table, AllData, ReOrderData, Validation } from "./Table";
 import { PrismaClient } from '@/generated/prisma/client';
+import { converFieldPk } from "@/lib/models/converFieldKeys";
 
 export type GroupData = AllData<GruposModel>;
 
@@ -41,7 +42,18 @@ class Group extends Table<
                             { id: '0', description: 'id' },
                         ],
                         options: {
-                            required: true
+                            required: true,
+                            maxLength: 2,
+                        }
+                    };
+                }
+                if(field.IdCampo === 'Descripcion'){
+                    return {
+                        ...field,
+                        relation: [],
+                        options: {
+                            required: true,
+                            maxLength: 60,
                         }
                     };
                 }
@@ -99,12 +111,7 @@ class Group extends Table<
 
         for (const item of newOrder) {
             const updated : ConverFieldModel = await this.prisma.converField.update({
-                where: { 
-                    IdTabla_IdCampo: {
-                        IdTabla: item.tableId,
-                        IdCampo: item.fieldId 
-                    }  
-                },
+                where: converFieldPk(item.tableId, item.fieldId),
                 data: { lisordencampos: item.order }
             });
             updatedRecords.push(updated);

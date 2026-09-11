@@ -28,6 +28,61 @@ function serverErrorMessage(dataRes: { message?: string; requestId?: string }, f
     return formatApiErrorFromBody(dataRes, fallback);
 }
 
+function validateTableFormFields(
+    fields: FieldsWithRelationAndErrors[],
+    fieldsManage: FieldsWithRelation[] | undefined,
+    formEntriesSanitized: { [key: string]: unknown }
+): { validationFailed: boolean; fieldsWithErrorsUpdated: FieldsWithRelationAndErrors[] } {
+    let validationFailed = false;
+
+    const fieldsWithErrorsUpdated = fields.map((field) => {
+        const fieldConfig = fieldsManage?.find((fld) => fld.IdCampo === field.IdCampo);
+        const rawValue = formEntriesSanitized[field.IdCampo];
+        const stringValue = rawValue == null ? '' : String(rawValue);
+
+        if (fieldConfig?.options?.required && (rawValue === null || rawValue === '')) {
+            validationFailed = true;
+            return {
+                ...field,
+                errors: {
+                    isError: true,
+                    errorMessage: "El campo es obligatorio.",
+                },
+            };
+        }
+
+        if (fieldConfig?.options?.isDate && rawValue !== null) {
+            const isValid = isValidDate(stringValue);
+            if (!isValid) {
+                validationFailed = true;
+                return {
+                    ...field,
+                    errors: {
+                        isError: true,
+                        errorMessage: "El formato de la fecha es inválido. Utilice MM/YYYY.",
+                    },
+                };
+            }
+        }
+
+        const maxLength = fieldConfig?.options?.maxLength;
+        if (typeof maxLength === 'number' && maxLength > 0 && stringValue.length > maxLength) {
+            validationFailed = true;
+            return {
+                ...field,
+                errors: {
+                    isError: true,
+                    errorMessage: `El campo no puede superar los ${maxLength} caracteres.`,
+                },
+            };
+        }
+
+        return field;
+    });
+
+    return { validationFailed, fieldsWithErrorsUpdated };
+}
+
 export default function TableContainer<T>({connPath}: {connPath: string }) : React.ReactElement {
     const client : string = useSelector((state : RootState) => state.authorization.client);
 
@@ -157,6 +212,18 @@ export default function TableContainer<T>({connPath}: {connPath: string }) : Rea
 
         const formEntriesSanitized = sanitizeFormObject(formEntries);
 
+        const { validationFailed, fieldsWithErrorsUpdated } = validateTableFormFields(
+            fieldsWithErrors,
+            data?.fieldsManage,
+            formEntriesSanitized
+        );
+
+        if (validationFailed) {
+            setServerResponse({ loading: false, success: null, message: null, loadingMessage: null });
+            setFieldsWithErrors(fieldsWithErrorsUpdated);
+            return;
+        }
+
         const secondaryData = secondaryTableRef.current?.getCurrentTableData();
 
         const res = await fetch(connPath, {
@@ -220,38 +287,11 @@ export default function TableContainer<T>({connPath}: {connPath: string }) : Rea
 
         console.log(formEntriesSanitized);
 
-        let validationFailed = false;
-
-        const fieldsWithErrorsUpdated =  fieldsWithErrors.map(field => {
-            const fieldConfig = data?.fieldsManage.find(fld => fld.IdCampo === field.IdCampo);
-
-            if(fieldConfig?.options?.required && (formEntriesSanitized[field.IdCampo] === null || formEntriesSanitized[field.IdCampo] === '')){
-                validationFailed = true;
-                return {
-                    ...field,
-                    errors: {
-                        isError: true,
-                        errorMessage: "El campo es obligatorio."
-                    }
-                };
-            }
-
-            if(fieldConfig?.options?.isDate && formEntriesSanitized[field.IdCampo] !== null){
-                const isValid = isValidDate(formEntriesSanitized[field.IdCampo] as string);
-                if(!isValid){
-                    validationFailed = true;
-                    return {
-                        ...field,
-                        errors: {
-                            isError: true,
-                            errorMessage: "El formato de la fecha es inválido. Utilice MM/YYYY."
-                        }
-                    };
-                }
-            }
-
-            return field;
-        });
+        const { validationFailed, fieldsWithErrorsUpdated } = validateTableFormFields(
+            fieldsWithErrors,
+            data?.fieldsManage,
+            formEntriesSanitized
+        );
 
         if(validationFailed){
             setServerResponse({ loading: false, success: null, message: null, loadingMessage: null });
@@ -319,8 +359,8 @@ export default function TableContainer<T>({connPath}: {connPath: string }) : Rea
 
             const dataRes = await res.json();
 
-            if(dataRes.status){
-                setServerResponse({ loading: false, success: false, message: serverErrorMessage(dataRes), loadingMessage: null });
+            if(dataRes?.status || dataRes === false){
+                setServerResponse({ loading: false, success: false, message: dataRes === false ? "No se pudo eliminar el registro." : serverErrorMessage(dataRes), loadingMessage: null });
             } else {
                 setServerResponse({ loading: false, success: true, message: "El registro se elimino correctamente.", loadingMessage: null });
                 setData(prevData => {

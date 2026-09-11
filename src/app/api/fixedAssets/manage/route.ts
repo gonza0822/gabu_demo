@@ -4,6 +4,7 @@ import { FixedAssetsData } from "@/lib/models/fixedAssets/FixedAsset";
 import FixedAsset from "@/lib/models/fixedAssets/FixedAsset";
 import { ReOrderData } from "@/lib/models/tables/Table";
 import { createRequestId, errorJson, logApiError } from "@/lib/logger";
+import { getSessionValue } from "@/lib/session/sessionStore";
 
 export type ErrorResponse = { message: string; status: number; requestId?: string };
 
@@ -11,8 +12,8 @@ const ROUTE = "/api/fixedAssets/manage";
 
 export async function POST(request: Request): Promise<NextResponse<FixedAssetsData | ConverFieldModel | unknown[] | { ok: boolean } | ErrorResponse>> {
 
-    type SetListShowData = { fieldId: string; listShow: boolean };
-    type SetListShowBatchData = { updates: { fieldId: string; listShow: boolean }[] };
+    type SetListShowData = { fieldId: string; listShow: boolean; tableId?: string };
+    type SetListShowBatchData = { updates: { fieldId: string; listShow: boolean }[]; tableId?: string };
 
     type BajaData = {
         selectedAssets: { [key: string]: unknown }[];
@@ -53,7 +54,8 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
         client = body.client;
         petition = body.petition;
         const { data } = body;
-        const fixedAssetsModel = new FixedAsset(client);
+        const userId = (await getSessionValue("user"))?.trim() || "";
+        const fixedAssetsModel = new FixedAsset(client, userId);
 
         switch (petition) {
             case "Get":
@@ -63,8 +65,8 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
             case "UpdateOrder":
                 return NextResponse.json(await fixedAssetsModel.changeOrder(data as ReOrderData));
             case "SetListShow": {
-                const { fieldId, listShow } = data as SetListShowData;
-                return NextResponse.json(await fixedAssetsModel.setListShow(fieldId, listShow));
+                const { fieldId, listShow, tableId } = data as SetListShowData;
+                return NextResponse.json(await fixedAssetsModel.setListShow(fieldId, listShow, tableId || "actifijo"));
             }
             case "SetListShowBatch": {
                 const batch = data as SetListShowBatchData;
@@ -72,7 +74,7 @@ export async function POST(request: Request): Promise<NextResponse<FixedAssetsDa
                     idCampo: u.fieldId,
                     listShow: u.listShow,
                 }));
-                return NextResponse.json(await fixedAssetsModel.setListShowBatch(updates));
+                return NextResponse.json(await fixedAssetsModel.setListShowBatch(updates, batch?.tableId || "actifijo"));
             }
             case "Baja": {
                 const bajaData = data as BajaData;

@@ -22,12 +22,13 @@ const FILTER_LABELS: { key: keyof FilterValues; label: string }[] = [
     { key: 'planta', label: 'Planta' },
     { key: 'unidadNegocio', label: 'Unidad de negocio' },
     { key: 'ubicacion', label: 'Ubicación' },
-    { key: 'baja', label: 'Baja' },
+    { key: 'baja', label: 'Altas y bajas' },
     { key: 'origen', label: 'Origen' },
 ];
 
 const BAJA_OPTIONS = [
     { key: '', value: 'Todas' },
+    { key: 'altas-ejercicio', value: 'Altas ejercicio actual' },
     { key: 'bajas-ejercicio', value: 'Bajas ejercicio actual' },
     { key: 'con-baja', value: 'Con baja' },
     { key: 'solo-activos', value: 'Solo activos' },

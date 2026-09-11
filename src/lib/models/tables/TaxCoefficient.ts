@@ -3,6 +3,7 @@ import { getPrisma } from '@/lib/prisma/prisma';
 import { Table, AllData, ReOrderData, Validation } from "./Table";
 import { PrismaClient } from '@/generated/prisma/client';
 import { parseStringDate, parseDateString } from '@/util/date/parseDate';
+import { converFieldPk } from "@/lib/models/converFieldKeys";
 
 type taxCoeffWithStringDate = Omit<CoefImpositivosModel, "fecha"> & { fecha: string };
 
@@ -84,21 +85,43 @@ class TaxCoefficient extends Table<
     }
 
     async insertOne(data: taxCoeffWithStringDate) : Promise<taxCoeffWithStringDate> {
+        const parseFloatEs = (value: unknown): number | null => {
+            if (value === null || value === undefined || value === '') return null;
+            const raw = String(value).trim();
+            const normalized = raw.includes(',')
+                ? raw.replace(/\./g, '').replace(',', '.')
+                : raw;
+            const parsed = Number(normalized);
+            return Number.isFinite(parsed) ? parsed : null;
+        };
+
         const createdTaxCoeff = await this.prisma.coefImpositivos.create({
             data:{
-                ...data,
                 fecha: parseDateString(data.fecha),
+                Coeficiente: parseFloatEs(data.Coeficiente),
             }
         });
         return { ...createdTaxCoeff, fecha: parseStringDate(createdTaxCoeff.fecha) };
     }
 
     async updateOne(data: taxCoeffWithStringDate) : Promise<taxCoeffWithStringDate> {
+        const parseFloatEs = (value: unknown): number | null => {
+            if (value === null || value === undefined || value === '') return null;
+            const raw = String(value).trim();
+            const normalized = raw.includes(',')
+                ? raw.replace(/\./g, '').replace(',', '.')
+                : raw;
+            const parsed = Number(normalized);
+            return Number.isFinite(parsed) ? parsed : null;
+        };
+
         const updatedQuotation = await this.prisma.coefImpositivos.update({
             where: {
                 fecha: parseDateString(data.fecha)
             },
-            data
+            data: {
+                Coeficiente: parseFloatEs(data.Coeficiente),
+            }
         });
 
         return { ...updatedQuotation, fecha: parseStringDate(updatedQuotation.fecha) };
@@ -122,12 +145,7 @@ class TaxCoefficient extends Table<
 
         for (const item of newOrder) {
             const updated : ConverFieldModel = await this.prisma.converField.update({
-                where: { 
-                    IdTabla_IdCampo: {
-                        IdTabla: item.tableId,
-                        IdCampo: item.fieldId 
-                    }  
-                },
+                where: converFieldPk(item.tableId, item.fieldId),
                 data: { lisordencampos: item.order }
             });
             updatedRecords.push(updated);

@@ -2,7 +2,7 @@
 
 import React, { ReactElement, useCallback, useEffect, useLayoutEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import SelectPointerLogin from "../svg/SelectPointerLogin";
 import Arrow from "../svg/Arrow";
 
@@ -58,6 +58,10 @@ export default function Select({
     const isFilterModal = variant === 'filterModal';
     const isAbm = variant === 'abm';
     const isTableCell = variant === 'tableCell';
+    /** tableCell/abm: portal fijo — tablas y toolbars con overflow clippean el menú absoluto. */
+    const useFixedPortalList = Boolean(
+        isTableCell || isAbm || (isEntriesPerPage && entriesUseFixedDropdown)
+    );
 
     const optionStyleBase : string = isEntriesPerPage
         ? `px-3 py-1.5 text-gabu-100 text-sm hover:bg-gabu-300 transition-all duration-300 w-full ${entriesOptionBgClass}`
@@ -86,8 +90,10 @@ export default function Select({
               ? "w-full border border-t-0 border-gabu-900 rounded-b-md mt-0 overflow-hidden options-list bg-gabu-100 max-h-25 overflow-y-auto"
             : `w-full ${isLogin ? "border-r-2 border-b-2" : "border"} rounded-b-md border-gabu-900 max-h-25 overflow-y-auto options-list`;
     const optionListStyle = `${optionListStyleBase} ${optionListClassName ?? ''}`.trim();
-    const entriesPortalListClass: string = isEntriesPerPage
+    const portalListClass: string = isEntriesPerPage
         ? `rounded-b-md ${entriesListBorderClass} options-list ${entriesListBgClass} shadow-md ${entriesListClassName ?? ""}`.trim()
+        : isTableCell || isAbm
+        ? `rounded-b-md border border-gabu-900 options-list bg-gabu-100 shadow-lg ${optionListClassName ?? ""}`.trim()
         : "";
 
     const [isOptionListVisible, setIsOptionListVisible] = useState<boolean>(false);
@@ -99,19 +105,26 @@ export default function Select({
     const valueSelectedRef = useRef<HTMLSpanElement>(null);
     const optionListRef = useRef<HTMLUListElement>(null);
     const portalListRef = useRef<HTMLUListElement>(null);
-
-    const useFixedEntriesList = Boolean(isEntriesPerPage && entriesUseFixedDropdown);
+    const lastFixedRectRef = useRef<FixedDropdownRect | null>(null);
 
     const syncFixedDropdownRect = useCallback(() => {
         const el = triggerRef.current;
         if (!el) return;
         const r = el.getBoundingClientRect();
-        setFixedDropdownRect({
+        const minW = isTableCell || isAbm ? Math.max(r.width, 140) : Math.max(r.width, 160);
+        let left = r.left;
+        if (typeof window !== "undefined") {
+            const maxLeft = window.innerWidth - minW - 8;
+            left = Math.max(8, Math.min(left, maxLeft));
+        }
+        const next = {
             top: r.bottom + 1,
-            left: r.left,
-            width: Math.max(r.width, 160),
-        });
-    }, []);
+            left,
+            width: minW,
+        };
+        lastFixedRectRef.current = next;
+        setFixedDropdownRect(next);
+    }, [isTableCell, isAbm]);
 
     function selectOptionHandler(e: React.MouseEvent){
         setIsOptionListVisible(!isOptionListVisible);
@@ -122,10 +135,13 @@ export default function Select({
     }, [isOptionListVisible, onListOpenChange]);
 
     useLayoutEffect(() => {
-        if (!useFixedEntriesList || !isOptionListVisible) {
+        if (!useFixedPortalList) {
             setFixedDropdownRect(null);
+            lastFixedRectRef.current = null;
             return;
         }
+        // Mantener el último rect al cerrar para que AnimatePresence pueda animar el exit.
+        if (!isOptionListVisible) return;
         syncFixedDropdownRect();
         const onReposition = () => syncFixedDropdownRect();
         window.addEventListener("resize", onReposition);
@@ -134,13 +150,13 @@ export default function Select({
             window.removeEventListener("resize", onReposition);
             window.removeEventListener("scroll", onReposition, true);
         };
-    }, [useFixedEntriesList, isOptionListVisible, syncFixedDropdownRect]);
+    }, [useFixedPortalList, isOptionListVisible, syncFixedDropdownRect]);
 
     useEffect(() => {
         function handleClickOutside(e: MouseEvent) {
             const t = e.target as Node;
             if (selectRef.current?.contains(t)) return;
-            if (useFixedEntriesList && portalListRef.current?.contains(t)) return;
+            if (useFixedPortalList && portalListRef.current?.contains(t)) return;
             setIsOptionListVisible(false);
         }
 
@@ -149,7 +165,7 @@ export default function Select({
         return () => {
             document.removeEventListener("click", handleClickOutside);
         };
-    }, [useFixedEntriesList]);
+    }, [useFixedPortalList]);
 
     const defaultSelectedOption =
         options.find((option) => option.key === defaultValue)
@@ -224,7 +240,7 @@ export default function Select({
                 >
                     {longestOption.value}XXXXXXX
                 </div>
-                {!useFixedEntriesList ? (
+                {!useFixedPortalList ? (
                     <motion.div
                         className={`absolute w-full overflow-hidden ${isAbm || isTableCell ? "z-[10001]" : isEntriesPerPage ? "z-[80]" : "z-10"}`}
                         initial={false}
@@ -249,35 +265,52 @@ export default function Select({
                     </motion.div>
                 ) : null}
             </div>
-            {useFixedEntriesList &&
-                isOptionListVisible &&
-                fixedDropdownRect &&
-                typeof document !== "undefined" &&
+            {typeof document !== "undefined" &&
+                useFixedPortalList &&
                 createPortal(
-                    <ul
-                        ref={portalListRef}
-                        className={`${entriesPortalListClass} fixed max-h-60 overflow-y-auto shadow-lg`}
-                        style={{
-                            top: fixedDropdownRect.top,
-                            left: fixedDropdownRect.left,
-                            width: fixedDropdownRect.width,
-                            zIndex: 10000,
+                    <AnimatePresence
+                        onExitComplete={() => {
+                            if (!isOptionListVisible) {
+                                setFixedDropdownRect(null);
+                            }
                         }}
                     >
-                        {options.map((option) => (
-                            <li
-                                key={option.key}
-                                className={optionStyle}
-                                onClick={(e) => {
-                                    chooseOptionHandler(e, valueSelectedRef);
-                                    setIsOptionListVisible(false);
+                        {isOptionListVisible && (fixedDropdownRect || lastFixedRectRef.current) ? (
+                            <motion.div
+                                key="select-fixed-dropdown"
+                                className="fixed overflow-hidden shadow-lg"
+                                style={{
+                                    top: (fixedDropdownRect ?? lastFixedRectRef.current)!.top,
+                                    left: (fixedDropdownRect ?? lastFixedRectRef.current)!.left,
+                                    width: (fixedDropdownRect ?? lastFixedRectRef.current)!.width,
+                                    zIndex: 10050,
                                 }}
-                                data-key={option.key}
+                                initial={{ height: 0 }}
+                                animate={{ height: "auto" }}
+                                exit={{ height: 0 }}
+                                transition={{ duration: 0.1, ease: "easeInOut" }}
                             >
-                                {option.value}
-                            </li>
-                        ))}
-                    </ul>,
+                                <ul
+                                    ref={portalListRef}
+                                    className={`${portalListClass} max-h-60 overflow-y-auto`}
+                                >
+                                    {options.map((option) => (
+                                        <li
+                                            key={option.key}
+                                            className={optionStyle}
+                                            onClick={(e) => {
+                                                chooseOptionHandler(e, valueSelectedRef);
+                                                setIsOptionListVisible(false);
+                                            }}
+                                            data-key={option.key}
+                                        >
+                                            {option.value}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </motion.div>
+                        ) : null}
+                    </AnimatePresence>,
                     document.body
                 )}
         </div>

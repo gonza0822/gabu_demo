@@ -3,6 +3,7 @@ import { getPrisma } from '@/lib/prisma/prisma';
 import { Table, AllData, ReOrderData, Validation } from "./Table";
 import { PrismaClient } from '@/generated/prisma/client';
 import { parseStringDate, parseDateString } from '@/util/date/parseDate';
+import { converFieldPk } from "@/lib/models/converFieldKeys";
 
 type ActualizationIndexWithStringDate = Omit<MayoristaModel, "Fecha"> & { Fecha: string };
 
@@ -88,12 +89,21 @@ class ActualizationIndex extends Table<
     }
 
     async insertOne(data: ActualizationIndexWithStringDate) : Promise<ActualizationIndexWithStringDate> {
+        const parseFloatEs = (value: unknown): number | null => {
+            if (value === null || value === undefined || value === '') return null;
+            const raw = String(value).trim();
+            const normalized = raw.includes(',')
+                ? raw.replace(/\./g, '').replace(',', '.')
+                : raw;
+            const parsed = Number(normalized);
+            return Number.isFinite(parsed) ? parsed : null;
+        };
+
         const actualizationIndex = await this.prisma.mayorista.create({
             data: {
-                ...data,
                 Fecha: parseDateString(data.Fecha),
-                Indice: Number(data.Indice) ?? null,
-                Otro: Number(data.Otro) ?? null
+                Indice: parseFloatEs(data.Indice),
+                Otro: parseFloatEs(data.Otro),
             }
         });
         return {
@@ -103,13 +113,23 @@ class ActualizationIndex extends Table<
     }
 
     async updateOne(data: ActualizationIndexWithStringDate) : Promise<ActualizationIndexWithStringDate> {
+        const parseFloatEs = (value: unknown): number | null => {
+            if (value === null || value === undefined || value === '') return null;
+            const raw = String(value).trim();
+            const normalized = raw.includes(',')
+                ? raw.replace(/\./g, '').replace(',', '.')
+                : raw;
+            const parsed = Number(normalized);
+            return Number.isFinite(parsed) ? parsed : null;
+        };
+
         const actualizationIndex = await this.prisma.mayorista.update({
             where: {
                 Fecha: parseDateString(data.Fecha)
             },
             data: {
-                Indice: Number(data.Indice) ?? null,
-                Otro: Number(data.Otro) ?? null 
+                Indice: parseFloatEs(data.Indice),
+                Otro: parseFloatEs(data.Otro),
             }
         });
 
@@ -137,12 +157,7 @@ class ActualizationIndex extends Table<
 
         for (const item of newOrder) {
             const updated : ConverFieldModel = await this.prisma.converField.update({
-                where: { 
-                    IdTabla_IdCampo: {
-                        IdTabla: item.tableId,
-                        IdCampo: item.fieldId 
-                    }  
-                },
+                where: converFieldPk(item.tableId, item.fieldId),
                 data: { lisordencampos: item.order }
             });
             updatedRecords.push(updated);

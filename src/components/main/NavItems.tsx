@@ -11,6 +11,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
+import { syncWorkspacePath } from "@/util/navigation/syncWorkspacePath";
 
 export default function NavItems() : React.ReactElement {
     const pathName = usePathname();
@@ -39,12 +40,16 @@ export default function NavItems() : React.ReactElement {
 
     const actualActiveChanged : string | undefined = submenus.find(submenu => submenu.active === true)?.path
 
-    // Sync URL when active tab changes (e.g. browser back/forward or initial hydration)
+    // Sync URL when active tab changes (e.g. browser back/forward).
+    // No pisar una recarga: si la URL ya es un ítem de menú, MainNavigation activa esa pestaña.
     useEffect(() => {
-        if(actualActiveChanged && actualActiveChanged !== pathName){
-            window.history.replaceState(null, '', actualActiveChanged);
-        }
-    }, [actualActiveChanged, pathName]);
+        if (!actualActiveChanged || actualActiveChanged === pathName) return;
+        const pathInMenu = clientMenu.menu
+            .flatMap((m) => m.submenu)
+            .some((s) => s.path === pathName && !s.modalOnly);
+        if (pathInMenu || pathName === "/home") return;
+        syncWorkspacePath(actualActiveChanged, router, "replace");
+    }, [actualActiveChanged, pathName, router, clientMenu]);
     
     async function saveFile() {
         const res = await fetch('/api/menu',{
@@ -94,13 +99,13 @@ export default function NavItems() : React.ReactElement {
                 dispatch(openPagesActions.removeOpenPage({ page: page.table }));
 
                 if(isOnlyTab){
-                    router.push('/home');
+                    syncWorkspacePath('/home', router);
                     return;
                 }
 
                 if(fallbackTab){
-                    dispatch(openPagesActions.setActivePage({ page: fallbackTab.table }));
-                    window.history.replaceState(null, '', fallbackTab.path);
+                    dispatch(openPagesActions.addOpenPage({ page: fallbackTab.table }));
+                    syncWorkspacePath(fallbackTab.path, router, "replace");
                 }
             }
         }
@@ -151,9 +156,9 @@ export default function NavItems() : React.ReactElement {
         });
 
         dispatch(navActions.activePage({ client, submenuId, menuId }));
-        dispatch(openPagesActions.setActivePage({ page: page.table }));
+        dispatch(openPagesActions.addOpenPage({ page: page.table }));
         setPages(newSubmenus);
-        window.history.pushState(null, '', page.path);
+        syncWorkspacePath(page.path, router);
     }
 
     return (

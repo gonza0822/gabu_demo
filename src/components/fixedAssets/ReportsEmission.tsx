@@ -55,10 +55,10 @@ const REPORT_HEADERS: Record<ReportType, string[]> = {
         "Valores Bajas",
         "Transferencias",
         "Valores Cierre",
-        "Amot. Ac.Inicio",
+        "Amort. Ac.Inicio",
         "Amort.Bajas",
-        "Amot.Ejercicio",
-        "Amot.Cierre",
+        "Amort.Ejercicio",
+        "Amort.Cierre",
         "Neto Resultante",
     ],
     DETALLE_ACTIVO: [
@@ -200,13 +200,14 @@ const ANEXO_COLUMN_LABELS: Record<string, string> = {
     vobajas: "Valores Bajas",
     votransfe: "Transferencias",
     vocierre: "Valores Cierre",
-    aainicio: "Amot. Ac.Inicio",
-    amoacininicio: "Amot. Ac.Inicio",
+    aainicio: "Amort. Ac.Inicio",
+    amoacininicio: "Amort. Ac.Inicio",
     amobajas: "Amort.Bajas",
-    aejercicio: "Amot.Ejercicio",
-    amoejercicio: "Amot.Ejercicio",
-    amcierre: "Amot.Cierre",
-    amocierre: "Amot.Cierre",
+    ambajas: "Amort.Bajas",
+    aejercicio: "Amort.Ejercicio",
+    amoejercicio: "Amort.Ejercicio",
+    amcierre: "Amort.Cierre",
+    amocierre: "Amort.Cierre",
     neto: "Neto Resultante",
     netoresul: "Neto Resultante",
     netoresultante: "Neto Resultante",
@@ -224,12 +225,13 @@ const DETAIL_COLUMN_LABELS: Record<string, string> = {
     idproveedor: "Proveedor",
     idfactura: "Nro.Factura",
     idordencompra: "Nro.OT",
-    identificacion: "Identificacion",
+    identificacion: "Identificación",
     fecori: "F.Origen",
     fecdep: "F.Dep.",
-    fecini: "F.Fin",
+    fecini: "F.Ini",
+    fecfin: "F.Fin",
     fecbaj: "F.Baja",
-    vidautil: "Vida util",
+    vidautil: "Vida útil",
     vidarestante: "Vida Rest.",
     vrepeactual: "Valor actual.",
     vrepoeactual: "Valor actual.",
@@ -237,7 +239,7 @@ const DETAIL_COLUMN_LABELS: Record<string, string> = {
     amafieactual: "Amort.Acum.",
     amefeactual: "Amort.Ejercicio",
     amefieactual: "Amort.Ejercicio",
-    neto: "neto",
+    neto: "Neto",
     ampefeactual: "Amort.Periodo",
     ampefeactua: "Amort.Periodo",
     amorefecactual: "Amort.Periodo",
@@ -299,9 +301,9 @@ function getDetailHeaderLabel(column: string): string {
     if (normalized.startsWith("amafe") || normalized.startsWith("amafie")) return "Amort.Acum.";
     if (normalized.startsWith("amefe") || normalized.startsWith("amefie")) return "Amort.Ejercicio";
     if (normalized.startsWith("ampefe") || normalized.startsWith("amorefec")) return "Amort.Periodo";
-    if (normalized.startsWith("tridactivo")) return "trIdActivo (Cuenta origen)";
-    if (normalized.startsWith("trfecactivo")) return "trFecActivo (Fecha de transferencia)";
-    if (normalized === "neto") return "neto";
+    if (normalized.startsWith("tridactivo")) return "Cuenta origen";
+    if (normalized.startsWith("trfecactivo")) return "Fecha de transferencia";
+    if (normalized === "neto") return "Neto";
 
     return column;
 }
@@ -619,8 +621,20 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
             };
         }
 
-        if (displayedReportType !== "ANEXO") {
-            const detailTotalColumns = getDetailTotalColumns(columns);
+        {
+            const detailTotalColumns =
+                displayedReportType === "ANEXO"
+                    ? new Set(
+                          columns.filter((column) => {
+                              const n = normalizeColumnKey(column);
+                              return (
+                                  n !== "clase" &&
+                                  n !== "descripcion" &&
+                                  !n.includes("descripci")
+                              );
+                          })
+                      )
+                    : getDetailTotalColumns(columns);
             const subtotalDepth = Number(subtotalColumns);
             const enabledSubtotalDepth =
                 Number.isInteger(subtotalDepth) && subtotalDepth > 0 ? Math.min(subtotalDepth, columns.length) : 0;
@@ -732,50 +746,11 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
                 groupKeys: Array.from(groupKeysSet),
             };
         }
-
-        const isIdActivoKey = (key: string): boolean => key.toLowerCase() === "idactivo";
-        const isDescripcionKey = (key: string): boolean => key.toLowerCase() === "descripcion";
-
-        const totalsRow: Record<string, unknown> = {};
-
-        for (const column of columns) {
-            if (isIdActivoKey(column)) {
-                totalsRow[column] = "Total general";
-                continue;
-            }
-            if (isDescripcionKey(column)) {
-                totalsRow[column] = "";
-                continue;
-            }
-
-            let sum = 0;
-            let hasNumeric = false;
-            for (const row of rows) {
-                const numeric = toNumericValue(row[column]);
-                if (numeric == null) continue;
-                sum += numeric;
-                hasNumeric = true;
-            }
-            totalsRow[column] = hasNumeric ? sum : "";
-        }
-
-        if (!columns.some((c) => isIdActivoKey(c))) {
-            totalsRow[columns[0]] = "Total general";
-            const descripcionColumn = columns.find((c) => isDescripcionKey(c));
-            if (descripcionColumn) totalsRow[descripcionColumn] = "";
-        }
-
-        return {
-            rows: [...rows, totalsRow],
-            meta: [...rows.map(() => ({ kind: "data" as const })), { kind: "total" }],
-            groupKeys: [],
-        };
     }, [columns, displayedReportType, rows, subtotalColumns]);
 
     const showOutlineGutter = useMemo(
         () =>
             hasGenerated &&
-            displayedReportType !== "ANEXO" &&
             (displayedReportType === "ASIENTOS" ||
                 (Number(subtotalColumns) > 0 && renderModel.groupKeys.length > 0)),
         [hasGenerated, displayedReportType, subtotalColumns, renderModel.groupKeys.length]
@@ -1260,7 +1235,6 @@ export default function ReportsEmission({ simulationOnly = false }: { simulation
         const outlineDepth =
             displayedReportType === "ASIENTOS" ? 1 : Math.max(0, Number(subtotalColumns) || 0);
         const useExcelRowOutlines =
-            displayedReportType !== "ANEXO" &&
             renderModel.groupKeys.length > 0 &&
             sourceRows.length > 0 &&
             (displayedReportType === "ASIENTOS" || outlineDepth > 0);

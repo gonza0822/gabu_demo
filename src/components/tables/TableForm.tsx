@@ -168,7 +168,7 @@ export default function TableForm<TData>({fields, selectedRow, hasAnotherTable, 
                         const defualtValue = selectedRow ? (selectedRow[field.IdCampo as keyof TData] as string) : (field.options?.defaultValue as string || '0');
 
                         return (
-                            <HorizontalSelect key={field.IdCampo} label={field.BrowNombre || ''} options={field.relation.map(rel => ({key: rel.id, value: rel.description || ''}))} chooseOptionHandler={chooseOptionHandler} colSpan={(hasAnotherTable || (fields.length > 2 && index === 0)) ? 'col-span-2' : 'col-span-1'} hasToBeProportional={!hasAnotherTable && (fields.length > 2 && index === 0)} defaultValue={defualtValue} fieldId={field.IdCampo} disabled={isFieldDisabled(field.IdCampo as keyof TData)} selectedRow={selectedRow}/>
+                            <HorizontalSelect key={field.IdCampo} label={field.BrowNombre || ''} options={field.relation.map(rel => ({key: rel.id, value: rel.description || ''}))} chooseOptionHandler={chooseOptionHandler} colSpan={(hasAnotherTable || (fields.length > 2 && index === 0)) ? 'col-span-2' : 'col-span-1'} hasToBeProportional={!hasAnotherTable && (fields.length > 2 && index === 0)} defaultValue={defualtValue} fieldId={field.IdCampo} disabled={isFieldDisabled(field.IdCampo as keyof TData)} selectedRow={selectedRow} isError={field.errors.isError} errorMessage={field.errors.errorMessage} setErrors={setErrors}/>
                         );
                     } else {
                         const isReadOnlyField = field.relation[0]?.description === 'id' && selectedRow ? true : false;
@@ -181,7 +181,7 @@ export default function TableForm<TData>({fields, selectedRow, hasAnotherTable, 
                             }) ?? ''
                         );
                         return (
-                            <HorizontalInput label={field.BrowNombre || ''} key={field.IdCampo} colSpan={(hasAnotherTable || (fields.length > 2 && index === 0)) ? 'col-span-2' : 'col-span-1'} hasToBeProportional={!hasAnotherTable && (fields.length > 2 && index === 0)} defaultValue={displayValue} readOnly={isReadOnlyField} disabled={isFieldDisabled(field.IdCampo as keyof TData)} fieldId={field.IdCampo} isError={field.errors.isError} errorMessage={field.errors.errorMessage} setErrors={setErrors}/>
+                            <HorizontalInput label={field.BrowNombre || ''} key={field.IdCampo} colSpan={(hasAnotherTable || (fields.length > 2 && index === 0)) ? 'col-span-2' : 'col-span-1'} hasToBeProportional={!hasAnotherTable && (fields.length > 2 && index === 0)} defaultValue={displayValue} readOnly={isReadOnlyField} disabled={isFieldDisabled(field.IdCampo as keyof TData)} fieldId={field.IdCampo} isError={field.errors.isError} errorMessage={field.errors.errorMessage} setErrors={setErrors} maxLength={field.options?.maxLength}/>
                         )
                     }
                 })}

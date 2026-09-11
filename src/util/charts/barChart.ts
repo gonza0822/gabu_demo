@@ -158,6 +158,7 @@ export default function getBarChartConfig(
                               },
                           }
                         : {
+                              beginAtZero: true,
                               border: {
                                   color: colors.strongBlue,
                                   width: 2,
@@ -180,7 +181,6 @@ export default function getBarChartConfig(
                 {
                     data: values.data,
                     backgroundColor: colors.strongBlue,
-                    ...(yScale === "log" ? {} : { minBarLength: 2 }),
                 },
             ],
         },

@@ -2,6 +2,7 @@ import { UNegocioModel, ConverFieldModel } from "@/generated/prisma/models";
 import { getPrisma } from '@/lib/prisma/prisma';
 import { Table, AllData, ReOrderData, Validation } from "./Table";
 import { PrismaClient } from '@/generated/prisma/client';
+import { converFieldPk } from "@/lib/models/converFieldKeys";
 
 export type BusinessUnitData = AllData<UNegocioModel>;
 
@@ -41,7 +42,18 @@ class BusinessUnit extends Table<
                             { id: '0', description: 'id' },
                         ],
                         options: {
-                            required: true
+                            required: true,
+                            maxLength: 6,
+                        }
+                    };
+                }
+                if(field.IdCampo === 'Descripcion'){
+                    return {
+                        ...field,
+                        relation: [],
+                        options: {
+                            required: true,
+                            maxLength: 60,
                         }
                     };
                 }
@@ -65,18 +77,45 @@ class BusinessUnit extends Table<
     }
 
     async insertOne(data: UNegocioModel) : Promise<UNegocioModel> {
+        const porcentajeRaw = data.porcentaje as unknown;
+        let porcentaje: number | null = null;
+        if (porcentajeRaw !== null && porcentajeRaw !== undefined && porcentajeRaw !== '') {
+            const raw = String(porcentajeRaw).trim();
+            const normalized = raw.includes(',')
+                ? raw.replace(/\./g, '').replace(',', '.')
+                : raw;
+            const parsed = Number(normalized);
+            porcentaje = Number.isFinite(parsed) ? parsed : null;
+        }
+
         return await this.prisma.uNegocio.create({
-            data
+            data: {
+                IdUNegocio: data.IdUNegocio,
+                Descripcion: data.Descripcion ?? null,
+                porcentaje,
+            }
         });
     }
 
     async updateOne(data: UNegocioModel) : Promise<UNegocioModel> {
+        const porcentajeRaw = data.porcentaje as unknown;
+        let porcentaje: number | null = null;
+        if (porcentajeRaw !== null && porcentajeRaw !== undefined && porcentajeRaw !== '') {
+            const raw = String(porcentajeRaw).trim();
+            const normalized = raw.includes(',')
+                ? raw.replace(/\./g, '').replace(',', '.')
+                : raw;
+            const parsed = Number(normalized);
+            porcentaje = Number.isFinite(parsed) ? parsed : null;
+        }
+
         return await this.prisma.uNegocio.update({
             where: {
                 IdUNegocio: data.IdUNegocio
             },
             data: {
                 Descripcion: data.Descripcion ?? null,
+                porcentaje,
             }
         });
     }
@@ -99,12 +138,7 @@ class BusinessUnit extends Table<
 
         for (const item of newOrder) {
             const updated : ConverFieldModel = await this.prisma.converField.update({
-                where: { 
-                    IdTabla_IdCampo: {
-                        IdTabla: item.tableId,
-                        IdCampo: item.fieldId 
-                    }  
-                },
+                where: converFieldPk(item.tableId, item.fieldId),
                 data: { lisordencampos: item.order }
             });
             updatedRecords.push(updated);

@@ -3,6 +3,7 @@ import { getPrisma } from '@/lib/prisma/prisma';
 import { Table, AllData, ReOrderData, Validation } from "./Table";
 import { PrismaClient } from '@/generated/prisma/client';
 import { parseStringDate, parseDateString } from '@/util/date/parseDate';
+import { converFieldPk } from "@/lib/models/converFieldKeys";
 import { truncate } from "fs";
 
 type SerializedUser = Omit<usuariosModel, "fechavto" | "vtosino" | "supervisor"> & { fechavto: string, vtosino: string, supervisor: string };
@@ -186,12 +187,7 @@ class User extends Table<
 
         for (const item of newOrder) {
             const updated : ConverFieldModel = await this.prisma.converField.update({
-                where: { 
-                    IdTabla_IdCampo: {
-                        IdTabla: item.tableId,
-                        IdCampo: item.fieldId 
-                    }  
-                },
+                where: converFieldPk(item.tableId, item.fieldId),
                 data: { lisordencampos: item.order }
             });
             updatedRecords.push(updated);

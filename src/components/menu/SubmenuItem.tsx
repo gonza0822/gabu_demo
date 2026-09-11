@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "@/store";
 import { overlayActions } from "@/store/overlaySlice";
+import { openPagesActions } from "@/store/openPagesSlice";
+import { syncWorkspacePath } from "@/util/navigation/syncWorkspacePath";
 
 export default function SubmenuItem({submenuItem, submenuId, menuId} : {submenuItem: Submenu, submenuId: number, menuId: number}) : ReactElement {
 
@@ -27,7 +29,8 @@ export default function SubmenuItem({submenuItem, submenuId, menuId} : {submenuI
             menuId,
             submenuId
         }));
-        router.push(submenuItem.path);
+        dispatch(openPagesActions.addOpenPage({ page: submenuItem.table }));
+        syncWorkspacePath(submenuItem.path, router);
     }
 
     return (

@@ -3,6 +3,7 @@ import { PrismaClient } from "@/generated/prisma/client";
 import { getCorePrisma } from "@/lib/prisma/corePrisma";
 import { getPrisma } from "@/lib/prisma/prisma";
 import { ReOrderData } from "@/lib/models/tables/Table";
+import { converFieldPk, DEFAULT_CONVER_USER } from "@/lib/models/converFieldKeys";
 import FixedAsset from "@/lib/models/fixedAssets/FixedAsset";
 import { findIdCencosByCodcia } from "@/util/costCenter/findIdCencosByCodcia";
 
@@ -150,7 +151,16 @@ class Investments {
 
     private normalizeChargeKeyPart(value: unknown): string {
         if (value == null) return "";
+        if (typeof value === "bigint") return String(value);
         if (typeof value === "number" && Number.isFinite(value)) return String(Math.trunc(value));
+        if (value && typeof value === "object" && typeof (value as { toNumber?: () => number }).toNumber === "function") {
+            try {
+                const n = (value as { toNumber: () => number }).toNumber();
+                if (Number.isFinite(n)) return String(Math.trunc(n));
+            } catch {
+                /* seguir con el resto de coerciones */
+            }
+        }
         if (typeof value === "string") {
             const text = value.trim();
             if (!text) return "";
@@ -165,11 +175,36 @@ class Investments {
         return this.toTrimmedString(value);
     }
 
-    private buildChargeCompositeKey(nrocbt: unknown, idArticulo: unknown): string | null {
+    private buildChargeCompositeKey(nrocbt: unknown, idArticulo: unknown, feccbt?: unknown, cdobra?: unknown): string | null {
         const nrocbtKey = this.normalizeChargeKeyPart(nrocbt);
         const idArticuloKey = this.normalizeChargeKeyPart(idArticulo);
-        if (!nrocbtKey || !idArticuloKey) return null;
-        return `${nrocbtKey}::${idArticuloKey}`;
+        const periodKey = this.toYyyymm(feccbt);
+        const cdobraKey = this.normalizeChargeKeyPart(cdobra);
+        if (!nrocbtKey || !idArticuloKey || !periodKey || !cdobraKey) return null;
+        return `${nrocbtKey}::${idArticuloKey}::${periodKey}::${cdobraKey}`;
+    }
+
+    /** Igualdad numérica entre nrocbt / IDArticulo aunque uno sea texto y el otro número. */
+    private sqlNumericKey(expr: string): string {
+        return `CAST(LTRIM(RTRIM(CAST(${expr} AS VARCHAR(50)))) AS FLOAT)`;
+    }
+
+    /** Proyecto / CDOBRA: varchar (collation distinta entre tablas). */
+    private sqlTextKey(expr: string): string {
+        return `LTRIM(RTRIM(CAST(${expr} AS VARCHAR(50)))) COLLATE DATABASE_DEFAULT`;
+    }
+
+    /** Período YYYYMM desde feccbt datetime (`CONVERT` estilo 112; sin TRY_CONVERT: SQL viejo). */
+    private sqlPeriodKey(expr: string): string {
+        return `CONVERT(CHAR(6), ${expr}, 112)`;
+    }
+
+    /** Match cargo ↔ relacargoactivo por la PK: nrocbt, IDArticulo, feccbt, CDOBRA. */
+    private sqlChargeRelaMatch(rAlias: string, cAlias: string): string {
+        return `${this.sqlNumericKey(`${rAlias}.nrocbt`)} = ${this.sqlNumericKey(`${cAlias}.nrocbt`)}
+                      AND ${this.sqlNumericKey(`${rAlias}.IDArticulo`)} = ${this.sqlNumericKey(`${cAlias}.IDArticulo`)}
+                      AND ${this.sqlPeriodKey(`${rAlias}.feccbt`)} = ${this.sqlPeriodKey(`${cAlias}.feccbt`)}
+                      AND ${this.sqlTextKey(`${rAlias}.CDOBRA`)} = ${this.sqlTextKey(`${cAlias}.cdobra`)}`;
     }
 
     private buildFieldsFromRows(
@@ -224,48 +259,54 @@ class Investments {
             );
         }
         return this.prisma.$queryRawUnsafe<Record<string, unknown>[]>(
-            `SELECT * FROM [dbo].[cargosmagic] ORDER BY [cdobra] ASC, [feccbt] ASC`
+            `SELECT
+                c.*,
+                CASE WHEN EXISTS (
+                    SELECT 1
+                    FROM dbo.relacargoactivo r
+                    WHERE ${this.sqlChargeRelaMatch("r", "c")}
+                ) THEN 1 ELSE 0 END AS __chargeBlockedFlag
+             FROM [dbo].[cargosmagic] c
+             ORDER BY [cdobra] ASC, [feccbt] ASC`
         );
     }
 
     async getAll(): Promise<InvestmentsData> {
-        const blockedChargeRowsPromise =
-            this.type === "charges"
-                ? this.prisma.$queryRawUnsafe<Record<string, unknown>[]>(
-                      `SELECT DISTINCT nrocbt, IDArticulo FROM dbo.relacargoactivo WHERE nrocbt IS NOT NULL AND IDArticulo IS NOT NULL`
-                  )
-                : Promise.resolve([]);
-
-        const [table, fieldsFromDb, blockedChargeRows] = await Promise.all([
+        const [table, fieldsFromDb] = await Promise.all([
             this.getRows(),
             this.prisma.converField.findMany({
                 where: { IdTabla: this.tableId },
                 orderBy: { lisordencampos: "asc" },
             }),
-            blockedChargeRowsPromise,
         ]);
 
         const fieldsManage =
             this.type === "charges" ? fieldsFromDb : this.buildFieldsFromRows(table, fieldsFromDb);
 
-        const normalizedTable = table.map((row) => this.normalizeForJson(row) as Record<string, unknown>);
-        const blockedChargeCompositeKeys =
-            this.type === "charges"
-                ? Array.from(
-                      new Set(
-                          blockedChargeRows
-                              .map((row) =>
-                                  this.buildChargeCompositeKey(
-                                      row.nrocbt,
-                                      row.IDArticulo ?? row.idArticulo ?? row.idarticulo
-                                  )
-                              )
-                              .filter((key): key is string => Boolean(key))
-                      )
-                  )
-                : undefined;
+        const blockedChargeCompositeKeys = new Set<string>();
+        const normalizedTable = table.map((row) => {
+            const normalized = this.normalizeForJson(row) as Record<string, unknown>;
+            if (this.type === "charges") {
+                const flag = normalized.__chargeBlockedFlag;
+                delete normalized.__chargeBlockedFlag;
+                const blocked = flag === true || flag === 1 || flag === "1" || Number(flag) === 1;
+                normalized.__chargeBlocked = blocked;
+                const key = this.buildChargeCompositeKey(
+                    this.getFieldValue(normalized, "nrocbt"),
+                    this.getFieldValue(normalized, "IDArticulo", "idArticulo", "idarticulo"),
+                    this.getFieldValue(normalized, "feccbt"),
+                    this.getFieldValue(normalized, "cdobra", "CDOBRA", "cdObra")
+                );
+                if (blocked && key) blockedChargeCompositeKeys.add(key);
+            }
+            return normalized;
+        });
 
-        return { table: normalizedTable, fieldsManage, blockedChargeCompositeKeys };
+        return {
+            table: normalizedTable,
+            fieldsManage,
+            blockedChargeCompositeKeys: this.type === "charges" ? Array.from(blockedChargeCompositeKeys) : undefined,
+        };
     }
 
     /** Cargos vinculados a un bien vía relacargoactivo (subacordeón ABM). */
@@ -282,7 +323,7 @@ class Investments {
                 `SELECT c.*
                  FROM dbo.cargosmagic c
                  INNER JOIN dbo.relacargoactivo r
-                    ON r.nrocbt = c.nrocbt AND r.IDArticulo = c.IDArticulo
+                    ON ${this.sqlChargeRelaMatch("r", "c")}
                  WHERE r.idcodigo = ${this.sqlLiteral(idCodigo)}
                    AND r.idsubien = ${this.sqlLiteral(idSubien)}
                    AND r.idsubtra = ${this.sqlLiteral(idSubtra)}
@@ -525,22 +566,52 @@ class Investments {
         for (const row of selectedRows) {
             const r = row as Record<string, unknown>;
             const nrocbtRaw = this.getFieldValue(r, "nrocbt");
-            const idArticuloRaw = this.getFieldValue(r, "IDArticulo", "idArticulo");
-            const nrocbtNum = Math.trunc(this.toNumber(nrocbtRaw));
-            const idArticuloNum = Math.trunc(this.toNumber(idArticuloRaw));
-            if (!Number.isFinite(nrocbtNum) || !Number.isFinite(idArticuloNum) || nrocbtNum === 0 || idArticuloNum === 0) {
+            const idArticuloRaw = this.getFieldValue(r, "IDArticulo", "idArticulo", "idarticulo");
+            const feccbtRaw = this.getFieldValue(r, "feccbt");
+            const cdobraRaw = this.getFieldValue(r, "cdobra", "CDOBRA", "cdObra");
+            const nrocbtKey = this.normalizeChargeKeyPart(nrocbtRaw);
+            const idArticuloKey = this.normalizeChargeKeyPart(idArticuloRaw);
+            const periodKey = this.toYyyymm(feccbtRaw);
+            const cdobraKey = this.normalizeChargeKeyPart(cdobraRaw);
+            if (
+                !nrocbtKey ||
+                !idArticuloKey ||
+                !periodKey ||
+                !cdobraKey ||
+                nrocbtKey === "0" ||
+                idArticuloKey === "0"
+            ) {
                 throw new Error(
-                    `No se pudo insertar relacargoactivo: nrocbt o IDArticulo inválido (nrocbt=${String(nrocbtRaw)}, IDArticulo=${String(
+                    `No se pudo insertar relacargoactivo: clave inválida (nrocbt=${String(nrocbtRaw)}, IDArticulo=${String(
                         idArticuloRaw
-                    )})`
+                    )}, feccbt=${String(feccbtRaw)}, CDOBRA=${String(cdobraRaw)})`
                 );
             }
-            const relaKey = `${nrocbtNum}::${idArticuloNum}`;
+            const relaKey = `${nrocbtKey}::${idArticuloKey}::${periodKey}::${cdobraKey}`;
             if (insertedRelaKeys.has(relaKey)) continue;
-            await this.prisma.$executeRawUnsafe(
-                `INSERT INTO dbo.relacargoactivo (nrocbt, IDArticulo, idcodigo, idsubien, idsubtra, idsufijo, fectra)
-                 VALUES (${this.sqlLiteral(nrocbtNum)}, ${this.sqlLiteral(idArticuloNum)}, ${this.sqlLiteral(idCodigo)}, ${this.sqlLiteral(idSubien)}, ${this.sqlLiteral(idSubtra)}, ${this.sqlLiteral(idSufijo)}, ${this.sqlLiteral(fectra)})`
+            const inserted = await this.prisma.$executeRawUnsafe(
+                `INSERT INTO dbo.relacargoactivo (nrocbt, IDArticulo, feccbt, CDOBRA, idcodigo, idsubien, idsubtra, idsufijo, fectra)
+                 SELECT TOP 1
+                    c.nrocbt,
+                    c.IDArticulo,
+                    c.feccbt,
+                    c.cdobra,
+                    ${this.sqlLiteral(idCodigo)},
+                    ${this.sqlLiteral(idSubien)},
+                    ${this.sqlLiteral(idSubtra)},
+                    ${this.sqlLiteral(idSufijo)},
+                    ${this.sqlLiteral(fectra)}
+                 FROM dbo.cargosmagic c
+                 WHERE ${this.sqlNumericKey("c.nrocbt")} = ${this.sqlNumericKey(this.sqlLiteral(nrocbtKey))}
+                   AND ${this.sqlNumericKey("c.IDArticulo")} = ${this.sqlNumericKey(this.sqlLiteral(idArticuloKey))}
+                   AND ${this.sqlPeriodKey("c.feccbt")} = ${this.sqlLiteral(periodKey)}
+                   AND ${this.sqlTextKey("c.cdobra")} = ${this.sqlTextKey(this.sqlLiteral(cdobraKey))}`
             );
+            if (inserted === 0 || inserted === BigInt(0)) {
+                throw new Error(
+                    `No se encontró el cargo en cargosmagic para relacargoactivo (nrocbt=${nrocbtKey}, IDArticulo=${idArticuloKey}, feccbt=${periodKey}, CDOBRA=${cdobraKey}).`
+                );
+            }
             insertedRelaKeys.add(relaKey);
         }
 
@@ -731,12 +802,7 @@ class Investments {
 
     async setListShow(fieldId: string, listShow: boolean): Promise<ConverFieldModel> {
         return this.prisma.converField.upsert({
-            where: {
-                IdTabla_IdCampo: {
-                    IdTabla: this.tableId,
-                    IdCampo: fieldId,
-                },
-            },
+            where: converFieldPk(this.tableId, fieldId),
             update: { listShow },
             create: {
                 IdTabla: this.tableId,
@@ -746,7 +812,7 @@ class Investments {
                 listShow,
                 lisordencampos: null,
                 idIdioma: null,
-                idusuario: null,
+                idusuario: DEFAULT_CONVER_USER,
             },
         });
     }
@@ -755,12 +821,7 @@ class Investments {
         const updatedRecords: ConverFieldModel[] = [];
         for (const item of newOrder) {
             const updated = await this.prisma.converField.update({
-                where: {
-                    IdTabla_IdCampo: {
-                        IdTabla: item.tableId,
-                        IdCampo: item.fieldId,
-                    },
-                },
+                where: converFieldPk(item.tableId, item.fieldId),
                 data: { lisordencampos: item.order },
             });
             updatedRecords.push(updated);

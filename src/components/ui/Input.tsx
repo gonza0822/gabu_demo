@@ -1,4 +1,7 @@
-import { ReactElement } from "react";
+'use client';
+
+import { ReactElement, useState } from "react";
+import PasswordEyeIcon from "../svg/PasswordEyeIcon";
 
 export default function Input({
   label,
@@ -32,6 +35,9 @@ export default function Input({
   /** Clases extra en el `<input>` (p. ej. compact en pantallas chicas). */
   inputClassName?: string,
 }) : ReactElement {
+    const [passwordVisible, setPasswordVisible] = useState(false);
+    const isPassword = type === "password";
+    const inputType = isPassword ? (passwordVisible ? "text" : "password") : type;
     const isColumnFilter = variant === 'columnFilter';
     const isAbm = variant === 'abm';
     const isTableCell = variant === 'tableCell';
@@ -42,18 +48,32 @@ export default function Input({
         ? 'text-gabu-100 text-xs font-normal'
         : 'text-gabu-900 text-lg'
       : '';
+    const passwordPad = isPassword ? 'pr-10' : 'pr-2';
     const InputStyle = isColumnFilter
-      ? `border border-gabu-300 bg-gabu-100 text-gabu-900 rounded-md py-0.5 pl-3 pr-2 w-full outline-none focus:outline-none focus:ring-0 ${disabled && 'bg-gabu-300'}`
+      ? `border border-gabu-300 bg-gabu-100 text-gabu-900 rounded-md py-0.5 pl-3 ${passwordPad} w-full outline-none focus:outline-none focus:ring-0 ${disabled && 'bg-gabu-300'}`
       : isTableCell
-      ? `border ${isError ? 'border-gabu-error' : 'border-gabu-900 focus:border-gabu-500'} bg-gabu-100 text-gabu-900 rounded-md py-1 px-2 text-xs leading-snug min-h-0 w-full outline-none focus:outline-none focus:ring-0 ${disabled && 'bg-gabu-300'}`
+      ? `border ${isError ? 'border-gabu-error' : 'border-gabu-900 focus:border-gabu-500'} bg-gabu-100 text-gabu-900 rounded-md py-1 ${isPassword ? 'pl-2 pr-8' : 'px-2'} text-xs leading-snug min-h-0 w-full outline-none focus:outline-none focus:ring-0 ${disabled && 'bg-gabu-300'}`
       : isAbm
-      ? `bg-gabu-100 rounded-md font-normal px-3 text-gabu-700 w-full outline-none focus:outline-none focus:ring-0 ${disabled && 'bg-gabu-300'}`
-      : `${isLogin ? 'border-l-10 border-2' : 'border'} ${isError ? 'border-gabu-error' : 'border-gabu-900 focus:border-gabu-500'} text-gabu-900 rounded-md py-2 pl-3 pr-2 w-full outline-none focus:outline-none focus:ring-0 ${disabled && 'bg-gabu-300'}`;
+      ? `bg-gabu-100 rounded-md font-normal ${isPassword ? 'pl-3 pr-10' : 'px-3'} text-gabu-700 w-full outline-none focus:outline-none focus:ring-0 ${disabled && 'bg-gabu-300'}`
+      : `${isLogin ? 'border-l-10 border-2' : 'border'} ${isError ? 'border-gabu-error' : 'border-gabu-900 focus:border-gabu-500'} text-gabu-900 rounded-md py-2 pl-3 ${passwordPad} w-full outline-none focus:outline-none focus:ring-0 ${disabled && 'bg-gabu-300'}`;
 
     return (
       <div className={`flex flex-col relative ${hasLabel || !isTableCell ? "gap-1" : "gap-0"}`}>
           {hasLabel && <label className={labelClass}>{label}</label>}
-          <input type={type} className={`${InputStyle} ${inputClassName}`.trim()} disabled={disabled} ref={ref} onInput={handleInput} onWheel={type === 'number' ? (e) => e.currentTarget.blur() : undefined} autoComplete="off" {...(value !== undefined ? { value } : { defaultValue })} placeholder={placeholder}/>
+          <div className="relative w-full">
+            <input type={inputType} className={`${InputStyle} ${inputClassName}`.trim()} disabled={disabled} ref={ref} onInput={handleInput} onWheel={type === 'number' ? (e) => e.currentTarget.blur() : undefined} autoComplete="off" {...(value !== undefined ? { value } : { defaultValue })} placeholder={placeholder}/>
+            {isPassword && (
+              <button
+                type="button"
+                onClick={() => setPasswordVisible((visible) => !visible)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gabu-900 hover:text-gabu-700 cursor-pointer"
+                aria-label={passwordVisible ? "Ocultar contraseña" : "Mostrar contraseña"}
+                title={passwordVisible ? "Ocultar contraseña" : "Mostrar contraseña"}
+              >
+                <PasswordEyeIcon visible={passwordVisible} className="w-5 h-5" />
+              </button>
+            )}
+          </div>
           {isError && (
             <div className="absolute left-0 right-0 top-[calc(100%+6px)] flex z-30">
               <div className="relative bg-gabu-error rounded-lg px-3 py-2 shadow-sm">

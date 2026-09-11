@@ -20,6 +20,7 @@ import ManageDefaultsTable from "@/app/(main-layout)/(main-nav)/fixedAssets/defa
 import ReportsEmissionPage from "@/app/(main-layout)/(main-nav)/fixedAssets/reports/page";
 import CalculoAmortizacionesPage from "@/app/(main-layout)/(main-nav)/processes/calculo-amortizaciones/page";
 import GeneracionAsientosPage from "@/app/(main-layout)/(main-nav)/processes/generacion-asientos/page";
+import InterfaceAsientosPage from "@/app/(main-layout)/(main-nav)/processes/interface-asientos/page";
 import CierreMensualPage from "@/app/(main-layout)/(main-nav)/processes/cierre-mensual/page";
 import CierreEjercicioPage from "@/app/(main-layout)/(main-nav)/processes/cierre-ejercicio/page";
 import InvestmentsProjectsPage from "@/app/(main-layout)/(main-nav)/investments/projects/page";
@@ -52,6 +53,7 @@ const pagesMap = {
     ReportsEmissionPage,
     CalculoAmortizacionesPage,
     GeneracionAsientosPage,
+    InterfaceAsientosPage,
     CierreMensualPage,
     CierreEjercicioPage,
     InvestmentsProjectsPage,

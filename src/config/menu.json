@@ -10,6 +10,7 @@
             "submenuTitle": "Cuentas",
             "table": "AccountsTable",
             "path": "/tables/accounts",
+            "itemIdNr": 1,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -18,6 +19,7 @@
             "submenuTitle": "Centro de costo",
             "table": "CostCenterTable",
             "path": "/tables/costCenter",
+            "itemIdNr": 2,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -26,6 +28,7 @@
             "submenuTitle": "Plantas",
             "table": "PlantsTable",
             "path": "/tables/plants",
+            "itemIdNr": 3,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -34,6 +37,7 @@
             "submenuTitle": "Grupos",
             "table": "GroupsTable",
             "path": "/tables/groups",
+            "itemIdNr": 4,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -42,6 +46,7 @@
             "submenuTitle": "Ubicacion geografica",
             "table": "GeographicsLocationsTable",
             "path": "/tables/geographicsLocations",
+            "itemIdNr": 5,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -50,6 +55,7 @@
             "submenuTitle": "Procedencias",
             "table": "ProcedencesTable",
             "path": "/tables/procedences",
+            "itemIdNr": 6,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -58,6 +64,7 @@
             "submenuTitle": "Cotizacion M.E",
             "table": "QuotationsMETable",
             "path": "/tables/quotationsME",
+            "itemIdNr": 7,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -66,6 +73,7 @@
             "submenuTitle": "Usuarios",
             "table": "UsersTable",
             "path": "/tables/users",
+            "itemIdNr": 8,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -74,6 +82,7 @@
             "submenuTitle": "Unidades de negocio",
             "table": "BusinessUnitsTable",
             "path": "/tables/businessUnits",
+            "itemIdNr": 9,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -82,6 +91,7 @@
             "submenuTitle": "Descripcion normalizada",
             "table": "CatalogTable",
             "path": "/tables/catalog",
+            "itemIdNr": 10,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -90,6 +100,7 @@
             "submenuTitle": "Indice actualizacion",
             "table": "ActualizationIndexesTable",
             "path": "/tables/actualizationIndexes",
+            "itemIdNr": 11,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -98,6 +109,7 @@
             "submenuTitle": "Coeficientes impositivos",
             "table": "TaxCoefficientsTable",
             "path": "/tables/taxCoefficients",
+            "itemIdNr": 12,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -106,6 +118,7 @@
             "submenuTitle": "Unidades de medida",
             "table": "MeasurementUnitsTable",
             "path": "/tables/measurementUnits",
+            "itemIdNr": 13,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -120,6 +133,7 @@
             "submenuTitle": "Administrar",
             "table": "ManageFixedAssets",
             "path": "/fixedAssets/manage",
+            "itemIdNr": 14,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -128,6 +142,7 @@
             "submenuTitle": "Manejo de parametros",
             "table": "ManageParametersTable",
             "path": "/fixedAssets/parameters",
+            "itemIdNr": 15,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -136,6 +151,7 @@
             "submenuTitle": "Emision de reportes",
             "table": "ReportsEmissionPage",
             "path": "/fixedAssets/reports",
+            "itemIdNr": 16,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -144,6 +160,7 @@
             "submenuTitle": "Valores por defecto",
             "table": "ManageDefaultsTable",
             "path": "/fixedAssets/defaults",
+            "itemIdNr": 17,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -152,6 +169,7 @@
             "submenuTitle": "Alta bien de uso",
             "table": "AbmFixedAsset",
             "path": "/fixedAssets/add",
+            "itemIdNr": 18,
             "isOpen": false,
             "active": false,
             "order": 0,
@@ -167,6 +185,7 @@
             "submenuTitle": "Calculo de amort",
             "table": "CalculoAmortizacionesPage",
             "path": "/processes/calculo-amortizaciones",
+            "itemIdNr": 19,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -175,14 +194,16 @@
             "submenuTitle": "Generacion de asientos",
             "table": "GeneracionAsientosPage",
             "path": "/processes/generacion-asientos",
+            "itemIdNr": 20,
             "isOpen": false,
             "active": false,
             "order": 0
           },
           {
-            "submenuTitle": "Cierre de ejercicio",
-            "table": "CierreEjercicioPage",
-            "path": "/processes/cierre-ejercicio",
+            "submenuTitle": "Interface de asientos",
+            "table": "InterfaceAsientosPage",
+            "path": "/processes/interface-asientos",
+            "itemIdNr": 32,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -191,6 +212,16 @@
             "submenuTitle": "Cierre Mensual",
             "table": "CierreMensualPage",
             "path": "/processes/cierre-mensual",
+            "itemIdNr": 22,
+            "isOpen": false,
+            "active": false,
+            "order": 0
+          },
+          {
+            "submenuTitle": "Cierre de ejercicio",
+            "table": "CierreEjercicioPage",
+            "path": "/processes/cierre-ejercicio",
+            "itemIdNr": 21,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -205,6 +236,7 @@
             "submenuTitle": "Proyectos",
             "table": "InvestmentsProjectsPage",
             "path": "/investments/projects",
+            "itemIdNr": 23,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -213,6 +245,7 @@
             "submenuTitle": "Ordenes de trabajo",
             "table": "InvestmentsWorkOrdersPage",
             "path": "/investments/workOrders",
+            "itemIdNr": 24,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -221,6 +254,7 @@
             "submenuTitle": "Cargos",
             "table": "InvestmentsChargesPage",
             "path": "/investments/charges",
+            "itemIdNr": 25,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -229,12 +263,13 @@
       },
       {
         "menuTitle": "Simulaciones",
-        "icon": "InvestmentsIcon",
+        "icon": "SimulationsIcon",
         "submenu": [
           {
             "submenuTitle": "Administrar",
             "table": "SimulationsManagePage",
             "path": "/simulations/manage",
+            "itemIdNr": 26,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -243,6 +278,7 @@
             "submenuTitle": "Manejo de parametros",
             "table": "SimulationsParametersPage",
             "path": "/simulations/parameters",
+            "itemIdNr": 27,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -251,6 +287,7 @@
             "submenuTitle": "Emision de reportes",
             "table": "SimulationsReportsPage",
             "path": "/simulations/reports",
+            "itemIdNr": 28,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -259,6 +296,7 @@
             "submenuTitle": "Calculo de amort",
             "table": "SimulationsCalculoAmortizacionesPage",
             "path": "/simulations/calculo-amortizaciones",
+            "itemIdNr": 29,
             "isOpen": false,
             "active": false,
             "order": 0
@@ -267,6 +305,7 @@
             "submenuTitle": "Reiniciar simulación",
             "table": "RestartSimulationPage",
             "path": "/simulations/restart",
+            "itemIdNr": 30,
             "isOpen": false,
             "active": false,
             "order": 0,
@@ -276,6 +315,7 @@
             "submenuTitle": "Alta bien simulacion",
             "table": "SimulationsAddPage",
             "path": "/simulations/add",
+            "itemIdNr": 31,
             "isOpen": false,
             "active": false,
             "order": 0,

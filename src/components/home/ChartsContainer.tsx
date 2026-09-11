@@ -6,6 +6,11 @@ import Tab from "./Tab";
 import useColors from "@/hooks/useColors";
 import getBarChartConfig from "@/util/charts/barChart";
 import { HomeTabData } from "@/lib/models/Home";
+import { formatNumberEs } from "@/util/number/formatNumberEs";
+
+function formatMoney(value: number): string {
+    return formatNumberEs(value, 2, 2);
+}
 
 export default function ChartsContainer({ tabs, fechaProceso }: { tabs: HomeTabData[]; fechaProceso: string }): ReactElement {
     const colors = useColors();
@@ -16,6 +21,8 @@ export default function ChartsContainer({ tabs, fechaProceso }: { tabs: HomeTabD
     }
 
     const currentTab = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
+    const comparison = currentTab?.comparison;
+    const details = currentTab?.details ?? [];
 
     return (
         <div className="flex flex-col h-full min-h-0 min-w-0 w-full">
@@ -34,31 +41,71 @@ export default function ChartsContainer({ tabs, fechaProceso }: { tabs: HomeTabD
                     Fecha de proceso: {fechaProceso}
                 </div>
             </div>
-            <div className="flex h-full min-h-0 w-full overflow-x-auto overflow-y-hidden">
-                <div className="flex h-full min-h-0 min-w-full">
-                    {(currentTab?.charts ?? []).map((chart) => (
-                        <div key={`${currentTab?.id}-${chart.title}`} className="flex-none basis-[40%] max-w-[40%] min-w-[40%] h-full">
-                            <ChartContainer
-                                chartFn={() =>
-                                    getBarChartConfig(
-                                        {
-                                            values: {
-                                                labels: chart.labels,
-                                                data: chart.data,
-                                            },
-                                            yScale: chart.yScale ?? "linear",
+            <div className="flex h-full min-h-0 w-full min-w-0 gap-2 px-2 pb-2 pt-1 [@media(max-height:600px)]:gap-1 [@media(max-height:600px)]:px-1">
+                <div className="flex h-full min-h-0 min-w-0 flex-[1.1]">
+                    {comparison ? (
+                        <ChartContainer
+                            chartFn={() =>
+                                getBarChartConfig(
+                                    {
+                                        values: {
+                                            labels: comparison.labels,
+                                            data: comparison.data,
                                         },
-                                        colors.colors
-                                    )
-                                }
-                                title={chart.title}
-                                fullW={false}
-                                type="bar"
-                                canRender={colors.isReady}
-                                compact
-                            />
+                                        yScale: "linear",
+                                    },
+                                    colors.colors
+                                )
+                            }
+                            title={comparison.title}
+                            fullW={false}
+                            type="bar"
+                            canRender={colors.isReady && comparison.labels.length > 0}
+                            compact
+                        />
+                    ) : null}
+                </div>
+                <div className="home-chart-card flex h-full min-h-0 min-w-0 flex-1 flex-col px-2 py-1.5 sm:px-3 sm:py-2 [@media(max-height:600px)]:px-1.5 [@media(max-height:600px)]:py-1">
+                    <div className="flex min-h-0 flex-1 items-center justify-center">
+                        <div className="table-container flex h-[80%] w-[90%] flex-col border border-gabu-900 bg-gabu-100 p-2">
+                            <table className="h-full w-full table-fixed border-collapse divide-y-2 divide-gabu-900/25">
+                                <thead>
+                                    <tr>
+                                        <th className="w-[28%] text-start py-2 px-2 text-xs font-semibold text-gabu-900 whitespace-nowrap [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">
+                                            Concepto
+                                        </th>
+                                        <th className="w-[24%] text-start py-2 px-2 text-xs font-semibold text-gabu-900 whitespace-nowrap [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">
+                                            Todos
+                                        </th>
+                                        <th className="w-[24%] text-start py-2 px-2 text-xs font-semibold text-gabu-900 whitespace-nowrap [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">
+                                            Altas ejercicio
+                                        </th>
+                                        <th className="w-[24%] text-start py-2 px-2 text-xs font-semibold text-gabu-900 whitespace-nowrap [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">
+                                            Bajas ejercicio
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y-2 divide-gabu-900/25">
+                                    {details.map((row) => (
+                                        <tr key={row.title} className="h-1/4">
+                                            <td className="py-2 px-2 text-xs text-gabu-900 whitespace-nowrap [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">
+                                                {row.title}
+                                            </td>
+                                            <td className="py-2 px-2 text-xs text-end tabular-nums text-gabu-900 whitespace-nowrap [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">
+                                                {formatMoney(row.todos)}
+                                            </td>
+                                            <td className="py-2 px-2 text-xs text-end tabular-nums text-gabu-900 whitespace-nowrap [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">
+                                                {formatMoney(row.altasEjercicio)}
+                                            </td>
+                                            <td className="py-2 px-2 text-xs text-end tabular-nums text-gabu-900 whitespace-nowrap [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">
+                                                {formatMoney(row.bajasEjercicio)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
-                    ))}
+                    </div>
                 </div>
             </div>
         </div>

@@ -11,6 +11,8 @@ export type FieldsWithRelation = ConverFieldModel & {
         hidden?: boolean,
         required?: boolean,
         isDate?: boolean,
+        /** Máximo de caracteres permitidos (alineado al tamaño de columna en BD). */
+        maxLength?: number,
         defaultValue?: string | number | boolean | null
     }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Processes, { type ProcessTableRow } from "@/lib/models/processes/Processes";
+import InterfaceAsientos, { type InterfaceBookRow } from "@/lib/models/processes/InterfaceAsientos";
 import { createRequestId, errorJson, logApiError } from "@/lib/logger";
 
 type ErrorResponse = { message: string; status: number; requestId?: string };
@@ -12,11 +13,13 @@ type UserPostRequest =
     | { petition: "RunGeneracionAsientos"; client: string; data: { row: ProcessTableRow } }
     | { petition: "FinalizeCalculoAmortizacion"; client: string; data: Record<string, never> }
     | { petition: "RunCierreMensual"; client: string; data: { row: ProcessTableRow } }
-    | { petition: "RunCierreEjercicio"; client: string; data: { row: ProcessTableRow } };
+    | { petition: "RunCierreEjercicio"; client: string; data: { row: ProcessTableRow } }
+    | { petition: "GetInterfaceRows"; client: string }
+    | { petition: "RunInterfaceAsientos"; client: string; data: { idMoextras: string[] } };
 
 export async function POST(
     request: Request
-): Promise<NextResponse<ProcessTableRow[] | { ok: boolean } | ErrorResponse>> {
+): Promise<NextResponse<ProcessTableRow[] | InterfaceBookRow[] | { ok: boolean; sent?: string[] } | ErrorResponse>> {
     const requestId = createRequestId();
     let client: string | undefined;
     let petition: string | undefined;
@@ -60,6 +63,18 @@ export async function POST(
                 if (!row) return errorJson("row is required", 400, requestId);
                 await processes.runCierreEjercicio(row);
                 return NextResponse.json({ ok: true });
+            }
+            case "GetInterfaceRows": {
+                const iface = new InterfaceAsientos(client);
+                return NextResponse.json(await iface.getRows());
+            }
+            case "RunInterfaceAsientos": {
+                const idMoextras = (body as Extract<UserPostRequest, { petition: "RunInterfaceAsientos" }>).data?.idMoextras;
+                if (!Array.isArray(idMoextras) || idMoextras.length === 0) {
+                    return errorJson("Seleccione al menos un libro.", 400, requestId);
+                }
+                const iface = new InterfaceAsientos(client);
+                return NextResponse.json(await iface.sendBooks(idMoextras));
             }
             default:
                 return errorJson("Petición desconocida", 400, requestId);

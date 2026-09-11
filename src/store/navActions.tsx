@@ -4,7 +4,9 @@ import React from "react";
 import MasterDataIcon from "@/components/svg/menu/MasterDataIcon";
 import ProcessesIcon from "@/components/svg/menu/ProcessesIcon";
 import InvestmentsIcon from "@/components/svg/menu/InvestmentsIcon";
-import AccountIcon from '@/components/svg/menu/AccountIcon';import { Menu } from "@/store/navSlice";
+import SimulationsIcon from "@/components/svg/menu/SimulationsIcon";
+import AccountIcon from '@/components/svg/menu/AccountIcon';
+import { Menu } from "@/store/navSlice";
 import menuConfig from '@/config/menu.json'
 
 const iconMap = {
@@ -12,6 +14,7 @@ const iconMap = {
   MasterDataIcon,
   ProcessesIcon,
   InvestmentsIcon,
+  SimulationsIcon,
 };
 
 export function getIcon(icon : string) : React.ComponentType {

@@ -2,6 +2,7 @@ import { CuentasModel, InternaModel, ConverFieldModel, ctaVidautilModel, GruposM
 import { getPrisma } from '@/lib/prisma/prisma';
 import { Table, AllData, ReOrderData, Validation } from "./Table";
 import { PrismaClient } from '@/generated/prisma/client';
+import { converFieldPk } from "@/lib/models/converFieldKeys";
 import { fix } from "mssql";
 
 export type AccountsData = AllData<CuentasModel>;
@@ -346,12 +347,7 @@ class Account extends Table<
 
         for (const item of newOrder) {
             const updated : ConverFieldModel = await this.prisma.converField.update({
-                where: { 
-                    IdTabla_IdCampo: {
-                        IdTabla: item.tableId,
-                        IdCampo: item.fieldId,
-                    }  
-                },
+                where: converFieldPk(item.tableId, item.fieldId),
                 data: { lisordencampos: item.order }
             });
             updatedRecords.push(updated);

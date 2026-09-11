@@ -45,6 +45,10 @@ const authorizationSlice = createSlice({
         },
         setLogin(state: AuthorizationState, action: PayloadAction<{auth: AuthorizationState}>){
             return action.payload.auth;
+        },
+        setUser(state: AuthorizationState, action: PayloadAction<{user: string}>){
+            state.user = action.payload.user;
+            state.logged = true;
         }
     }
 });

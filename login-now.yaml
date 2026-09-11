@@ -1,0 +1,20 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - img "gabu_logo" [ref=e5]
+        - heading "Hola, Bienvenido!" [level=1] [ref=e6]
+        - paragraph [ref=e7]: Gestion y administracion de bienes de uso
+      - generic [ref=e9]:
+        - generic [ref=e10] [cursor=pointer]:
+          - generic [ref=e11]: Seleccione una empresa
+          - list [ref=e16]
+        - generic [ref=e18]:
+          - generic [ref=e19]: Usuario
+          - textbox [disabled] [ref=e20]
+        - generic [ref=e21]:
+          - generic [ref=e22]: Contraseña
+          - textbox [disabled] [ref=e23]
+        - button "Ingresar" [disabled] [ref=e24] [cursor=pointer]
+  - button "Open Next.js Dev Tools" [ref=e30] [cursor=pointer]
+  - alert [ref=e34]

@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 import { RootState } from "@/store";
 import { Menu, navActions } from "@/store/navSlice";
 import { overlayActions } from "@/store/overlaySlice";
+import { openPagesActions } from "@/store/openPagesSlice";
 import Search from "../svg/Search";
 import ReziseIcon from "../svg/menu/ReziseIcon";
 import DesignIcon from "../svg/menu/DesignIcon";
 import Config from "../svg/Config";
+import { syncWorkspacePath } from "@/util/navigation/syncWorkspacePath";
 
 type HeaderSearchOption = {
     menuId: number;
@@ -96,7 +98,8 @@ export default function Header() : ReactElement {
                 submenuId: option.submenuId,
             })
         );
-        router.push(option.path);
+        dispatch(openPagesActions.addOpenPage({ page: option.table }));
+        syncWorkspacePath(option.path, router);
     }
 
     return (

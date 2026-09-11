@@ -2,6 +2,7 @@ import { CCostosModel, ConverFieldModel } from "@/generated/prisma/models";
 import { getPrisma } from '@/lib/prisma/prisma';
 import { Table, AllData, ReOrderData, Validation } from "./Table";
 import { PrismaClient } from '@/generated/prisma/client';
+import { converFieldPk } from "@/lib/models/converFieldKeys";
 
 export type CostCenterData = AllData<CCostosModel>;
 
@@ -184,12 +185,7 @@ class CostCenter extends Table<
 
         for (const item of newOrder) {
             const updated : ConverFieldModel = await this.prisma.converField.update({
-                where: { 
-                    IdTabla_IdCampo: {
-                        IdTabla: item.tableId,
-                        IdCampo: item.fieldId 
-                    }  
-                },
+                where: converFieldPk(item.tableId, item.fieldId),
                 data: { lisordencampos: item.order }
             });
             updatedRecords.push(updated);

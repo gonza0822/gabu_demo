@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ConverFieldModel } from "@/generated/prisma/models";
 import { InvestmentsData } from "@/lib/models/investments/Investments";
 import { formatApiErrorFromBody } from "@/lib/logger/apiError";
-import { ChargeRowData, getRowValueByField, normalizeChargeCellValue } from "@/lib/investments/chargesRowUtils";
+import { ChargeRowData, getRowValueByField } from "@/lib/investments/chargesRowUtils";
 import {
     createColumnHelper,
     flexRender,
@@ -16,18 +16,13 @@ import {
 } from "@tanstack/react-table";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import { formatNumericDisplayValue, isLikelyNumericField } from "@/util/number/formatNumberEs";
+import { formatManageGridCell } from "@/util/number/formatNumberEs";
 
 function formatCellDisplay(
     value: unknown,
     field: Pick<ConverFieldModel, "IdCampo" | "BrowNombre">
 ): string {
-    const raw = normalizeChargeCellValue(value, { dateOnly: true });
-    const formatted = formatNumericDisplayValue(raw, field.IdCampo, {
-        parseNumericStrings: isLikelyNumericField(field.IdCampo, field.BrowNombre ?? undefined),
-    });
-    if (formatted == null || formatted === "") return "";
-    return String(formatted);
+    return formatManageGridCell(value, field.IdCampo);
 }
 
 export default function AssetChargesGrid({
@@ -90,7 +85,6 @@ export default function AssetChargesGrid({
                 .map((field) =>
                     columnHelper.accessor((row) => getRowValueByField(row, field.IdCampo), {
                         id: field.IdCampo,
-                        size: 120,
                         header: field.BrowNombre ?? field.IdCampo,
                         cell: (info) => formatCellDisplay(info.getValue(), field),
                         sortingFn: "myCustomSorting" as SortingFnOption<ChargeRowData>,
@@ -153,7 +147,6 @@ export default function AssetChargesGrid({
                                         <th
                                             key={header.id}
                                             className="cursor-pointer whitespace-nowrap px-1.5 py-1 text-left text-[11px] font-semibold text-gabu-900"
-                                            style={{ minWidth: header.column.getSize() }}
                                             onClick={header.column.getToggleSortingHandler()}
                                         >
                                             <span className="inline-flex items-center gap-1">
@@ -172,7 +165,7 @@ export default function AssetChargesGrid({
                             {table.getRowModel().rows.map((row) => (
                                 <tr key={row.id} className="text-gabu-900">
                                     {row.getVisibleCells().map((cell) => (
-                                        <td key={cell.id} className="max-w-[10rem] truncate whitespace-nowrap px-1.5 py-1 text-[11px]">
+                                        <td key={cell.id} className="whitespace-nowrap px-1.5 py-1 text-[11px]">
                                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                         </td>
                                     ))}

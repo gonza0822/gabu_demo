@@ -29,14 +29,20 @@ export type HomeBarChartData = {
     title: string;
     labels: string[];
     data: number[];
-    /** Comparación de magnitudes muy distintas (p. ej. valor vs amort. período) */
-    yScale?: "linear" | "log";
+};
+
+export type HomeDetailRow = {
+    title: string;
+    todos: number;
+    altasEjercicio: number;
+    bajasEjercicio: number;
 };
 
 export type HomeTabData = {
     id: "monedaLocal" | "dolaresHB2" | "pesosHistoricos";
     title: string;
-    charts: HomeBarChartData[];
+    comparison: HomeBarChartData;
+    details: HomeDetailRow[];
 };
 
 export type HomeDashboardData = {
@@ -198,41 +204,46 @@ class Home {
         id: HomeTabData["id"],
         title: string
     ): HomeTabData {
+        const valoresTodos = toNumber(row.veproeactual_tippro);
+        const amafieTodos = toNumber(row.amafieactual_tippro);
+        const amefieTodos = toNumber(row.amefieactual_tippro);
         return {
             id,
             title,
-            charts: [
-                {
-                    title: "Comparación totales",
-                    labels: ["Valores", "Am. acum. inicio", "Am. ejercicio", "Am. período", "Neto resultante"],
-                    data: [
-                        toNumber(row.veproeactual_tippro),
-                        toNumber(row.amafieactual_tippro),
-                        toNumber(row.amefieactual_tippro),
-                        toNumber(row.ampefeactual_tippro),
-                        toNumber(row.veproeactual_tippro) - toNumber(row.amafieactual_tippro) - toNumber(row.amefieactual_tippro),
-                    ],
-                    yScale: "log",
-                },
+            comparison: {
+                title: "Comparación totales",
+                labels: ["Valores", "Am. acum. inicio", "Am. ejercicio", "Neto resultante"],
+                data: [
+                    valoresTodos,
+                    amafieTodos,
+                    amefieTodos,
+                    valoresTodos - amafieTodos - amefieTodos,
+                ],
+            },
+            details: [
                 {
                     title: "Valores",
-                    labels: ["Todos", "Altas ejercicio", "Bajas ejercicio"],
-                    data: [toNumber(row.veproeactual_tippro), toNumber(row.veproeactual_altas), toNumber(row.veproeactual_bajas)],
+                    todos: valoresTodos,
+                    altasEjercicio: toNumber(row.veproeactual_altas),
+                    bajasEjercicio: toNumber(row.veproeactual_bajas),
                 },
                 {
                     title: "Amort acum al inicio",
-                    labels: ["Todos", "Altas ejercicio", "Bajas ejercicio"],
-                    data: [toNumber(row.amafieactual_tippro), toNumber(row.amafieactual_altas), toNumber(row.amafieactual_bajas)],
+                    todos: amafieTodos,
+                    altasEjercicio: toNumber(row.amafieactual_altas),
+                    bajasEjercicio: toNumber(row.amafieactual_bajas),
                 },
                 {
                     title: "Amort ejercicio",
-                    labels: ["Todos", "Altas ejercicio", "Bajas ejercicio"],
-                    data: [toNumber(row.amefieactual_tippro), toNumber(row.amefieactual_altas), toNumber(row.amefieactual_bajas)],
+                    todos: amefieTodos,
+                    altasEjercicio: toNumber(row.amefieactual_altas),
+                    bajasEjercicio: toNumber(row.amefieactual_bajas),
                 },
                 {
                     title: "Amort período",
-                    labels: ["Todos", "Altas ejercicio", "Bajas ejercicio"],
-                    data: [toNumber(row.ampefeactual_tippro), toNumber(row.ampefeactual_altas), toNumber(row.ampefeactual_bajas)],
+                    todos: toNumber(row.ampefeactual_tippro),
+                    altasEjercicio: toNumber(row.ampefeactual_altas),
+                    bajasEjercicio: toNumber(row.ampefeactual_bajas),
                 },
             ],
         };

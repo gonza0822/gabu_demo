@@ -12,7 +12,7 @@ import { formatApiErrorFromBody } from "@/lib/logger/apiError";
 import Percentage from "../svg/Percentage";
 import { FixedAssets, type LibroAccordionData } from "@/lib/models/fixedAssets/FixedAsset";
 import { getLibrosFormDataCached, getLibrosFormDataFromCache } from "@/lib/cache/librosFormCache";
-import { parseStringDate, parseDateString } from "@/util/date/parseDate";
+import { parseDateString, formatValueToYyyyMmDd } from "@/util/date/parseDate";
 import { formatNumberEs } from "@/util/number/formatNumberEs";
 
 type FieldMeta = { IdCampo: string; BrowNombre: string | null };
@@ -92,15 +92,8 @@ function toComparableDate(val: unknown): number | null {
 
 function formatCellDate(value: unknown): string | number {
     if (value == null || value === '') return '';
-    if (value instanceof Date) {
-        if (isNaN(value.getTime())) return String(value);
-        return parseStringDate(value);
-    }
-    const s = String(value).trim();
-    if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return typeof value === 'number' ? value : String(value);
-    const d = new Date(s);
-    if (isNaN(d.getTime())) return typeof value === 'number' ? value : String(value);
-    return parseStringDate(d);
+    if (typeof value === 'number') return value;
+    return formatValueToYyyyMmDd(value);
 }
 
 function formatCellValue(value: unknown, columnId: string): React.ReactNode {
@@ -111,6 +104,10 @@ function formatCellValue(value: unknown, columnId: string): React.ReactNode {
         return formatNumberEs(value, 2, 2);
     }
     if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(trimmed) || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(trimmed)) {
+            return formatCellDate(value);
+        }
         const parsed = Number(value);
         if (Number.isFinite(parsed)) {
             const isIndice = columnId.toLowerCase().includes('indice');

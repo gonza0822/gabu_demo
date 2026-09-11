@@ -36,6 +36,8 @@ import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import ExcelJS from "exceljs";
 import { getColumnType, type ColumnFilterValue } from "@/components/fixedAssets/ColumnFilter";
+import { formatManageGridCell, isBusinessCodeColumn, isLikelyNumericField } from "@/util/number/formatNumberEs";
+import { estimateColumnSize, sampleColumnValues } from "@/util/table/estimateColumnSize";
 
 type RowData = Record<string, unknown>;
 
@@ -162,8 +164,10 @@ function normalizeChargeKeyPart(value: unknown): string {
 function getChargeCompositeKey(row: RowData): string {
     const nrocbt = normalizeChargeKeyPart(getRowValueByField(row, "nrocbt"));
     const idArticulo = normalizeChargeKeyPart(getChargeIdArticulo(row));
-    if (!nrocbt || !idArticulo) return "";
-    return `${nrocbt}::${idArticulo}`;
+    const period = toYyyymm(getRowValueByField(row, "feccbt"));
+    const cdobra = normalizeChargeKeyPart(getChargeCdobra(row));
+    if (!nrocbt || !idArticulo || !period || !cdobra) return "";
+    return `${nrocbt}::${idArticulo}::${period}::${cdobra}`;
 }
 
 function normalizeCellValue(value: unknown, options?: { dateOnly?: boolean }): string | number {
@@ -259,7 +263,8 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                         getRowValueByField(r, "idCargo");
                     const base = rid != null && String(rid).trim() !== "" ? String(rid).trim() : `r${i}`;
                     const compositeKey = getChargeCompositeKey(r);
-                    const isBlocked = compositeKey !== "" && blockedChargeCompositeKeys.has(compositeKey);
+                    const flagged = r.__chargeBlocked === true || r.__chargeBlocked === 1 || r.__chargeBlocked === "1";
+                    const isBlocked = Boolean(flagged) || (compositeKey !== "" && blockedChargeCompositeKeys.has(compositeKey));
                     return { ...r, __chargeRowId: `${base}::${i}`, __chargeBlocked: isBlocked };
                 })
             );
@@ -399,16 +404,29 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
         const fieldCols = fields.map((field) =>
             columnHelper.accessor((row) => getRowValueByField(row, field.IdCampo), {
                 id: field.IdCampo,
-                size: 220,
+                size: estimateColumnSize(
+                    field.BrowNombre ?? field.IdCampo,
+                    sampleColumnValues(rows, (row) => formatManageGridCell(getRowValueByField(row, field.IdCampo), field.IdCampo)),
+                    { extraPad: 36 }
+                ),
                 header: field.BrowNombre ?? field.IdCampo,
-                cell: (info) => normalizeGridValue(info.getValue()),
+                cell: (info) => {
+                    const value = info.getValue();
+                    const content = formatManageGridCell(value, field.IdCampo);
+                    const isMoney =
+                        isLikelyNumericField(field.IdCampo, field.BrowNombre ?? undefined) &&
+                        !isBusinessCodeColumn(field.IdCampo);
+                    if (isMoney) return <span className="block text-right w-full">{content}</span>;
+                    return content;
+                },
                 sortingFn: "myCustomSorting" as SortingFnOption<RowData>,
             })
         );
         if (type !== "charges") return fieldCols;
         const selectCol = columnHelper.display({
             id: "seleccionar",
-            size: 100,
+            size: 88,
+            minSize: 72,
             enableSorting: false,
             header: "Seleccionar",
             cell: ({ row }) => {
@@ -436,7 +454,7 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
             },
         });
         return [selectCol, ...fieldCols];
-    }, [fields, columnHelper, type, selectedChargeIds, toggleChargeSelect, normalizeGridValue]);
+    }, [fields, columnHelper, type, selectedChargeIds, toggleChargeSelect, normalizeGridValue, rows]);
 
     const visibleColumnIds = useMemo(() => fields.filter((f) => columnVisibility[f.IdCampo] !== false).map((f) => f.IdCampo), [fields, columnVisibility]);
 
@@ -714,7 +732,7 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
         exportRows.forEach((row) => {
             const rowData: Record<string, unknown> = {};
             visibleColumns.forEach((col) => {
-                rowData[col.id] = normalizeGridValue(row.getValue(col.id));
+                rowData[col.id] = formatManageGridCell(row.getValue(col.id), col.id);
             });
             worksheet.addRow(rowData);
         });
@@ -808,7 +826,7 @@ export default function InvestmentsGrid({ type }: { type: InvestmentType }): Rea
                                 />
                             ) : (
                                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToHorizontalAxis]}>
-                                    <table className="border-collapse divide-y-2 divide-gabu-900/25 table-fixed w-full" {...{ style: { minWidth: table.getTotalSize() } }}>
+                                    <table className="border-collapse divide-y-2 divide-gabu-900/25 table-fixed" style={{ width: table.getTotalSize(), minWidth: table.getTotalSize() }}>
                                         <thead>
                                             {table.getHeaderGroups().map((headerGroup) => (
                                                 <tr key={headerGroup.id}>

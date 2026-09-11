@@ -19,17 +19,18 @@ class Processes {
         this.prisma = getPrisma(client);
     }
 
+    /** Mes calendario del DateTime de SQL (medianoche UTC). getMonth() local en AR corre un mes atras. */
     private dateToYYYYMM(date: Date | null | undefined): string | null {
         if (!date) return null;
-        const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const y = date.getUTCFullYear();
+        const m = String(date.getUTCMonth() + 1).padStart(2, "0");
         return `${y}${m}`;
     }
 
     private dateToSQL(date: Date | null | undefined): string | null {
         if (!date) return null;
-        const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const y = date.getUTCFullYear();
+        const m = String(date.getUTCMonth() + 1).padStart(2, "0");
         return `${y}-${m}-01`;
     }
 
@@ -39,15 +40,15 @@ class Processes {
 
     private yyyymmToDate(value: string | null): Date | null {
         if (!value || !/^\d{6}$/.test(value)) return null;
-        return new Date(Number(value.slice(0, 4)), Number(value.slice(4, 6)) - 1, 1);
+        return new Date(Date.UTC(Number(value.slice(0, 4)), Number(value.slice(4, 6)) - 1, 1));
     }
 
     private addMonths(date: Date, months: number): Date {
-        return new Date(date.getFullYear(), date.getMonth() + months, 1);
+        return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
     }
 
     private monthsDiff(a: Date, b: Date): number {
-        return (a.getFullYear() - b.getFullYear()) * 12 + (a.getMonth() - b.getMonth());
+        return (a.getUTCFullYear() - b.getUTCFullYear()) * 12 + (a.getUTCMonth() - b.getUTCMonth());
     }
 
     private resolveTableNameForSP(clave: string, fallbackName: string): string {

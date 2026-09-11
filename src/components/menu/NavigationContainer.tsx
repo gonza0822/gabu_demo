@@ -18,6 +18,10 @@ export default function NavigationContainer({children} : {children : React.React
 
         if(!res.ok || (data.status && data.status === 500) || !data.sessionExists){
             router.push('/');
+            return;
+        }
+        if (typeof data.user === "string" && data.user.trim()) {
+            dispatch(authorizationActions.setUser({ user: data.user.trim() }));
         }
     }
 
