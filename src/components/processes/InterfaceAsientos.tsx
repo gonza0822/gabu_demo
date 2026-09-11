@@ -54,8 +54,13 @@ export default function InterfaceAsientos(): React.ReactElement {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ petition: "GetInterfaceRows", client }),
             });
-            const data = await res.json() as { message?: string } | InterfaceBookRow[];
-            if (!res.ok) throw new Error(formatApiErrorFromBody(data, "Error cargando asientos a interfacear"));
+            const data = await res.json() as { message?: string; requestId?: string } | InterfaceBookRow[];
+            if (!res.ok) {
+                throw new Error(formatApiErrorFromBody(
+                    Array.isArray(data) ? null : data,
+                    "Error cargando asientos a interfacear",
+                ));
+            }
             if (!Array.isArray(data)) throw new Error("Respuesta invalida del servidor");
             setRows(data);
             const nextStates: Record<string, Estado> = {};

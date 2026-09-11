@@ -607,7 +607,7 @@ class Investments {
                    AND ${this.sqlPeriodKey("c.feccbt")} = ${this.sqlLiteral(periodKey)}
                    AND ${this.sqlTextKey("c.cdobra")} = ${this.sqlTextKey(this.sqlLiteral(cdobraKey))}`
             );
-            if (inserted === 0 || inserted === BigInt(0)) {
+            if (Number(inserted) === 0) {
                 throw new Error(
                     `No se encontró el cargo en cargosmagic para relacargoactivo (nrocbt=${nrocbtKey}, IDArticulo=${idArticuloKey}, feccbt=${periodKey}, CDOBRA=${cdobraKey}).`
                 );
