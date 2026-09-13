@@ -570,7 +570,7 @@ class Reports {
             .join(", ");
 
         const rows = await this.prisma.$queryRawUnsafe<Record<string, unknown>[]>(`
-            SELECT
+            SELECT DISTINCT
                 CONCAT(
                     CAST(r.idcodigo AS NVARCHAR(50)), '-',
                     RIGHT('000' + CAST(r.idsubien AS NVARCHAR(10)), 3), '-',

@@ -124,6 +124,39 @@ class Investments {
         return `${v.slice(4, 6)}/${v.slice(0, 4)}`;
     }
 
+    /** Clave para insertar: no recorta decimales (1.1 y 1.2 tienen que seguir siendo distintos). */
+    private normalizeChargeInsertKey(value: unknown): string {
+        if (value == null) return "";
+        if (typeof value === "bigint") return String(value);
+        if (typeof value === "number" && Number.isFinite(value)) {
+            return Number.isInteger(value) ? String(value) : String(value);
+        }
+        if (value && typeof value === "object" && typeof (value as { toNumber?: () => number }).toNumber === "function") {
+            try {
+                const n = (value as { toNumber: () => number }).toNumber();
+                if (Number.isFinite(n)) return Number.isInteger(n) ? String(n) : String(n);
+            } catch {
+                /* seguir */
+            }
+        }
+        if (typeof value === "string") {
+            const text = value.trim();
+            if (!text) return "";
+            const normalized = text.includes(",") ? text.replace(/\./g, "").replace(",", ".") : text;
+            if (/^-?\d+(\.\d+)?$/.test(normalized)) {
+                const n = Number(normalized);
+                if (!Number.isFinite(n)) return text;
+                return Number.isInteger(n) ? String(n) : String(n);
+            }
+            return text;
+        }
+        const asNumber = this.toNumber(value);
+        if (asNumber !== 0 && Number.isFinite(asNumber)) {
+            return Number.isInteger(asNumber) ? String(asNumber) : String(asNumber);
+        }
+        return this.toTrimmedString(value);
+    }
+
     private sqlLiteral(value: unknown): string {
         if (value === null || value === undefined) return "NULL";
         if (typeof value === "boolean") return value ? "1" : "0";
@@ -199,7 +232,44 @@ class Investments {
         return `CONVERT(CHAR(6), ${expr}, 112)`;
     }
 
-    /** Match cargo ↔ relacargoactivo por la PK: nrocbt, IDArticulo, feccbt, CDOBRA. */
+    /** nrocbt / IDArticulo: número o texto, sin CAST a FLOAT si la clave no es numérica. */
+    private sqlChargePartMatch(column: string, key: string): string {
+        const literal = this.sqlLiteral(key);
+        if (/^-?\d+(\.\d+)?$/.test(key)) {
+            return `(${this.sqlNumericKey(column)} = ${this.sqlNumericKey(literal)}
+                      OR ${this.sqlTextKey(column)} = ${this.sqlTextKey(literal)})`;
+        }
+        return `${this.sqlTextKey(column)} = ${this.sqlTextKey(literal)}`;
+    }
+
+    /** Extra: importe / descripción de la fila elegida, para no tomar otro renglón del mismo comprobante. */
+    private sqlSelectedChargeExtras(row: Record<string, unknown>): string {
+        const extras: string[] = [];
+        const importeKey = Object.keys(row).find((k) => k.toLowerCase() === "importepesos");
+        if (importeKey) {
+            const importe = this.toNumber(row[importeKey]);
+            if (Number.isFinite(importe)) {
+                extras.push(
+                    `ABS(${this.sqlNumericKey(`c.${this.quoteSqlIdent(importeKey)}`)} - ${importe}) < 0.02`
+                );
+            }
+        }
+        const dsKey = Object.keys(row).find((k) => k.toLowerCase() === "dsarticulo");
+        if (dsKey) {
+            const ds = this.toTrimmedString(row[dsKey]);
+            if (ds) {
+                extras.push(`${this.sqlTextKey(`c.${this.quoteSqlIdent(dsKey)}`)} = ${this.sqlTextKey(this.sqlLiteral(ds))}`);
+            }
+        }
+        if (extras.length === 0) return "";
+        return extras.map((pred) => ` AND ${pred}`).join("");
+    }
+
+    private quoteSqlIdent(name: string): string {
+        return `[${name.replace(/]/g, "]]")}]`;
+    }
+
+    /** Vínculo cargo ↔ relacargoactivo por nrocbt, IDArticulo, feccbt y CDOBRA (la PK de rela es un id autonumérico). */
     private sqlChargeRelaMatch(rAlias: string, cAlias: string): string {
         return `${this.sqlNumericKey(`${rAlias}.nrocbt`)} = ${this.sqlNumericKey(`${cAlias}.nrocbt`)}
                       AND ${this.sqlNumericKey(`${rAlias}.IDArticulo`)} = ${this.sqlNumericKey(`${cAlias}.IDArticulo`)}
@@ -322,12 +392,15 @@ class Investments {
             this.prisma.$queryRawUnsafe<Record<string, unknown>[]>(
                 `SELECT c.*
                  FROM dbo.cargosmagic c
-                 INNER JOIN dbo.relacargoactivo r
-                    ON ${this.sqlChargeRelaMatch("r", "c")}
-                 WHERE r.idcodigo = ${this.sqlLiteral(idCodigo)}
-                   AND r.idsubien = ${this.sqlLiteral(idSubien)}
-                   AND r.idsubtra = ${this.sqlLiteral(idSubtra)}
-                   AND r.idsufijo = ${this.sqlLiteral(idSufijo)}
+                 WHERE EXISTS (
+                    SELECT 1
+                    FROM dbo.relacargoactivo r
+                    WHERE ${this.sqlChargeRelaMatch("r", "c")}
+                      AND r.idcodigo = ${this.sqlLiteral(idCodigo)}
+                      AND r.idsubien = ${this.sqlLiteral(idSubien)}
+                      AND r.idsubtra = ${this.sqlLiteral(idSubtra)}
+                      AND r.idsufijo = ${this.sqlLiteral(idSufijo)}
+                 )
                  ORDER BY c.cdobra ASC, c.feccbt ASC`
             ),
             this.prisma.converField.findMany({
@@ -561,16 +634,16 @@ class Investments {
         const idSubtra = "0";
         const idSufijo = "0";
         const fectra = new Date();
-        const insertedRelaKeys = new Set<string>();
+        let linkedCharges = 0;
 
         for (const row of selectedRows) {
             const r = row as Record<string, unknown>;
-            const nrocbtRaw = this.getFieldValue(r, "nrocbt");
-            const idArticuloRaw = this.getFieldValue(r, "IDArticulo", "idArticulo", "idarticulo");
-            const feccbtRaw = this.getFieldValue(r, "feccbt");
-            const cdobraRaw = this.getFieldValue(r, "cdobra", "CDOBRA", "cdObra");
-            const nrocbtKey = this.normalizeChargeKeyPart(nrocbtRaw);
-            const idArticuloKey = this.normalizeChargeKeyPart(idArticuloRaw);
+            const nrocbtRaw = this.getFieldValue(r, "nrocbt", "NroCbt", "NROCBT");
+            const idArticuloRaw = this.getFieldValue(r, "IDArticulo", "idArticulo", "idarticulo", "IdArticulo");
+            const feccbtRaw = this.getFieldValue(r, "feccbt", "FecCbt", "FECCBT");
+            const cdobraRaw = this.getFieldValue(r, "cdobra", "CDOBRA", "cdObra", "CdObra");
+            const nrocbtKey = this.normalizeChargeInsertKey(nrocbtRaw) || this.normalizeChargeKeyPart(nrocbtRaw);
+            const idArticuloKey = this.normalizeChargeInsertKey(idArticuloRaw) || this.normalizeChargeKeyPart(idArticuloRaw);
             const periodKey = this.toYyyymm(feccbtRaw);
             const cdobraKey = this.normalizeChargeKeyPart(cdobraRaw);
             if (
@@ -587,9 +660,8 @@ class Investments {
                     )}, feccbt=${String(feccbtRaw)}, CDOBRA=${String(cdobraRaw)})`
                 );
             }
-            const relaKey = `${nrocbtKey}::${idArticuloKey}::${periodKey}::${cdobraKey}`;
-            if (insertedRelaKeys.has(relaKey)) continue;
-            const inserted = await this.prisma.$executeRawUnsafe(
+            const extras = this.sqlSelectedChargeExtras(r);
+            const buildInsertSql = (extraSql: string) =>
                 `INSERT INTO dbo.relacargoactivo (nrocbt, IDArticulo, feccbt, CDOBRA, idcodigo, idsubien, idsubtra, idsufijo, fectra)
                  SELECT TOP 1
                     c.nrocbt,
@@ -602,17 +674,27 @@ class Investments {
                     ${this.sqlLiteral(idSufijo)},
                     ${this.sqlLiteral(fectra)}
                  FROM dbo.cargosmagic c
-                 WHERE ${this.sqlNumericKey("c.nrocbt")} = ${this.sqlNumericKey(this.sqlLiteral(nrocbtKey))}
-                   AND ${this.sqlNumericKey("c.IDArticulo")} = ${this.sqlNumericKey(this.sqlLiteral(idArticuloKey))}
+                 WHERE ${this.sqlChargePartMatch("c.nrocbt", nrocbtKey)}
+                   AND ${this.sqlChargePartMatch("c.IDArticulo", idArticuloKey)}
                    AND ${this.sqlPeriodKey("c.feccbt")} = ${this.sqlLiteral(periodKey)}
-                   AND ${this.sqlTextKey("c.cdobra")} = ${this.sqlTextKey(this.sqlLiteral(cdobraKey))}`
-            );
-            if (Number(inserted) === 0) {
+                   AND ${this.sqlTextKey("c.cdobra")} = ${this.sqlTextKey(this.sqlLiteral(cdobraKey))}
+                   ${extraSql}`;
+            let inserted = Number(await this.prisma.$executeRawUnsafe(buildInsertSql(extras)));
+            if (inserted === 0 && extras) {
+                inserted = Number(await this.prisma.$executeRawUnsafe(buildInsertSql("")));
+            }
+            if (inserted === 0) {
                 throw new Error(
                     `No se encontró el cargo en cargosmagic para relacargoactivo (nrocbt=${nrocbtKey}, IDArticulo=${idArticuloKey}, feccbt=${periodKey}, CDOBRA=${cdobraKey}).`
                 );
             }
-            insertedRelaKeys.add(relaKey);
+            linkedCharges += 1;
+        }
+
+        if (linkedCharges !== selectedRows.length) {
+            throw new Error(
+                `Se seleccionaron ${selectedRows.length} cargos pero solo se vincularon ${linkedCharges} en relacargoactivo.`
+            );
         }
 
         return {
@@ -622,7 +704,7 @@ class Investments {
             idSubien,
             idSubtra,
             idSufijo,
-            relatedCharges: selectedRows.length,
+            relatedCharges: linkedCharges,
         };
     }
 
