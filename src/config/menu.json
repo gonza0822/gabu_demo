@@ -139,7 +139,7 @@
             "order": 0
           },
           {
-            "submenuTitle": "Manejo de parametros",
+            "submenuTitle": "Parametros",
             "table": "ManageParametersTable",
             "path": "/fixedAssets/parameters",
             "itemIdNr": 15,
@@ -275,7 +275,7 @@
             "order": 0
           },
           {
-            "submenuTitle": "Manejo de parametros",
+            "submenuTitle": "Parametros",
             "table": "SimulationsParametersPage",
             "path": "/simulations/parameters",
             "itemIdNr": 27,

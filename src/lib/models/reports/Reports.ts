@@ -1,5 +1,6 @@
 import { getPrisma } from "@/lib/prisma/prisma";
 import type { PrismaClient } from "@/generated/prisma/client";
+import { labelFromMoextra } from "@/lib/moextra/bookLabels";
 
 export type ReportType =
     | "ANEXO"
@@ -275,13 +276,11 @@ class Reports {
     async getConfig(simulationOnly = false): Promise<ReportsConfig> {
         const [moextraRows, defaultFromParametros, cierresRows, parametrosRows] = await Promise.all([
             this.prisma.moextra.findMany({
-                where: {
-                    simula: simulationOnly ? true : false,
-                },
                 select: {
                     idMoextra: true,
                     Descripcion: true,
                     clave: true,
+                    simula: true,
                 },
                 orderBy: { idMoextra: "asc" },
             }),
@@ -354,6 +353,8 @@ class Reports {
         for (const row of moextraRows) {
             const id = (row.idMoextra ?? "").trim();
             if (!id) continue;
+            const isSim = row.simula === true;
+            if (simulationOnly ? !isSim : isSim) continue;
             const value = row.Descripcion?.trim() || id;
             const tableName = this.normalizeBookTableName((row.clave ?? "").trim() || id);
             if (!booksMap.has(id)) {
@@ -445,7 +446,7 @@ class Reports {
 
     private resolveAsientosModel(bookKey: string, bookTableName: string): {
         delegate: "asientosml" | "asientos01" | "asientos02";
-        prefixLabel: string;
+        idMoextra: string;
         idTabla: string;
     } {
         const key = bookKey.trim().toLowerCase();
@@ -456,16 +457,16 @@ class Reports {
         }
 
         if (table === "MONEDALOCAL" || key === "ml") {
-            return { delegate: "asientosml", prefixLabel: "Moneda local", idTabla: "asientosml" };
+            return { delegate: "asientosml", idMoextra: "ml", idTabla: "asientosml" };
         }
         if (table === "ME01") {
-            return { delegate: "asientos01", prefixLabel: "ME01", idTabla: "asientos01" };
+            return { delegate: "asientos01", idMoextra: "01", idTabla: "asientos01" };
         }
         if (table === "ME02") {
-            return { delegate: "asientos02", prefixLabel: "ME02", idTabla: "asientos02" };
+            return { delegate: "asientos02", idMoextra: "02", idTabla: "asientos02" };
         }
 
-        throw new Error("Libro no soportado para Asientos (use Moneda local, ME01 o ME02).");
+        throw new Error("Libro no soportado para Asientos.");
     }
 
     /** BrowNombre por campo (clave normalizada como en la grilla) desde ConverField.IdTabla. */
@@ -493,7 +494,11 @@ class Reports {
     async runAsientosReport(book: string, bookTableName: string): Promise<Record<string, unknown>[]> {
         const normalizedBook = this.normalizeBookKey(book);
         const normalizedBookTableName = this.normalizeBookTableName(bookTableName || book);
-        const { delegate, prefixLabel } = this.resolveAsientosModel(normalizedBook, normalizedBookTableName);
+        const { delegate, idMoextra } = this.resolveAsientosModel(normalizedBook, normalizedBookTableName);
+        const moextraRows = await this.prisma.moextra.findMany({
+            select: { idMoextra: true, Descripcion: true, clave: true },
+        });
+        const prefixLabel = labelFromMoextra(moextraRows, idMoextra);
 
         const orderBy = [{ idAsiento: "asc" as const }, { idcodigo: "asc" as const }];
         const rawRows =

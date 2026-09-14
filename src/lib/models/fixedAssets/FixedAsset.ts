@@ -11,6 +11,7 @@ import {
     writeFotoFile,
 } from '@/lib/uploads/assetFotoStorage';
 import { parseMmYyyyToUtcDate } from '@/util/date/parseDate';
+import { labelFromMoextra } from '@/lib/moextra/bookLabels';
 
 export type FixedAssets = {[key: string]: unknown};
 
@@ -482,8 +483,7 @@ class FixedAsset {
                 select: { IdCampo: true, BrowNombre: true },
             }),
             this.prisma.moextra.findMany({
-                where: simulationOnly ? { simula: true } : { simula: false },
-                select: { idMoextra: true, Descripcion: true, simula: true },
+                select: { idMoextra: true, Descripcion: true, clave: true, simula: true },
             }),
             this.prisma.cuentas.findMany({ where: { IdActivo: { not: '0' } }, select: { IdActivo: true, Descripcion: true } }),
             this.prisma.interna.findMany({
@@ -496,7 +496,7 @@ class FixedAsset {
 
         const moextraIds = simulationOnly
             ? ["03"]
-            : Array.from(new Set(["ml", ...moextraRows.map((r) => r.idMoextra)]));
+            : Array.from(new Set(["ml", ...moextraRows.filter((r) => r.simula === false).map((r) => r.idMoextra)]));
 
         const [parametrosRows, cotextranjeraRows] = await Promise.all([
             this.prisma.parametros.findMany({
@@ -509,7 +509,7 @@ class FixedAsset {
             }),
         ]);
 
-        // Cotización por idMoextra: fecha más cercana a hoy. Se usa para todos los idMoextra (incl. 01=Dolares HB2).
+        // Cotización por idMoextra: fecha más cercana a hoy (incluye 01 y el resto de libros de moextra).
         // Solo MONEDALOCAL e impuestos usan cotización 1 (pesos históricos) - se aplica en el frontend.
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -551,12 +551,6 @@ class FixedAsset {
             }
         }
 
-        // Build accordion name for each prefix
-        const HARDCODED_NAMES: Record<string, string> = {
-            MONEDALOCAL: 'Moneda Local',
-            impuestos: 'Impuestos',
-        };
-
         const acordeones: LibroAccordionData[] = [];
         if (simulationOnly) {
             const me03Prefix = Array.from(prefixMap.keys()).find((p) => /^ME03$/i.test(p));
@@ -567,27 +561,23 @@ class FixedAsset {
                 idCampo: campo,
                 browNombre: campo,
             }));
-            const simMo = moextraRows.find((r) => r.idMoextra === "03");
             acordeones.push({
                 prefijo: "ME03",
-                nombre: simMo?.Descripcion?.trim() || "Simulacion",
+                nombre: labelFromMoextra(moextraRows, "03"),
                 fields: templateFields.length > 0 ? templateFields : defaultFields,
             });
         } else {
             for (const [prefix, fields] of prefixMap.entries()) {
+                const meMatch = prefix.match(/^ME(\d+)$/i);
                 let nombre: string;
-                if (HARDCODED_NAMES[prefix]) {
-                    nombre = HARDCODED_NAMES[prefix];
+                if (meMatch) {
+                    nombre = labelFromMoextra(moextraRows, meMatch[1].padStart(2, "0"), prefix);
+                } else if (/^MONEDALOCAL$/i.test(prefix)) {
+                    nombre = "Moneda Local";
+                } else if (/^impuestos$/i.test(prefix)) {
+                    nombre = "Impuestos";
                 } else {
-                    // ME01 → idMoextra = '01'
-                    const meMatch = prefix.match(/^ME(\d+)$/i);
-                    if (meMatch) {
-                        const idMo = meMatch[1].padStart(2, '0');
-                        const moRow = moextraRows.find((r) => r.idMoextra === idMo);
-                        nombre = moRow?.Descripcion ?? prefix;
-                    } else {
-                        nombre = prefix;
-                    }
+                    nombre = labelFromMoextra(moextraRows, prefix, prefix);
                 }
                 acordeones.push({ prefijo: prefix, nombre, fields });
             }

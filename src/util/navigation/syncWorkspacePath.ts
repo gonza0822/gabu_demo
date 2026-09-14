@@ -27,7 +27,11 @@ if (typeof window !== "undefined") {
 }
 
 export function isStaleWorkspacePath(pathName: string): boolean {
-    return Boolean(selectedWorkspacePath && selectedWorkspacePath !== pathName);
+    if (!selectedWorkspacePath) return false;
+    // Home lives outside the workspace: a delayed pathname after leaving
+    // /home is the real destination, not a stale tab click.
+    if (isHomePath(selectedWorkspacePath)) return false;
+    return selectedWorkspacePath !== pathName;
 }
 
 /**

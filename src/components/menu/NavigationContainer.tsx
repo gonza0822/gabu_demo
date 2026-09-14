@@ -6,6 +6,7 @@ import Header from "./Header";
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { authorizationActions } from "@/store/authorizationSlice";
+import { syncWorkspacePath } from "@/util/navigation/syncWorkspacePath";
 
 export default function NavigationContainer({children} : {children : React.ReactNode}) : ReactElement {
     const router = useRouter();
@@ -43,7 +44,7 @@ export default function NavigationContainer({children} : {children : React.React
             <>
                 <aside className="h-full w-[20%] bg-gabu-900 flex flex-col min-h-0">
                     <div className="w-full flex justify-center py-3 flex-none">
-                        <img src="/assets/gabu_logo.png" alt="gabu_logo" className="brightness-200 h-[80px] w-[80px] btn-home cursor-pointer" onClick={() => router.push('/home')}/>
+                        <img src="/assets/gabu_logo.png" alt="gabu_logo" className="brightness-200 h-[80px] w-[80px] btn-home cursor-pointer" onClick={() => syncWorkspacePath('/home', router)}/>
                     </div>
                     <NavigationMenu/>
                 </aside>

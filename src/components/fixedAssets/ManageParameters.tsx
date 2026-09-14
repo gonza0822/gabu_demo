@@ -165,7 +165,9 @@ export default function ManageParameters({ simulationOnly = false }: { simulatio
             for (const row of data as { idMoextra: string; Descripcion: string | null }[]) {
                 const id = row.idMoextra ?? "";
                 const desc = row.Descripcion?.trim() || id;
+                if (!id) continue;
                 map[id] = desc;
+                map[id.toLowerCase()] = desc;
             }
             setMoextraById(map);
         }
@@ -296,7 +298,7 @@ export default function ManageParameters({ simulationOnly = false }: { simulatio
             <div className="flex flex-col w-full h-full">
                 <div className={`${shellOuter} bg-gabu-500 flex flex-1 flex-col rounded-md border border-gabu-900 overflow-hidden`}>
                     <div className="flex w-full justify-center mb-1">
-                        <p className={titleClass}>Manejo de parámetros</p>
+                        <p className={titleClass}>Parametros</p>
                     </div>
                     <div className={`bg-gabu-100 flex-1 min-h-0 border border-gabu-900 ${innerPad} overflow-auto`}>
                         <div className="min-w-0 w-full">
@@ -312,7 +314,7 @@ export default function ManageParameters({ simulationOnly = false }: { simulatio
         <div className="flex flex-col w-full h-full">
             <div className={`${shellOuter} bg-gabu-500 flex flex-1 flex-col rounded-md border border-gabu-900 overflow-hidden`}>
                 <div className="flex w-full justify-center mb-1">
-                    <p className={titleClass}>Manejo de parámetros</p>
+                    <p className={titleClass}>Parametros</p>
                 </div>
                 <div className={`bg-gabu-100 flex-1 min-h-0 min-w-0 border border-gabu-900 ${innerPad} overflow-auto`}>
                     <table className={tableClass}>
@@ -333,9 +335,9 @@ export default function ManageParameters({ simulationOnly = false }: { simulatio
                                     <td className={`${tdClass} ${colMinWidths[0]}`}>
                                         <span
                                             className="block truncate"
-                                            title={MOEXTRA_LABELS_HARDCODED[row.idmoextra?.toLowerCase()] ?? moextraById[row.idmoextra] ?? row.idmoextra}
+                                            title={MOEXTRA_LABELS_HARDCODED[row.idmoextra?.toLowerCase()] ?? moextraById[row.idmoextra] ?? moextraById[row.idmoextra?.toLowerCase() ?? ""] ?? row.idmoextra}
                                         >
-                                            {MOEXTRA_LABELS_HARDCODED[row.idmoextra?.toLowerCase()] ?? moextraById[row.idmoextra] ?? row.idmoextra}
+                                            {MOEXTRA_LABELS_HARDCODED[row.idmoextra?.toLowerCase()] ?? moextraById[row.idmoextra] ?? moextraById[row.idmoextra?.toLowerCase() ?? ""] ?? row.idmoextra}
                                         </span>
                                     </td>
                                     <td className={`${tdClass} ${colMinWidths[1]}`}>

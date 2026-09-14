@@ -11,6 +11,7 @@ import { RootState } from '@/store';
 import { useFetch } from '@/hooks/useFetch';
 import { HomeDashboardData } from '@/lib/models/Home';
 import { getHomeDashboardFromCache, setHomeDashboardInCache } from '@/lib/cache/homeDashboardCache';
+import { syncWorkspacePath } from '@/util/navigation/syncWorkspacePath';
 
 export default function Home() : ReactElement {
     const router = useRouter();
@@ -20,7 +21,7 @@ export default function Home() : ReactElement {
         const path = filtro
             ? `/fixedAssets/manage?filtro=${filtro}`
             : "/fixedAssets/manage";
-        router.push(path);
+        syncWorkspacePath(path, router);
     }
     const cachedData = useMemo(() => getHomeDashboardFromCache(client), [client]);
 
@@ -46,8 +47,8 @@ export default function Home() : ReactElement {
     const fechaProceso = data?.fechaProceso ?? "-";
     const tabs = data?.tabs ?? [
         { id: 'monedaLocal' as const, title: 'Moneda local', comparison: { title: 'Comparación totales', labels: [], data: [] }, details: [] },
-        { id: 'dolaresHB2' as const, title: 'Dolares HB2', comparison: { title: 'Comparación totales', labels: [], data: [] }, details: [] },
-        { id: 'pesosHistoricos' as const, title: 'Pesos historicos', comparison: { title: 'Comparación totales', labels: [], data: [] }, details: [] },
+        { id: 'dolaresHB2' as const, title: '', comparison: { title: 'Comparación totales', labels: [], data: [] }, details: [] },
+        { id: 'pesosHistoricos' as const, title: '', comparison: { title: 'Comparación totales', labels: [], data: [] }, details: [] },
     ];
 
     return (

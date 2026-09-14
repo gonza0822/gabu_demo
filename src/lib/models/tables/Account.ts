@@ -145,15 +145,13 @@ class Account extends Table<
         const groups = await this.prisma.grupos.findMany();
         const extraCurrencies = await this.prisma.moextra.findMany({
             where: {
-                simula: false,
-                // Gabu: Cod.ME solo monedas extra útiles (no simulación 03)
                 NOT: { idMoextra: { in: ['03', '3'] } },
             },
         });
         const baseRelations = extraCurrencies
             .map((currency) => ({
                 id: currency.idMoextra!,
-                description: currency.Descripcion
+                description: currency.Descripcion?.trim() || currency.idMoextra,
             }))
             .filter((rel) => ACCOUNT_ALLOWED_MOEXTRA.has(normalizeAccountMoextra(rel.id)));
 

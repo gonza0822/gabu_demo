@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma/prisma";
+import { labelFromMoextra, type MoextraLabelRow } from "@/lib/moextra/bookLabels";
 
 const TIPO_CPTE = "COAF";
 const USUARIO_SAF = "SAF";
@@ -34,7 +35,6 @@ type AsientoLine = {
 
 type BookDef = {
     idMoextra: string;
-    label: string;
     asientosTable: InterfaceBookRow["asientosTable"];
     isDollar: boolean;
     interfaceDescrip: string;
@@ -43,21 +43,18 @@ type BookDef = {
 const BOOKS: BookDef[] = [
     {
         idMoextra: "ml",
-        label: "Moneda local",
         asientosTable: "asientosml",
         isDollar: false,
         interfaceDescrip: "Interface S.A.F.(A)",
     },
     {
         idMoextra: "01",
-        label: "Dolares HB2",
         asientosTable: "asientos01",
         isDollar: true,
         interfaceDescrip: "Interface S.A.F(HB2)",
     },
     {
         idMoextra: "02",
-        label: "Pesos Historicos",
         asientosTable: "asientos02",
         isDollar: false,
         interfaceDescrip: "Interface S.A.F.(H)",
@@ -115,11 +112,20 @@ class InterfaceAsientos {
         this.prisma = getPrisma(client);
     }
 
+    private bookLabel(rows: MoextraLabelRow[], idMoextra: string): string {
+        return labelFromMoextra(rows, idMoextra);
+    }
+
     async getRows(): Promise<InterfaceBookRow[]> {
-        const parametros = await this.prisma.parametros.findMany({
-            where: { idmoextra: { in: BOOKS.map((b) => b.idMoextra) } },
-            select: { idmoextra: true, fecpro: true },
-        });
+        const [parametros, moextraRows] = await Promise.all([
+            this.prisma.parametros.findMany({
+                where: { idmoextra: { in: BOOKS.map((b) => b.idMoextra) } },
+                select: { idmoextra: true, fecpro: true },
+            }),
+            this.prisma.moextra.findMany({
+                select: { idMoextra: true, Descripcion: true, clave: true },
+            }),
+        ]);
         const fecproById = new Map(parametros.map((p) => [p.idmoextra.trim(), dateToYYYYMM(p.fecpro)]));
 
         const rows: InterfaceBookRow[] = [];
@@ -131,7 +137,7 @@ class InterfaceAsientos {
             const alreadySent = fecpro ? await this.isAlreadySent(book, fecpro) : false;
             rows.push({
                 idMoextra: book.idMoextra,
-                label: book.label,
+                label: this.bookLabel(moextraRows, book.idMoextra),
                 asientosTable: book.asientosTable,
                 fecpro,
                 asientos: summary.asientos,
@@ -166,13 +172,17 @@ class InterfaceAsientos {
             select: { fecpro: true },
         });
         const fecpro = dateToYYYYMM(param?.fecpro);
+        const bookLabel = labelFromMoextra(
+            await this.prisma.moextra.findMany({ select: { idMoextra: true, Descripcion: true, clave: true } }),
+            book.idMoextra
+        );
         if (!fecpro) {
-            throw new Error(`No hay fecha de proceso en parametros para ${book.label}.`);
+            throw new Error(`No hay fecha de proceso en parametros para ${bookLabel}.`);
         }
 
         const lines = await this.loadLines(book, fecpro);
         if (lines.length === 0) {
-            throw new Error(`No hay asientos para interfacear en ${book.label} (${fecpro.slice(4, 6)}/${fecpro.slice(0, 4)}).`);
+            throw new Error(`No hay asientos para interfacear en ${bookLabel} (${fecpro.slice(4, 6)}/${fecpro.slice(0, 4)}).`);
         }
 
         const tipos = await this.prisma.tblasientos.findMany({
@@ -192,7 +202,7 @@ class InterfaceAsientos {
             else groups.set(key, [line]);
         }
         if (groups.size === 0) {
-            throw new Error(`Ninguna linea de ${book.label} tiene cuenta/sociedad valida para el contable.`);
+            throw new Error(`Ninguna linea de ${bookLabel} tiene cuenta/sociedad valida para el contable.`);
         }
 
         const feccpte = lastDayOfMonth(fecpro);

@@ -83,20 +83,26 @@ class Processes {
         });
 
         const moextraById = new Map(
-            moextras.map((m) => [
-                m.idMoextra,
-                {
+            moextras.flatMap((m) => {
+                const info = {
                     descripcion: m.Descripcion?.trim() ?? "",
                     clave: m.clave?.trim() ?? "",
-                },
-            ])
+                };
+                const id = (m.idMoextra ?? "").trim();
+                return [
+                    [id, info] as const,
+                    [id.toLowerCase(), info] as const,
+                ];
+            })
         );
 
         return parametros.map((p) => {
-            const mo = moextraById.get(p.idmoextra);
+            const id = (p.idmoextra ?? "").trim();
+            const mo = moextraById.get(id) ?? moextraById.get(id.toLowerCase());
             const clave = (mo?.clave || p.idmoextra || "").trim();
+            const idLower = id.toLowerCase();
             const fallbackName =
-                p.idmoextra === "ml" ? "monedalocal" : p.idmoextra === "im" ? "impuestos" : (mo?.descripcion || p.idmoextra);
+                idLower === "ml" ? "monedalocal" : idLower === "im" ? "impuestos" : (mo?.descripcion || p.idmoextra);
             return {
                 idMoextra: p.idmoextra,
                 nombretabla: fallbackName,

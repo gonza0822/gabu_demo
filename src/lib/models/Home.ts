@@ -1,5 +1,6 @@
 import { PrismaClient } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma/prisma";
+import { labelFromMoextra } from "@/lib/moextra/bookLabels";
 
 type AggregateRow = {
     totalBienes: unknown;
@@ -251,10 +252,13 @@ class Home {
 
     async getDashboard(): Promise<HomeDashboardData> {
         const { fecini, fechaProceso } = await this.getParametrosHome();
-        const [monedaLocal, me01, me02] = await Promise.all([
+        const [monedaLocal, me01, me02, moextraRows] = await Promise.all([
             this.getTableAggregates("MONEDALOCAL", fecini),
             this.getTableAggregates("ME01", fecini),
             this.getTableAggregates("ME02", fecini),
+            this.prisma.moextra.findMany({
+                select: { idMoextra: true, Descripcion: true, clave: true },
+            }),
         ]);
 
         return {
@@ -266,8 +270,8 @@ class Home {
             fechaProceso,
             tabs: [
                 this.mapTableToTab(monedaLocal, "monedaLocal", "Moneda local"),
-                this.mapTableToTab(me01, "dolaresHB2", "Dolares HB2"),
-                this.mapTableToTab(me02, "pesosHistoricos", "Pesos historicos"),
+                this.mapTableToTab(me01, "dolaresHB2", labelFromMoextra(moextraRows, "01")),
+                this.mapTableToTab(me02, "pesosHistoricos", labelFromMoextra(moextraRows, "02")),
             ],
         };
     }
