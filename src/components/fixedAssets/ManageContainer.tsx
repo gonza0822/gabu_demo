@@ -28,7 +28,7 @@ import RemoveFilter from "../svg/RemoveFilter";
 import Select from "../ui/Select";
 import ExcelJS from "exceljs";
 import Excel from "../svg/Excel";
-import FilterModal, { FilterValues } from "./FilterModal";
+import FilterModal, { EMPTY_FILTERS, FilterValues, hasActiveFilters } from "./FilterModal";
 import BajaModal from "./BajaModal";
 import TransferModal from "./TransferModal";
 import BajaFisicaModal from "./BajaFisicaModal";
@@ -100,15 +100,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     const [isEntriesSelectOpen, setIsEntriesSelectOpen] = useState(false);
 
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-    const [filterValues, setFilterValues] = useState<FilterValues>({
-        cuenta: '',
-        centroCosto: '',
-        planta: '',
-        unidadNegocio: '',
-        ubicacion: '',
-        baja: '',
-        origen: '',
-    });
+    const [filterValues, setFilterValues] = useState<FilterValues>(EMPTY_FILTERS);
     const [showFilterAppliedAlert, setShowFilterAppliedAlert] = useState(false);
     const [showBajaSuccessAlert, setShowBajaSuccessAlert] = useState(false);
     const [showBajaErrorAlert, setShowBajaErrorAlert] = useState(false);
@@ -171,13 +163,8 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         if (filtro !== "altas-ejercicio" && filtro !== "bajas-ejercicio") return;
 
         setFilterValues({
-            cuenta: "",
-            centroCosto: "",
-            planta: "",
-            unidadNegocio: "",
-            ubicacion: "",
-            baja: filtro,
-            origen: "",
+            ...EMPTY_FILTERS,
+            baja: [filtro],
         });
         setColumnFilters({});
         setSearchTerm("");
@@ -505,26 +492,39 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     }
 
     const rowPassesModalFilters = useCallback((row: FixedAssets, filters: FilterValues): boolean => {
-        if (filters.cuenta && String(getRowVal(row, filterFieldIds.cuenta ?? 'IdActivo') ?? '') !== filters.cuenta) return false;
-        if (filters.centroCosto && String(getRowVal(row, filterFieldIds.centroCosto ?? 'IdCencos') ?? '') !== filters.centroCosto) return false;
-        if (filters.planta && String(getRowVal(row, filterFieldIds.planta ?? 'IdPlanta') ?? '') !== filters.planta) return false;
-        if (filters.unidadNegocio && String(getRowVal(row, filterFieldIds.unidadNegocio ?? 'IdUNegocio') ?? '') !== filters.unidadNegocio) return false;
-        if (filters.ubicacion && String(getRowVal(row, filterFieldIds.ubicacion ?? 'idZona') ?? getRowVal(row, 'IdZona') ?? '') !== filters.ubicacion) return false;
-        if (filters.origen && String(getRowVal(row, filterFieldIds.origen ?? 'IdOrigen') ?? '') !== filters.origen) return false;
-        if (filters.baja === 'altas-ejercicio') {
-            const dIni = fixedAssetsData?.feciniEjercicio != null ? toComparableDate(fixedAssetsData.feciniEjercicio) : null;
-            if (dIni == null) return false;
-            const dOri = toComparableDate(getFecOri(row));
-            if (dOri == null || dOri < dIni) return false;
+        const matchesSelected = (selected: string[], rowVal: unknown) => {
+            if (selected.length === 0) return true;
+            return selected.includes(String(rowVal ?? ""));
+        };
+        if (!matchesSelected(filters.cuenta, getRowVal(row, filterFieldIds.cuenta ?? "IdActivo"))) return false;
+        if (!matchesSelected(filters.centroCosto, getRowVal(row, filterFieldIds.centroCosto ?? "IdCencos"))) return false;
+        if (!matchesSelected(filters.planta, getRowVal(row, filterFieldIds.planta ?? "IdPlanta"))) return false;
+        if (!matchesSelected(filters.unidadNegocio, getRowVal(row, filterFieldIds.unidadNegocio ?? "IdUNegocio"))) return false;
+        if (!matchesSelected(
+            filters.ubicacion,
+            getRowVal(row, filterFieldIds.ubicacion ?? "idZona") ?? getRowVal(row, "IdZona"),
+        )) return false;
+        if (!matchesSelected(filters.origen, getRowVal(row, filterFieldIds.origen ?? "IdOrigen"))) return false;
+        if (filters.baja.length > 0) {
+            const matchesBajaMode = (mode: string): boolean => {
+                if (mode === "altas-ejercicio") {
+                    const dIni = fixedAssetsData?.feciniEjercicio != null ? toComparableDate(fixedAssetsData.feciniEjercicio) : null;
+                    if (dIni == null) return false;
+                    const dOri = toComparableDate(getFecOri(row));
+                    return dOri != null && dOri >= dIni;
+                }
+                if (mode === "bajas-ejercicio") {
+                    const dIni = fixedAssetsData?.feciniEjercicio != null ? toComparableDate(fixedAssetsData.feciniEjercicio) : null;
+                    if (dIni == null) return false;
+                    const dBaj = toComparableDate(getFecBaj(row));
+                    return dBaj != null && dBaj >= dIni;
+                }
+                if (mode === "con-baja") return toComparableDate(getFecBaj(row)) != null;
+                if (mode === "solo-activos") return toComparableDate(getFecBaj(row)) == null;
+                return true;
+            };
+            if (!filters.baja.some(matchesBajaMode)) return false;
         }
-        if (filters.baja === 'bajas-ejercicio') {
-            const dIni = fixedAssetsData?.feciniEjercicio != null ? toComparableDate(fixedAssetsData.feciniEjercicio) : null;
-            if (dIni == null) return false;
-            const dBaj = toComparableDate(getFecBaj(row));
-            if (dBaj == null || dBaj < dIni) return false;
-        }
-        if (filters.baja === 'con-baja' && toComparableDate(getFecBaj(row)) == null) return false;
-        if (filters.baja === 'solo-activos' && toComparableDate(getFecBaj(row)) != null) return false;
         return true;
     }, [filterFieldIds, fixedAssetsData?.feciniEjercicio]);
 
@@ -532,7 +532,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         const sourceData = fixedAssetsData?.fixedAssets ?? [];
         if (sourceData.length === 0) return [];
         const fields = fixedAssetsData?.fieldsManage ?? [];
-        const hasModalFilters = Object.values(filterValues).some((v) => v !== '');
+        const hasModalFilters = hasActiveFilters(filterValues);
         const hasColumnFilters = Object.keys(columnFilters).length > 0;
         const hasSearch = debouncedSearchTerm.length > 0;
 
@@ -613,15 +613,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     });
 
     function removeAllFilters() {
-        setFilterValues({
-            cuenta: '',
-            centroCosto: '',
-            planta: '',
-            unidadNegocio: '',
-            ubicacion: '',
-            baja: '',
-            origen: '',
-        });
+        setFilterValues(EMPTY_FILTERS);
         setColumnFilters({});
         setColumnFilterColumnId(null);
         setClosingColumnId(null);
@@ -923,7 +915,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                 onApply={(filters) => {
                     setFilterValues(filters);
                     setIsFilterModalOpen(false);
-                    const hasFilters = Object.values(filters).some((v) => v !== '');
+                    const hasFilters = hasActiveFilters(filters);
                     if (hasFilters) {
                         if (filterAppliedTimeoutRef.current) clearTimeout(filterAppliedTimeoutRef.current);
                         setShowFilterAppliedAlert(true);

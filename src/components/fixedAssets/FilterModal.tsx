@@ -7,14 +7,28 @@ import Cross from "../svg/Cross";
 import Button from "../ui/Button";
 
 export type FilterValues = {
-    cuenta: string;
-    centroCosto: string;
-    planta: string;
-    unidadNegocio: string;
-    ubicacion: string;
-    baja: string;
-    origen: string;
+    cuenta: string[];
+    centroCosto: string[];
+    planta: string[];
+    unidadNegocio: string[];
+    ubicacion: string[];
+    baja: string[];
+    origen: string[];
 };
+
+export const EMPTY_FILTERS: FilterValues = {
+    cuenta: [],
+    centroCosto: [],
+    planta: [],
+    unidadNegocio: [],
+    ubicacion: [],
+    baja: [],
+    origen: [],
+};
+
+export function hasActiveFilters(filters: FilterValues): boolean {
+    return Object.values(filters).some((keys) => keys.length > 0);
+}
 
 const FILTER_LABELS: { key: keyof FilterValues; label: string }[] = [
     { key: 'cuenta', label: 'Cuenta' },
@@ -73,15 +87,7 @@ export default function FilterModal({
     onApply: (filters: FilterValues) => void;
     initialFilters?: Partial<FilterValues>;
 }) {
-    const [filters, setFilters] = useState<FilterValues>({
-        cuenta: '',
-        centroCosto: '',
-        planta: '',
-        unidadNegocio: '',
-        ubicacion: '',
-        baja: '',
-        origen: '',
-    });
+    const [filters, setFilters] = useState<FilterValues>(EMPTY_FILTERS);
 
     const [options, setOptions] = useState<FilterOptionsState>({
         cuenta: [{ key: '', value: 'Todas' }],
@@ -132,17 +138,25 @@ export default function FilterModal({
     }, [isOpen, client, fetchOptions]);
 
     useEffect(() => {
-        if (initialFilters) setFilters((prev) => ({ ...prev, ...initialFilters }));
-    }, [initialFilters]);
+        if (!isOpen) return;
+        setFilters({
+            ...EMPTY_FILTERS,
+            ...initialFilters,
+        });
+    }, [isOpen, initialFilters]);
 
-    const handleSelect = (filterKey: keyof FilterValues) => (e: React.MouseEvent<HTMLLIElement>, ref: React.RefObject<HTMLSpanElement | null>) => {
-        const key = (e.currentTarget.dataset.key ?? '').trim();
-        const value = e.currentTarget.textContent ?? '';
-        if (ref.current) {
-            ref.current.textContent = value;
-            ref.current.dataset.key = key;
-        }
-        setFilters((prev) => ({ ...prev, [filterKey]: key }));
+    const handleSelect = (filterKey: keyof FilterValues) => (e: React.MouseEvent<HTMLLIElement>) => {
+        const key = (e.currentTarget.dataset.key ?? "").trim();
+        setFilters((prev) => {
+            if (key === "") {
+                return { ...prev, [filterKey]: [] };
+            }
+            const current = prev[filterKey];
+            const next = current.includes(key)
+                ? current.filter((item) => item !== key)
+                : [...current, key];
+            return { ...prev, [filterKey]: next };
+        });
     };
 
     const handleApply = () => {
@@ -153,12 +167,6 @@ export default function FilterModal({
     const getOptionsFor = (key: keyof FilterValues) => {
         if (key === 'baja') return BAJA_OPTIONS;
         return options[key] ?? [{ key: '', value: 'Todas' }];
-    };
-
-    const getDefaultValueFor = (key: keyof FilterValues) => {
-        const v = filters[key];
-        const opts = getOptionsFor(key);
-        return opts.some((o) => o.key === v) ? v : opts[0]?.key ?? '';
     };
 
     return (
@@ -185,8 +193,9 @@ export default function FilterModal({
                         hasLabel={true}
                         isLogin={false}
                         variant="filterModal"
+                        multiple
                         options={getOptionsFor(key)}
-                        defaultValue={getDefaultValueFor(key)}
+                        selectedKeys={filters[key]}
                         chooseOptionHandler={handleSelect(key)}
                     />
                 ))}

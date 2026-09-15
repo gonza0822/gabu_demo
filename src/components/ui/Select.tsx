@@ -5,13 +5,18 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import SelectPointerLogin from "../svg/SelectPointerLogin";
 import Arrow from "../svg/Arrow";
+import Checked from "../svg/Checked";
 
 type FixedDropdownRect = { top: number; left: number; width: number };
+
+const EMPTY_SELECTED_KEYS: string[] = [];
 
 export default function Select({
   label,
   options,
   defaultValue,
+  multiple = false,
+  selectedKeys = EMPTY_SELECTED_KEYS,
   isLogin,
   hasLabel = true,
   chooseOptionHandler,
@@ -30,6 +35,9 @@ export default function Select({
   label: string,
   options: {key: string, value: string}[],
   defaultValue?: string,
+  /** When set, options toggle without closing the list (filter modal). */
+  multiple?: boolean,
+  selectedKeys?: string[],
   hasLabel?: boolean,
   isLogin: boolean,
   chooseOptionHandler: (e: React.MouseEvent<HTMLLIElement>, ref: React.RefObject<HTMLSpanElement | null>) => void,
@@ -153,30 +161,40 @@ export default function Select({
     }, [useFixedPortalList, isOptionListVisible, syncFixedDropdownRect]);
 
     useEffect(() => {
-        function handleClickOutside(e: MouseEvent) {
+        function handlePointerDownOutside(e: PointerEvent) {
             const t = e.target as Node;
             if (selectRef.current?.contains(t)) return;
             if (useFixedPortalList && portalListRef.current?.contains(t)) return;
             setIsOptionListVisible(false);
         }
 
-        document.addEventListener("click", handleClickOutside);
+        // pointerdown: before React re-renders the option (unchecking removes the icon
+        // that was the click target, so a 'click' listener would treat it as outside).
+        document.addEventListener("pointerdown", handlePointerDownOutside);
 
         return () => {
-            document.removeEventListener("click", handleClickOutside);
+            document.removeEventListener("pointerdown", handlePointerDownOutside);
         };
     }, [useFixedPortalList]);
 
     const defaultSelectedOption =
         options.find((option) => option.key === defaultValue)
         ?? options.find((option) => option.value === defaultValue);
+    const emptyOptionLabel = options.find((option) => option.key === "")?.value || "";
+    const selectedLabels = selectedKeys
+        .map((key) => options.find((option) => option.key === key)?.value)
+        .filter((value): value is string => Boolean(value));
+    const displayValue = multiple
+        ? (selectedLabels.length === 0 ? emptyOptionLabel : selectedLabels.join(", "))
+        : (defaultSelectedOption?.value || "");
 
     useEffect(() => {
-        if(valueSelectedRef.current){
-            valueSelectedRef.current!.textContent = defaultSelectedOption?.value || '';
-            valueSelectedRef.current!.dataset.key = defaultSelectedOption?.key || '';
-        }
-    }, [defaultValue, defaultSelectedOption?.key, defaultSelectedOption?.value]);
+        if (!valueSelectedRef.current) return;
+        valueSelectedRef.current.textContent = displayValue;
+        valueSelectedRef.current.dataset.key = multiple
+            ? selectedKeys.join(",")
+            : (defaultSelectedOption?.key || "");
+    }, [displayValue, multiple, selectedKeys, defaultSelectedOption?.key]);
 
     useEffect(() => {
         setLongestOption(options.reduce((a, b) => a.value.length > b.value.length ? a : b, {value: ""}));
@@ -206,6 +224,41 @@ export default function Select({
         ? (isOptionListVisible ? "6px 6px 0 0" : "6px")
         : (isOptionListVisible ? "6px 6px 0px 0px" : "6px");
 
+    function isOptionSelected(optionKey: string): boolean {
+        if (multiple) {
+            if (optionKey === "") return selectedKeys.length === 0;
+            return selectedKeys.includes(optionKey);
+        }
+        return optionKey === (defaultSelectedOption?.key ?? "");
+    }
+
+    function handleOptionClick(e: React.MouseEvent<HTMLLIElement>, optionKey: string) {
+        e.stopPropagation();
+        chooseOptionHandler(e, valueSelectedRef);
+        if (!multiple || optionKey === "") {
+            setIsOptionListVisible(false);
+        }
+    }
+
+    const optionItems = options.map((option) => {
+        const selected = isOptionSelected(option.key);
+        return (
+            <li
+                key={option.key || "__empty"}
+                className={`${optionStyle} ${multiple ? "flex items-center gap-2" : ""} ${multiple && selected ? "bg-gabu-300" : ""}`.trim()}
+                onClick={(e) => handleOptionClick(e, option.key)}
+                data-key={option.key}
+            >
+                {multiple ? (
+                    <span className={`pointer-events-none flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border border-gabu-700 ${selected ? "bg-gabu-700" : "bg-transparent"}`}>
+                        {selected ? <Checked style="h-3 w-3 pointer-events-none" /> : null}
+                    </span>
+                ) : null}
+                {option.value}
+            </li>
+        );
+    });
+
     return (
         <div
             className={`flex cursor-pointer flex-col ${hasLabel ? "gap-1" : isEntriesPerPage ? "h-full min-h-0 gap-0" : isTableCell ? "gap-0" : "gap-1"}`}
@@ -220,7 +273,7 @@ export default function Select({
                     animate={{ borderRadius }}
                     transition={{ borderRadius: { duration: 0.1, ease: "easeInOut" } }}
                 >
-                    <span className={valueSpanClass} id="select-value" ref={valueSelectedRef} data-key={defaultSelectedOption?.key || ''} data-cellid={cellId}>{defaultSelectedOption?.value || ''}</span>
+                    <span className={valueSpanClass} id="select-value" ref={valueSelectedRef} title={displayValue} data-key={multiple ? selectedKeys.join(",") : (defaultSelectedOption?.key || '')} data-cellid={cellId}>{displayValue}</span>
                     {isLogin ? (
                         <SelectPointerLogin active={isOptionListVisible} />
                     ) : (
@@ -248,19 +301,7 @@ export default function Select({
                         transition={{ duration: 0.1, ease: "easeInOut" }}
                     >
                         <ul className={optionListStyle} ref={optionListRef}>
-                            {options.map((option) => (
-                                <li
-                                    key={option.key}
-                                    className={optionStyle}
-                                    onClick={(e) => {
-                                        chooseOptionHandler(e, valueSelectedRef);
-                                        setIsOptionListVisible(false);
-                                    }}
-                                    data-key={option.key}
-                                >
-                                    {option.value}
-                                </li>
-                            ))}
+                            {optionItems}
                         </ul>
                     </motion.div>
                 ) : null}
@@ -294,19 +335,7 @@ export default function Select({
                                     ref={portalListRef}
                                     className={`${portalListClass} max-h-60 overflow-y-auto`}
                                 >
-                                    {options.map((option) => (
-                                        <li
-                                            key={option.key}
-                                            className={optionStyle}
-                                            onClick={(e) => {
-                                                chooseOptionHandler(e, valueSelectedRef);
-                                                setIsOptionListVisible(false);
-                                            }}
-                                            data-key={option.key}
-                                        >
-                                            {option.value}
-                                        </li>
-                                    ))}
+                                    {optionItems}
                                 </ul>
                             </motion.div>
                         ) : null}
