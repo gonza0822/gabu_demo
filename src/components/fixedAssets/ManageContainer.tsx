@@ -101,6 +101,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
 
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
     const [filterValues, setFilterValues] = useState<FilterValues>(EMPTY_FILTERS);
+    const [appliedSavedFilterId, setAppliedSavedFilterId] = useState("");
     const [showFilterAppliedAlert, setShowFilterAppliedAlert] = useState(false);
     const [showBajaSuccessAlert, setShowBajaSuccessAlert] = useState(false);
     const [showBajaErrorAlert, setShowBajaErrorAlert] = useState(false);
@@ -166,6 +167,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
             ...EMPTY_FILTERS,
             baja: [filtro],
         });
+        setAppliedSavedFilterId("");
         setColumnFilters({});
         setSearchTerm("");
         setDebouncedSearchTerm("");
@@ -614,6 +616,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
 
     function removeAllFilters() {
         setFilterValues(EMPTY_FILTERS);
+        setAppliedSavedFilterId("");
         setColumnFilters({});
         setColumnFilterColumnId(null);
         setClosingColumnId(null);
@@ -912,8 +915,9 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                 isOpen={isFilterModalOpen}
                 onClose={() => setIsFilterModalOpen(false)}
                 client={client}
-                onApply={(filters) => {
+                onApply={(filters, savedFilterId) => {
                     setFilterValues(filters);
+                    setAppliedSavedFilterId(savedFilterId);
                     setIsFilterModalOpen(false);
                     const hasFilters = hasActiveFilters(filters);
                     if (hasFilters) {
@@ -926,6 +930,8 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                     }
                 }}
                 initialFilters={filterValues}
+                initialSavedFilterId={appliedSavedFilterId}
+                allowSavedFilters={!isSimulationMode}
             />
             <AssetActions
                 isOpen={!!actionsOpenRowId}

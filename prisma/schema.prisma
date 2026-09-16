@@ -4677,3 +4677,15 @@ model Zonas {
   descripcion String? @db.NVarChar(60)
   CAMPO2      String? @db.NChar(30)
 }
+
+model filtrosBienesUso {
+  id               Int       @id(map: "PK_filtrosBienesUso") @default(autoincrement())
+  idUsuario        String    @db.NVarChar(15)
+  nombre           String    @db.NVarChar(80)
+  filtrosJson      String    @db.NVarChar(Max)
+  activo           Boolean
+  fecAlta          DateTime  @db.DateTime
+  fecModi          DateTime? @db.DateTime
+  idUsuarioAlta    String    @db.NVarChar(15)
+  idUsuarioModi    String?   @db.NVarChar(15)
+}
