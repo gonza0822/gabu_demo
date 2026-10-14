@@ -28,7 +28,10 @@ import RemoveFilter from "../svg/RemoveFilter";
 import Select from "../ui/Select";
 import ExcelJS from "exceljs";
 import Excel from "../svg/Excel";
+import Checked from "../svg/Checked";
+import Cross from "../svg/Cross";
 import FilterModal, { EMPTY_FILTERS, FilterValues, hasActiveFilters } from "./FilterModal";
+import { printAssetQrStickers } from "@/lib/fixedAssets/printAssetQrs";
 import BajaModal from "./BajaModal";
 import TransferModal from "./TransferModal";
 import BajaFisicaModal from "./BajaFisicaModal";
@@ -130,6 +133,11 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     const [showExcelErrorAlert, setShowExcelErrorAlert] = useState(false);
     const [excelErrorMessage, setExcelErrorMessage] = useState("Ocurrió un error al exportar a Excel");
     const excelAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [selectedBienIds, setSelectedBienIds] = useState<Set<string>>(() => new Set());
+    const [isPrintingQr, setIsPrintingQr] = useState(false);
+    const [showQrPrintErrorAlert, setShowQrPrintErrorAlert] = useState(false);
+    const [qrPrintErrorMessage, setQrPrintErrorMessage] = useState("Ocurrió un error al imprimir los QR");
+    const qrPrintAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [isBajaModalOpen, setIsBajaModalOpen] = useState(false);
     const [bajaModalAssets, setBajaModalAssets] = useState<FixedAssets[]>([]);
@@ -188,10 +196,21 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         const fields = fixedAssetsData?.fieldsManage ?? [];
         if (fields.length > 0) {
             const sorted = [...fields].sort((a, b) => (a.lisordencampos ?? 0) - (b.lisordencampos ?? 0));
-            setColumnOrder(prev => (prev.length === 0 ? [...sorted.map(f => f.IdCampo), 'manage'] : prev));
-            setColumnVisibility(Object.fromEntries([...sorted.map(f => [f.IdCampo, f.listShow]), ['manage', true]]));
+            const fieldIds = sorted.map((f) => f.IdCampo);
+            setColumnOrder((prev) => {
+                const base = prev.length === 0 ? [...fieldIds, "manage"] : prev;
+                const withoutSelect = base.filter((id) => id !== "seleccionar");
+                return isSimulationMode ? withoutSelect : ["seleccionar", ...withoutSelect];
+            });
+            setColumnVisibility(
+                Object.fromEntries([
+                    ...sorted.map((f) => [f.IdCampo, f.listShow]),
+                    ["manage", true],
+                    ...(!isSimulationMode ? [["seleccionar", true] as const] : []),
+                ])
+            );
         }
-    }, [fixedAssetsData?.fieldsManage]);
+    }, [fixedAssetsData?.fieldsManage, isSimulationMode]);
 
     useEffect(() => {
         return () => {
@@ -200,6 +219,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
             if (bajaAlertTimeoutRef.current) clearTimeout(bajaAlertTimeoutRef.current);
             if (transferAlertTimeoutRef.current) clearTimeout(transferAlertTimeoutRef.current);
             if (excelAlertTimeoutRef.current) clearTimeout(excelAlertTimeoutRef.current);
+            if (qrPrintAlertTimeoutRef.current) clearTimeout(qrPrintAlertTimeoutRef.current);
         };
     }, []);
 
@@ -318,60 +338,6 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         return undefined;
     }
 
-    const columns = useMemo(() => [
-        ...(fixedAssetsData?.fieldsManage ?? []).map(field => columnHelper.accessor((row : FixedAssets) => getFieldValue(row, field.IdCampo), {
-            id: field.IdCampo,
-            size: estimateColumnSize(
-                field.BrowNombre ?? field.IdCampo,
-                sampleColumnValues(fixedAssetsData?.fixedAssets ?? [], (row) => formatCellValue(getFieldValue(row, field.IdCampo), field.IdCampo)),
-                { extraPad: 36 }
-            ),
-            header: field.BrowNombre ?? '',
-            cell: info => {
-                const value = info.getValue();
-                const content = formatCellValue(value, info.column.id);
-                const type = getColumnType(info.column.id, value);
-                if (type === 'number') return <span className="block text-right w-full">{content}</span>;
-                return content;
-            },
-            sortingFn: "myCustomSorting" as SortingFnOption<FixedAssets>,
-        })),
-        columnHelper.display({
-            id: 'manage',
-            header: 'Manage',
-            size: 80,
-            cell: ({ row }) => (
-                <div
-                    data-asset-actions-trigger
-                    role="button"
-                    tabIndex={0}
-                    className="px-4 flex justify-center cursor-pointer"
-                    title="Acciones"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        const rowId = String(row.id);
-                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        if (actionsOpenRowIdRef.current === rowId) {
-                            setActionsOpenRowId(null);
-                            setActionsTriggerRect(null);
-                            return;
-                        }
-                        setActionsOpenRowId(rowId);
-                        setActionsTriggerRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
-                    }}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            (e.currentTarget as HTMLElement).click();
-                        }
-                    }}
-                >
-                    <Actions style="h-[20px] w-[20px] xl:h-[24px] xl:w-[24px] rounded-full hover:bg-gabu-300 transition-colors durarion-100" />
-                </div>
-            ),
-        }),
-    ], [fixedAssetsData?.fieldsManage, fixedAssetsData?.fixedAssets, columnHelper, isSimulationMode]);
-
     const visibleColumnIds = useMemo(() => {
         const fields = fixedAssetsData?.fieldsManage ?? [];
         return fields.filter(f => columnVisibility[f.IdCampo] !== false).map(f => f.IdCampo);
@@ -425,6 +391,24 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         if (r[key.toUpperCase()] !== undefined) return r[key.toUpperCase()];
         const matchedKey = Object.keys(r).find((k) => k.toLowerCase() === lower);
         return matchedKey != null ? r[matchedKey] : undefined;
+    }
+
+    function getBienIdFromAsset(row: FixedAssets): string | null {
+        const idParts = ["idCodigo", "idSubien", "idSubtra", "idSufijo"].map((key) => {
+            let v = getRowVal(row, key);
+            if (v == null || v === "") v = getRowVal(row, `cabecera.${key}`);
+            if (v == null || v === "") v = getRowVal(row, `cabesimu.${key}`);
+            return String(v ?? "");
+        });
+        const id = idParts.join("-");
+        if (!id || id === "---") return null;
+        return id;
+    }
+
+    function getBienDescripcion(row: FixedAssets): string {
+        return String(
+            getRowVal(row, "descripcion") ?? getRowVal(row, "cabecera.descripcion") ?? ""
+        ).trim();
     }
 
     /** Valor de FecBaj: actifijo suele usar me01.*; simulación exclusivamente ME03. */
@@ -549,6 +533,157 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         });
     }, [fixedAssetsData?.fixedAssets, fixedAssetsData?.fieldsManage, filterValues, columnFilters, debouncedSearchTerm, rowPassesModalFilters]);
 
+    const filteredBienIds = useMemo(() => {
+        const ids: string[] = [];
+        for (const row of filteredData) {
+            const id = getBienIdFromAsset(row);
+            if (id) ids.push(id);
+        }
+        return ids;
+    }, [filteredData]);
+
+    const allFilteredSelected =
+        !isSimulationMode &&
+        filteredBienIds.length > 0 &&
+        filteredBienIds.every((id) => selectedBienIds.has(id));
+    const someFilteredSelected =
+        !isSimulationMode && selectedBienIds.size > 0 && !allFilteredSelected;
+
+    function toggleBienSelected(bienId: string) {
+        setSelectedBienIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(bienId)) next.delete(bienId);
+            else next.add(bienId);
+            return next;
+        });
+    }
+
+    function clearBienSelection() {
+        setSelectedBienIds(new Set());
+    }
+
+    function toggleAllFilteredSelected() {
+        setSelectedBienIds((prev) => {
+            if (prev.size > 0) return new Set();
+            const next = new Set<string>();
+            filteredBienIds.forEach((id) => next.add(id));
+            return next;
+        });
+    }
+
+    const columns = useMemo(() => {
+        const dataCols = [
+            ...(fixedAssetsData?.fieldsManage ?? []).map((field) =>
+                columnHelper.accessor((row: FixedAssets) => getFieldValue(row, field.IdCampo), {
+                    id: field.IdCampo,
+                    size: estimateColumnSize(
+                        field.BrowNombre ?? field.IdCampo,
+                        sampleColumnValues(fixedAssetsData?.fixedAssets ?? [], (row) =>
+                            formatCellValue(getFieldValue(row, field.IdCampo), field.IdCampo)
+                        ),
+                        { extraPad: 36 }
+                    ),
+                    header: field.BrowNombre ?? "",
+                    cell: (info) => {
+                        const value = info.getValue();
+                        const content = formatCellValue(value, info.column.id);
+                        const type = getColumnType(info.column.id, value);
+                        if (type === "number") return <span className="block text-right w-full">{content}</span>;
+                        return content;
+                    },
+                    sortingFn: "myCustomSorting" as SortingFnOption<FixedAssets>,
+                })
+            ),
+            columnHelper.display({
+                id: "manage",
+                header: "Manage",
+                size: 80,
+                cell: ({ row }) => (
+                    <div
+                        data-asset-actions-trigger
+                        role="button"
+                        tabIndex={0}
+                        className="px-4 flex justify-center cursor-pointer"
+                        title="Acciones"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const rowId = String(row.id);
+                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                            if (actionsOpenRowIdRef.current === rowId) {
+                                setActionsOpenRowId(null);
+                                setActionsTriggerRect(null);
+                                return;
+                            }
+                            setActionsOpenRowId(rowId);
+                            setActionsTriggerRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                (e.currentTarget as HTMLElement).click();
+                            }
+                        }}
+                    >
+                        <Actions style="h-[20px] w-[20px] xl:h-[24px] xl:w-[24px] rounded-full hover:bg-gabu-300 transition-colors durarion-100" />
+                    </div>
+                ),
+            }),
+        ];
+        if (isSimulationMode) return dataCols;
+        const selectCol = columnHelper.display({
+            id: "seleccionar",
+            header: () => (
+                <div className="relative flex w-full min-w-[40px] items-center justify-center py-1">
+                    <input
+                        type="checkbox"
+                        aria-label={selectedBienIds.size > 0 ? "Quitar la selección" : "Seleccionar todos los bienes de la lista"}
+                        title={selectedBienIds.size > 0 ? "Quitar la selección" : "Seleccionar todos los bienes de la lista"}
+                        className="peer h-4 w-4 min-h-[16px] min-w-[16px] appearance-none rounded-md border border-gabu-900 bg-gabu-300 checked:bg-gabu-900 indeterminate:bg-gabu-900 focus:outline-none cursor-pointer"
+                        checked={allFilteredSelected}
+                        ref={(el) => {
+                            if (el) el.indeterminate = someFilteredSelected;
+                        }}
+                        onChange={toggleAllFilteredSelected}
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                    <Checked style="pointer-events-none absolute left-1/2 top-1/2 h-4 w-4 min-h-[16px] min-w-[16px] -translate-x-1/2 -translate-y-1/2 text-gabu-100 opacity-0 transition-opacity peer-checked:opacity-100 peer-indeterminate:opacity-0" />
+                    <span className="pointer-events-none absolute left-1/2 top-1/2 h-[2px] w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm bg-gabu-100 opacity-0 peer-indeterminate:opacity-100" />
+                </div>
+            ),
+            size: 56,
+            minSize: 48,
+            enableSorting: false,
+            cell: ({ row }) => {
+                const bienId = getBienIdFromAsset(row.original);
+                if (!bienId) return null;
+                return (
+                    <div className="relative flex w-full min-w-[40px] items-center justify-center py-1">
+                        <input
+                            type="checkbox"
+                            aria-label={`Seleccionar bien ${bienId}`}
+                            title="Seleccionar fila"
+                            className="peer h-4 w-4 min-h-[16px] min-w-[16px] appearance-none rounded-md border border-gabu-900 bg-gabu-300 checked:bg-gabu-900 focus:outline-none cursor-pointer"
+                            checked={selectedBienIds.has(bienId)}
+                            onChange={() => toggleBienSelected(bienId)}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                        <Checked style="pointer-events-none absolute left-1/2 top-1/2 h-4 w-4 min-h-[16px] min-w-[16px] -translate-x-1/2 -translate-y-1/2 text-gabu-100 opacity-0 transition-opacity peer-checked:opacity-100" />
+                    </div>
+                );
+            },
+        });
+        return [selectCol, ...dataCols];
+    }, [
+        fixedAssetsData?.fieldsManage,
+        fixedAssetsData?.fixedAssets,
+        columnHelper,
+        isSimulationMode,
+        selectedBienIds,
+        allFilteredSelected,
+        someFilteredSelected,
+        filteredBienIds,
+    ]);
+
     const assetsByIdCodigo = useMemo(() => {
         const grouped = new Map<string, FixedAssets[]>();
         const allAssets = fixedAssetsData?.fixedAssets ?? [];
@@ -630,7 +765,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     async function changeOrder(newOrder: string[]) {
         const tableId = fixedAssetsData?.fieldsManage?.[0]?.IdTabla ?? 'actifijo';
         const updatedOrder = newOrder
-            .filter((columnId) => columnId !== 'manage')
+            .filter((columnId) => columnId !== "manage" && columnId !== "seleccionar")
             .map((columnId, index) => ({
                 tableId,
                 fieldId: columnId,
@@ -652,9 +787,13 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     async function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
         if (active && over && active.id !== over.id) {
+            if (active.id === "seleccionar" || over.id === "seleccionar") return;
             const oldIndex = columnOrder.indexOf(active.id as string);
             const newIndex = columnOrder.indexOf(over.id as string);
-            const newOrder = arrayMove(columnOrder, oldIndex, newIndex);
+            let newOrder = arrayMove(columnOrder, oldIndex, newIndex);
+            if (!isSimulationMode) {
+                newOrder = ["seleccionar", ...newOrder.filter((id) => id !== "seleccionar")];
+            }
 
             setColumnOrder(newOrder);
             await changeOrder(newOrder);
@@ -763,7 +902,9 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Data');
 
-            const visibleColumns = table.getVisibleFlatColumns().filter((col) => col.id !== 'get');
+            const visibleColumns = table.getVisibleFlatColumns().filter(
+                (col) => col.id !== "get" && col.id !== "seleccionar" && col.id !== "manage"
+            );
 
             worksheet.columns = visibleColumns.map((col) => ({
                 header: String(col.columnDef.header ?? col.id),
@@ -819,6 +960,37 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
             setIsExportingExcel(false);
         }
     }
+
+    async function printSelectedQrs() {
+        if (isSimulationMode || isPrintingQr || selectedBienIds.size === 0) return;
+        setIsPrintingQr(true);
+        setShowQrPrintErrorAlert(false);
+        try {
+            const byId = new Map<string, FixedAssets>();
+            for (const row of fixedAssetsData?.fixedAssets ?? []) {
+                const id = getBienIdFromAsset(row);
+                if (id && selectedBienIds.has(id) && !byId.has(id)) byId.set(id, row);
+            }
+            const items = [...selectedBienIds].flatMap((id) => {
+                const row = byId.get(id);
+                if (!row) return [];
+                return [{ bienId: id, descripcion: getBienDescripcion(row) }];
+            });
+            await printAssetQrStickers(items);
+        } catch (err) {
+            setQrPrintErrorMessage(err instanceof Error ? err.message : "Ocurrió un error al imprimir los QR");
+            setShowQrPrintErrorAlert(true);
+            if (qrPrintAlertTimeoutRef.current) clearTimeout(qrPrintAlertTimeoutRef.current);
+            qrPrintAlertTimeoutRef.current = setTimeout(() => {
+                qrPrintAlertTimeoutRef.current = null;
+                setShowQrPrintErrorAlert(false);
+            }, 5000);
+        } finally {
+            setIsPrintingQr(false);
+        }
+    }
+
+    const selectedQrCountLabel = new Intl.NumberFormat("es-AR").format(selectedBienIds.size);
 
     return (
         <>
@@ -946,14 +1118,8 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                     const row = table.getPrePaginationRowModel().rows.find((r) => String(r.id) === String(rowId));
                     if (!row) return;
                     const rowData = row.original;
-                    const idParts = ['idCodigo', 'idSubien', 'idSubtra', 'idSufijo'].map((key) => {
-                        let v = getRowVal(rowData, key);
-                        if (v == null || v === '') v = getRowVal(rowData, `cabecera.${key}`);
-                        if (v == null || v === '') v = getRowVal(rowData, `cabesimu.${key}`);
-                        return String(v ?? '');
-                    });
-                    const id = idParts.join('-');
-                    if (!id || id === '---') return;
+                    const id = getBienIdFromAsset(rowData);
+                    if (!id) return;
                     if (isSimulationMode && actionId === 'consultar') {
                         setSelectedBienFromGrid(fixedAssetsContextKey, id, rowData as Record<string, unknown>);
                         const tableName = `AbmSimulationFixedAssetConsult-${id}`;
@@ -1096,6 +1262,43 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                     >
                         <Excel style="!h-3.5 !w-3.5 xl:!h-4 xl:!w-4 shrink-0 fill-current text-gabu-100" onClick={() => {}}/>
                     </div>
+                    {!isSimulationMode && (
+                    <div
+                        className={`btn btn-sm bg-gabu-700 rounded-md py-0.5 px-2.5 xl:py-1 xl:px-4 flex items-center gap-1 xl:gap-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2 ${
+                            selectedBienIds.size === 0 || isPrintingQr
+                                ? "pointer-events-none opacity-50 cursor-not-allowed"
+                                : "cursor-pointer hover:bg-gabu-300 transition-colors duration-100"
+                        }`}
+                        onClick={() => { void printSelectedQrs(); }}
+                        title={
+                            selectedBienIds.size === 0
+                                ? "Seleccioná bienes para imprimir QR"
+                                : isPrintingQr
+                                    ? "Generando QR…"
+                                    : `Imprimir QR de ${selectedQrCountLabel} bien${selectedBienIds.size === 1 ? "" : "es"}`
+                        }
+                        aria-busy={isPrintingQr}
+                        id="print-qr-btn"
+                    >
+                        <svg className="h-4 w-4 xl:h-5 xl:w-5 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm12-2h2v2h-2v-2zm-4 0h2v2h-2v-2zm4 4h2v2h-2v-2zm0 4h2v2h-2v-2zm-4 0h2v2h-2v-2zm4-4h2v2h-2v-2z" fill="#CDD5D8"/>
+                        </svg>
+                        <p className="text-gabu-100 text-[11px] xl:text-xs [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[10px]">
+                            {selectedBienIds.size > 0 ? `Imprimir QR (${selectedQrCountLabel})` : "Imprimir QR"}
+                        </p>
+                    </div>
+                    )}
+                    {!isSimulationMode && selectedBienIds.size > 0 && (
+                    <div
+                        className="btn btn-sm bg-gabu-700 rounded-md py-0.5 px-2.5 xl:py-1 xl:px-4 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center gap-1 xl:gap-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2"
+                        onClick={clearBienSelection}
+                        title="Quitar la selección de todos los bienes"
+                        id="clear-qr-selection-btn"
+                    >
+                        <Cross style="h-4 w-4 xl:h-5 xl:w-5 shrink-0 fill-current text-gabu-100" onClick={clearBienSelection} />
+                        <p className="text-gabu-100 text-[11px] xl:text-xs [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[10px]">Limpiar selección</p>
+                    </div>
+                    )}
                     <div className="btn btn-sm bg-gabu-700 rounded-md py-0.5 px-2.5 xl:py-1 xl:px-4 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center gap-1 xl:gap-1.5 relative filter-button [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:py-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:px-2" onClick={() => setIsFilterModalOpen(true)}>
                         <Filter style="h-4 w-4 xl:h-5 xl:w-5 stroke-current text-gabu-100 shrink-0"/>
                     <p className="text-gabu-100 text-[11px] xl:text-xs [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[10px]">Filtrar</p>
@@ -1178,6 +1381,11 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                     type="error"
                     show={showExcelErrorAlert}
                 />
+                <Alert
+                    message={qrPrintErrorMessage}
+                    type="error"
+                    show={showQrPrintErrorAlert}
+                />
                 {loading && (
                     <div className="relative w-full h-full overflow-x-auto table-scroll">
                         <div className="w-full overflow-auto table-container grid">
@@ -1226,7 +1434,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                                                                 onApplyColumnFilter={(colId, value) => {
                                                                     setColumnFilters((prev) => ({ ...prev, [colId]: value }));
                                                                 }}
-                                                                columnType={getColumnType(header.id, (filteredData[0] ?? fixedAssetsData?.fixedAssets?.[0])?.[header.id as keyof FixedAssets])}
+                                                                columnType={header.id === "seleccionar" || header.id === "manage" ? undefined : getColumnType(header.id, (filteredData[0] ?? fixedAssetsData?.fixedAssets?.[0])?.[header.id as keyof FixedAssets])}
                                                                 columnFilterValue={columnFilters[header.id] ?? null}
                                                                 onOpenManageFields={header.id === 'manage' ? (e) => {
                                                                     openManageFieldsFromElement(e.currentTarget as HTMLElement);
@@ -1238,15 +1446,23 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                                             ))}         
                                         </thead>
                                         <tbody className="divide-y-2 divide-gabu-900/25 relative">
-                                            {table.getRowModel().rows.map(row => (
-                                                <tr key={row.id} data-rowid={row.id}>
+                                            {table.getRowModel().rows.map(row => {
+                                                const rowBienId = getBienIdFromAsset(row.original);
+                                                const isRowSelected = Boolean(rowBienId && selectedBienIds.has(rowBienId));
+                                                return (
+                                                <tr
+                                                    key={row.id}
+                                                    data-rowid={row.id}
+                                                    className={isRowSelected ? "bg-gabu-300/50" : undefined}
+                                                >
                                                     <SortableContext key={row.id} items={columnOrder} strategy={horizontalListSortingStrategy}>
                                                         {row.getVisibleCells().map((cell, index) => (
                                                             <DraggableCell key={cell.id} cell={cell} index={index} />
                                                         ))}
                                                     </SortableContext>
                                                 </tr>
-                                                                        ))}
+                                                );
+                                            })}
                                         </tbody>
                                         </table>
                                     </DndContext>

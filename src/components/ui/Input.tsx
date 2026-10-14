@@ -46,6 +46,8 @@ export default function Input({
         ? 'text-gabu-100 text-sm font-normal'
         : isAbm || isTableCell
         ? 'text-gabu-100 text-xs font-normal'
+        : isLogin
+        ? 'text-gabu-900 text-lg max-md:text-sm max-md:font-medium'
         : 'text-gabu-900 text-lg'
       : '';
     const passwordPad = isPassword ? 'pr-10' : 'pr-2';
@@ -55,18 +57,18 @@ export default function Input({
       ? `border ${isError ? 'border-gabu-error' : 'border-gabu-900 focus:border-gabu-500'} bg-gabu-100 text-gabu-900 rounded-md py-1 ${isPassword ? 'pl-2 pr-8' : 'px-2'} text-xs leading-snug min-h-0 w-full outline-none focus:outline-none focus:ring-0 ${disabled && 'bg-gabu-300'}`
       : isAbm
       ? `bg-gabu-100 rounded-md font-normal ${isPassword ? 'pl-3 pr-10' : 'px-3'} text-gabu-700 w-full outline-none focus:outline-none focus:ring-0 ${disabled && 'bg-gabu-300'}`
-      : `${isLogin ? 'border-l-10 border-2' : 'border'} ${isError ? 'border-gabu-error' : 'border-gabu-900 focus:border-gabu-500'} text-gabu-900 rounded-md py-2 pl-3 ${passwordPad} w-full outline-none focus:outline-none focus:ring-0 ${disabled && 'bg-gabu-300'}`;
+      : `${isLogin ? 'border-l-10 border-2 text-base min-h-11 max-md:min-h-12 max-md:border-l-2 max-md:rounded-xl max-md:bg-white max-md:pl-3.5' : 'border'} ${isError ? 'border-gabu-error' : 'border-gabu-900 focus:border-gabu-500'} text-gabu-900 rounded-md py-2 pl-3 ${passwordPad} w-full outline-none focus:outline-none focus:ring-0 ${disabled && 'bg-gabu-300'}`;
 
     return (
       <div className={`flex flex-col relative ${hasLabel || !isTableCell ? "gap-1" : "gap-0"}`}>
           {hasLabel && <label className={labelClass}>{label}</label>}
           <div className="relative w-full">
-            <input type={inputType} className={`${InputStyle} ${inputClassName}`.trim()} disabled={disabled} ref={ref} onInput={handleInput} onWheel={type === 'number' ? (e) => e.currentTarget.blur() : undefined} autoComplete="off" {...(value !== undefined ? { value } : { defaultValue })} placeholder={placeholder}/>
+            <input type={inputType} className={`${InputStyle} ${inputClassName}`.trim()} disabled={disabled} ref={ref} onInput={handleInput} onWheel={type === 'number' ? (e) => e.currentTarget.blur() : undefined} autoComplete={isLogin ? (isPassword ? "current-password" : "username") : "off"} {...(value !== undefined ? { value } : { defaultValue })} placeholder={placeholder}/>
             {isPassword && (
               <button
                 type="button"
                 onClick={() => setPasswordVisible((visible) => !visible)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gabu-900 hover:text-gabu-700 cursor-pointer"
+                className={`absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-gabu-900 transition-colors duration-200 hover:text-gabu-700 ${isLogin ? "max-md:right-1 max-md:flex max-md:h-11 max-md:w-11 max-md:items-center max-md:justify-center" : ""}`}
                 aria-label={passwordVisible ? "Ocultar contraseña" : "Mostrar contraseña"}
                 title={passwordVisible ? "Ocultar contraseña" : "Mostrar contraseña"}
               >

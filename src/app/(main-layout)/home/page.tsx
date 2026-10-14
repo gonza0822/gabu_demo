@@ -12,6 +12,7 @@ import { useFetch } from '@/hooks/useFetch';
 import { HomeDashboardData } from '@/lib/models/Home';
 import { getHomeDashboardFromCache, setHomeDashboardInCache } from '@/lib/cache/homeDashboardCache';
 import { syncWorkspacePath } from '@/util/navigation/syncWorkspacePath';
+import MobileScanHub from '@/components/scan/MobileScanHub';
 
 export default function Home() : ReactElement {
     const router = useRouter();
@@ -52,7 +53,11 @@ export default function Home() : ReactElement {
     ];
 
     return (
-        <main className="home-grid bg-gabu-300 w-full h-full min-w-0 grid grid-cols-2 grid-rows-[minmax(0,45%)_minmax(0,55%)] gap-3 2xl:gap-7 p-4 2xl:p-7 overflow-y-auto overflow-x-hidden [@media(max-height:600px)]:gap-2 [@media(max-height:600px)]:p-2 [@media(max-height:600px)]:grid-rows-[minmax(0,42%)_minmax(0,58%)] [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:grid-rows-[minmax(0,44%)_minmax(0,56%)]">
+        <>
+        <div className="h-full min-h-0 md:hidden">
+            <MobileScanHub />
+        </div>
+        <main className="home-grid hidden bg-gabu-300 w-full h-full min-w-0 md:grid grid-cols-2 grid-rows-[minmax(0,45%)_minmax(0,55%)] gap-3 2xl:gap-7 p-4 2xl:p-7 overflow-y-auto overflow-x-hidden [@media(max-height:600px)]:gap-2 [@media(max-height:600px)]:p-2 [@media(max-height:600px)]:grid-rows-[minmax(0,42%)_minmax(0,58%)] [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-2 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:grid-rows-[minmax(0,44%)_minmax(0,56%)]">
             <div className="w-full h-full min-h-0 min-w-0 bg-gabu-100 rounded-lg">
                 <div className="home-stats-list flex flex-col justify-around h-full p-3 2xl:p-5 2xl:gap-5 gap-2 pb-4 2xl:pb-7 [@media(max-height:600px)]:p-1.5 [@media(max-height:600px)]:gap-1 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-1.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1">
                     <StadisticSection title="Total de bienes" total={stats.totalBienes} onClick={() => openAdministrar()} />
@@ -67,5 +72,6 @@ export default function Home() : ReactElement {
                 <ChartsContainer tabs={tabs} fechaProceso={fechaProceso} />
             </div>
         </main>
+        </>
     );
 }

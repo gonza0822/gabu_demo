@@ -8,7 +8,7 @@ export default async function Home() {
   console.log(sessionMessageValue);
   
   return (
-    <main className="h-screen w-screen bg-gabu-900 flex justify-center items-center">
+    <main className="flex h-dvh min-h-dvh w-full items-stretch justify-center overflow-hidden overscroll-none bg-gabu-900 p-0 md:h-screen md:min-h-0 md:w-screen md:items-center">
       <LoginContainer alertMessage={sessionMessageValue} />
     </main>
   );

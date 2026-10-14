@@ -15,8 +15,10 @@ export async function setSessionStore(sessionName : string, sessionValue : strin
         name: sessionName,
         value: sessionValue,
         httpOnly: true,
-        secure: true,
-        sameSite: 'strict',
+        // En producción (HTTPS) la cookie va Secure. En `next dev` no: el celu entra
+        // por http://192.168.x.x y Chrome descarta cookies Secure fuera de localhost.
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
         maxAge: expiration,
         path: '/'
     });

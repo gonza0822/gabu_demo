@@ -4689,3 +4689,15 @@ model filtrosBienesUso {
   idUsuarioAlta    String    @db.NVarChar(15)
   idUsuarioModi    String?   @db.NVarChar(15)
 }
+
+/// Recuento fisico por QR. Cada confirmacion es una fila; la ficha usa la mas reciente.
+model inventarioBien {
+  id        Int      @id(map: "PK_inventarioBien") @default(autoincrement())
+  idCodigo  String   @db.NVarChar(6)
+  idSubien  String   @db.NVarChar(3)
+  idSubtra  String   @db.NVarChar(3)
+  idSufijo  String   @db.NVarChar(3)
+  estado    String   @db.NVarChar(20)
+  fecEstado DateTime @db.DateTime
+  idUsuario String   @db.NVarChar(15)
+}

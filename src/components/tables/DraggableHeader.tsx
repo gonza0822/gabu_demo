@@ -60,9 +60,9 @@ export default function DraggableHeader<TData>({
                     zIndex: isDragging ? 100 : 25,
                 }}
             >
-                <p className="text-xs font-semibold text-gabu-900 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:text-[11px]">
+                <div className="flex w-full items-center justify-center">
                     {flexRender(header.column.columnDef.header, header.getContext())}
-                </p>
+                </div>
             </th>
         );
     }

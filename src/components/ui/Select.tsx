@@ -87,7 +87,7 @@ export default function Select({
         ? 'border-0 bg-gabu-100 rounded-md font-normal px-3 py-0.5 w-full flex justify-between items-center cursor-pointer gap-2'
         : isTableCell
         ? 'border border-gabu-900 bg-gabu-100 py-1 pl-2 pr-1.5 min-h-0 w-full flex justify-between items-center cursor-pointer gap-1.5 rounded-md'
-        : ` ${isLogin ? 'border-l-10 border-2' : 'border'}  border-gabu-900 py-2 pl-3 pr-2 w-full flex justify-between items-center cursor-pointer filter`;
+        : ` ${isLogin ? 'border-l-10 border-2 min-h-11 max-md:min-h-12 max-md:border-l-2 max-md:rounded-xl max-md:bg-white' : 'border'}  border-gabu-900 py-2 pl-3 pr-2 w-full flex justify-between items-center cursor-pointer filter`;
     const optionListStyleBase: string = isEntriesPerPage
         ? `w-full rounded-b-md ${entriesListBorderClass} overflow-visible options-list ${entriesListBgClass} shadow-md ${entriesListClassName ?? ''}`.trim()
         : isFilterModal
@@ -205,6 +205,8 @@ export default function Select({
             ? 'text-gabu-100 text-sm font-normal'
             : isAbm || isTableCell
             ? 'text-gabu-100 text-xs font-normal'
+            : isLogin
+            ? 'text-gabu-900 text-lg max-md:text-sm max-md:font-medium'
             : 'text-gabu-900 text-lg'
         : '';
     const valueSpanClassBase = isEntriesPerPage

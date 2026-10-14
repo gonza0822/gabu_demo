@@ -40,17 +40,21 @@ export default function NavigationContainer({children} : {children : React.React
     }, [dispatch]);
 
     return (      
-        <div className="flex items-start h-screen overflow-hidden" id="app">
+        <div className="flex h-dvh items-start overflow-hidden md:h-screen" id="app">
             <>
-                <aside className="h-full w-[20%] bg-gabu-900 flex flex-col min-h-0">
+                <aside className="hidden h-full w-[20%] min-h-0 flex-col bg-gabu-900 md:flex">
                     <div className="w-full flex justify-center py-3 flex-none">
                         <img src="/assets/gabu_logo.png" alt="gabu_logo" className="brightness-200 h-[80px] w-[80px] btn-home cursor-pointer" onClick={() => syncWorkspacePath('/home', router)}/>
                     </div>
                     <NavigationMenu/>
                 </aside>
                 <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-                    <Header/>
-                    {children}
+                    <div className="hidden md:block">
+                        <Header/>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-hidden">
+                        {children}
+                    </div>
                 </div>
             </>
         </div>

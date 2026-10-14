@@ -30,6 +30,7 @@ import { formatNumberEs } from "@/util/number/formatNumberEs";
 import { formatApiErrorFromBody, formatApiErrorMessage } from "@/lib/logger/apiError";
 import { formatValueToMmYyyy } from "@/util/date/parseDate";
 import AssetChargesGrid from "@/components/fixedAssets/AssetChargesGrid";
+import AssetQrModal from "@/components/fixedAssets/AssetQrModal";
 
 type AbmDatosGeneralesData = {
     plants: { key: string; value: string }[];
@@ -430,6 +431,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
     const [fotoError, setFotoError] = useState<string | null>(null);
     const [fotoModalOpen, setFotoModalOpen] = useState(false);
     const [fotoModalItem, setFotoModalItem] = useState<FotoDraftItem | null>(null);
+    const [isQrOpen, setIsQrOpen] = useState(false);
     const fotoInputRef = useRef<HTMLInputElement>(null);
     const fotosFetchIdRef = useRef(0);
     const pendingFotoAddsRef = useRef<FotoDraftPending[]>([]);
@@ -1322,6 +1324,7 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
     }, [librosData, cabeceraData, cabeceraCuenta, bienData]);
 
     const isPureAddFlow = !bienId && !cloneMode && !altaAgregadoMode && !consultMode;
+    const canShowQr = Boolean(bienId && !cloneMode && !altaAgregadoMode && !simulationOnly);
 
     /** En alta nueva: al cambiar valor origen general, replica VALORI en cada libro (÷ cotización). */
     useEffect(() => {
@@ -2169,12 +2172,25 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                 </div>
             </div>
             <Alert message={saveError} type="error" show={!!saveError} onClose={() => setSaveError(null)} />
-            {!consultMode && (
+            {(!consultMode || canShowQr) && (
             <div className="sticky w-full h-15 bg-gabu-500 border-2 border-gabu-900 flex justify-end gap-5 p-3">
-                <button type="button" onClick={handleRevert} className="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300 border border-gabu-900">Revertir</button>
-                <button type="submit" disabled={saving} className="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300 border border-gabu-900 disabled:opacity-70 disabled:cursor-not-allowed">
-                    {saving ? 'Guardando…' : 'Guardar bien'}
-                </button>
+                {canShowQr ? (
+                    <button
+                        type="button"
+                        onClick={() => setIsQrOpen(true)}
+                        className="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300 border border-gabu-900 mr-auto"
+                    >
+                        Generar QR
+                    </button>
+                ) : null}
+                {!consultMode && (
+                    <>
+                        <button type="button" onClick={handleRevert} className="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300 border border-gabu-900">Revertir</button>
+                        <button type="submit" disabled={saving} className="font-normal text-gabu-900 w-[15%] bg-gabu-100 rounded-md hover:bg-gabu-300 cursor-pointer transition-colors duration-300 border border-gabu-900 disabled:opacity-70 disabled:cursor-not-allowed">
+                            {saving ? 'Guardando…' : 'Guardar bien'}
+                        </button>
+                    </>
+                )}
             </div>
             )}
         </form>
@@ -2271,6 +2287,14 @@ export default function AbmFixedAsset({ bienId, consultMode: consultModeProp, cl
                 />
             </div>
         </Modal>
+        {canShowQr && bienId ? (
+            <AssetQrModal
+                isOpen={isQrOpen}
+                onClose={() => setIsQrOpen(false)}
+                bienId={bienId}
+                descripcion={descripcion}
+            />
+        ) : null}
         </>
     );
 }

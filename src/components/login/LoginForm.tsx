@@ -87,11 +87,20 @@ export default function LoginForm({ children, onLoginError, loginError } : { chi
     }
 
     return (
-        <form className="flex flex-col gap-2 w-[50%]">
+        <form className="flex w-full flex-1 flex-col gap-4 md:w-[50%] md:flex-none md:gap-2">
+            <div className="md:hidden">
+                <p className="text-lg font-semibold tracking-tight text-gabu-900">Iniciar sesión</p>
+                <p className="mt-1 text-sm text-gabu-700">Ingresá con tu usuario de GABU</p>
+            </div>
             {children}
             <Input label='Usuario' isLogin={true} disabled={!isConnected} type="text" ref={usernameRef} isError={inputErrors.usernameError} errorMessage={inputErrors.usernameError ? 'The username is required' : null} handleInput={handleUsernameInput}/>
             <Input label='Contraseña' isLogin={true} disabled={!isConnected} type="password" ref={passwordRef} isError={inputErrors.passwordError} errorMessage={inputErrors.passwordError ? 'The password is required' : null} handleInput={handlePasswordInput}/>
-            <Button text='Ingresar' disabled={!isConnected} type="submit" handleClick={handleLogin} style="btn-register w-full bg-gabu-900 text-gabu-100 rounded-md p-2 text-lg mt-7 hover:bg-gabu-700 transition-all duration-150 cursor-pointer"/>
+            <div className="mt-auto flex flex-col gap-3 md:mt-0 md:contents">
+            {!isConnected ? (
+                <p className="text-xs font-medium leading-relaxed text-gabu-700 md:hidden">Elegí una empresa para habilitar el ingreso</p>
+            ) : null}
+            <Button text='Ingresar' disabled={!isConnected} type="submit" handleClick={handleLogin} style="btn-register w-full min-h-12 bg-gabu-900 text-gabu-100 rounded-xl p-3 text-base font-semibold mt-0 hover:bg-gabu-700 transition-colors duration-200 cursor-pointer touch-manipulation md:min-h-0 md:rounded-md md:p-2 md:text-lg md:font-normal md:mt-7"/>
+            </div>
         </form>
     );
 }
