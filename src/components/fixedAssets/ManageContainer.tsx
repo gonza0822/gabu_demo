@@ -79,23 +79,22 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     const MANAGE_CACHE_DATA_VER = '5';
     const manageCacheKey = useMemo(() => `${client}::${mode}::${user}::${MANAGE_CACHE_DATA_VER}`, [client, mode, user]);
     const cachedManageData = useMemo(() => getManageDataFromCache(manageCacheKey), [manageCacheKey]);
-    /** Si el usuario ya tocó la visibilidad, un Get anterior no puede volver a copiar listShow. */
-    const visibilityLockRef = useRef(false);
+    /** Visibilidad elegida en Administrar campos. Gana sobre un Get que haya salido antes del click. */
+    const visibilityOverridesRef = useRef<Record<string, boolean>>({});
     const fetchConfig = useMemo(() => ({
         initialData: cachedManageData,
         skipInitialFetch: cachedManageData != null,
         onData: (nextData: FixedAssetsData) => {
-            if (!visibilityLockRef.current) {
+            const overrides = visibilityOverridesRef.current;
+            if (Object.keys(overrides).length === 0) {
                 setManageDataInCache(manageCacheKey, nextData);
                 return;
             }
-            const cached = getManageDataFromCache(manageCacheKey);
-            const listShowById = new Map((cached?.fieldsManage ?? []).map((field) => [field.IdCampo, field.listShow]));
             setManageDataInCache(manageCacheKey, {
                 ...nextData,
                 fieldsManage: nextData.fieldsManage.map((field) =>
-                    listShowById.has(field.IdCampo)
-                        ? { ...field, listShow: listShowById.get(field.IdCampo) }
+                    Object.prototype.hasOwnProperty.call(overrides, field.IdCampo)
+                        ? { ...field, listShow: overrides[field.IdCampo] }
                         : field
                 ),
             });
@@ -210,7 +209,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     }, [actionsOpenRowId]);
 
     useEffect(() => {
-        visibilityLockRef.current = false;
+        visibilityOverridesRef.current = {};
     }, [client, isSimulationMode]);
 
     useEffect(() => {
@@ -218,15 +217,15 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         if (fields.length > 0) {
             const sorted = [...fields].sort((a, b) => (a.lisordencampos ?? 0) - (b.lisordencampos ?? 0));
             const fieldIds = sorted.map((f) => f.IdCampo);
+            const overrides = visibilityOverridesRef.current;
             setColumnOrder((prev) => {
                 const base = prev.length === 0 ? [...fieldIds, "manage"] : prev;
                 const withoutSelect = base.filter((id) => id !== "seleccionar");
                 return isSimulationMode ? withoutSelect : ["seleccionar", ...withoutSelect];
             });
-            if (visibilityLockRef.current) return;
             setColumnVisibility(
                 Object.fromEntries([
-                    ...sorted.map((f) => [f.IdCampo, f.listShow]),
+                    ...sorted.map((f) => [f.IdCampo, Object.prototype.hasOwnProperty.call(overrides, f.IdCampo) ? overrides[f.IdCampo] : f.listShow]),
                     ["manage", true],
                     ...(!isSimulationMode ? [["seleccionar", true] as const] : []),
                 ])
@@ -378,18 +377,21 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
         });
     }, [manageCacheKey]);
 
+    const rememberVisibility = useCallback((changes: Record<string, boolean>) => {
+        visibilityOverridesRef.current = { ...visibilityOverridesRef.current, ...changes };
+    }, []);
     const handleVisibilityChange = useCallback((fieldId: string, listShow: boolean) => {
-        visibilityLockRef.current = true;
+        rememberVisibility({ [fieldId]: listShow });
         setColumnVisibility(prev => ({ ...prev, [fieldId]: listShow }));
         syncListShowInCache({ [fieldId]: listShow });
-    }, [syncListShowInCache]);
+    }, [rememberVisibility, syncListShowInCache]);
     const handleVisibilityBatchChange = useCallback((changes: Record<string, boolean>) => {
-        visibilityLockRef.current = true;
+        rememberVisibility(changes);
         setColumnVisibility((prev) => ({ ...prev, ...changes }));
         syncListShowInCache(changes);
-    }, [syncListShowInCache]);
+    }, [rememberVisibility, syncListShowInCache]);
     const reloadManageGrid = useCallback(() => {
-        visibilityLockRef.current = false;
+        visibilityOverridesRef.current = {};
         void refetch();
     }, [refetch]);
 

@@ -105,21 +105,6 @@ export default function ManageFieldsPanel({
     return () => document.removeEventListener('mousedown', handler);
   }, [isOpen, onClose]);
 
-  useEffect(() => {
-    setPendingShow((prev) => {
-      const next: Record<string, boolean> = {};
-      let dropped = false;
-      for (const [id, show] of Object.entries(prev)) {
-        if (visibleIds.includes(id) === show) {
-          dropped = true;
-          continue;
-        }
-        next[id] = show;
-      }
-      return dropped ? next : prev;
-    });
-  }, [visibleIds]);
-
   const isShown = (fieldId: string): boolean =>
     fieldId in pendingShow ? pendingShow[fieldId] : visibleIds.includes(fieldId);
 
@@ -162,31 +147,36 @@ export default function ManageFieldsPanel({
   const stillCurrent = (ids: string[], gen: number): string[] =>
     ids.filter((id) => fieldGen.current.get(id) === gen);
 
+  const postManage = async (body: unknown): Promise<boolean> => {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const res = await fetch('/api/fixedAssets/manage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) return true;
+      } catch {
+        /* La grilla puede estar ocupando la base. Reintentar. */
+      }
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    return false;
+  };
+
   const toggle = async (fieldId: string) => {
     const listShow = !isShown(fieldId);
     const gen = markFields([fieldId]);
     remember({ [fieldId]: listShow });
     publish({ [fieldId]: listShow });
-    try {
-      const res = await fetch('/api/fixedAssets/manage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          petition: 'SetListShow',
-          client,
-          data: { fieldId, listShow, tableId },
-        }),
-      });
-      if (fieldGen.current.get(fieldId) !== gen) return;
-      if (!res.ok) {
-        remember({ [fieldId]: !listShow });
-        publish({ [fieldId]: !listShow });
-      }
-    } catch {
-      if (fieldGen.current.get(fieldId) !== gen) return;
-      remember({ [fieldId]: !listShow });
-      publish({ [fieldId]: !listShow });
-    }
+    const ok = await postManage({
+      petition: 'SetListShow',
+      client,
+      data: { fieldId, listShow, tableId },
+    });
+    if (fieldGen.current.get(fieldId) !== gen || ok) return;
+    remember({ [fieldId]: !listShow });
+    publish({ [fieldId]: !listShow });
   };
 
   const hideAll = async () => {
@@ -203,20 +193,12 @@ export default function ManageFieldsPanel({
       remember(revert);
       publish(revert);
     };
-    try {
-      const res = await fetch("/api/fixedAssets/manage", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          petition: "SetListShowBatch",
-          client,
-          data: { tableId, updates: ids.map((fieldId) => ({ fieldId, listShow: false })) },
-        }),
-      });
-      if (!res.ok) revertFailed();
-    } catch {
-      revertFailed();
-    }
+    const ok = await postManage({
+      petition: "SetListShowBatch",
+      client,
+      data: { tableId, updates: ids.map((fieldId) => ({ fieldId, listShow: false })) },
+    });
+    if (!ok) revertFailed();
   };
 
   const showAll = async () => {
@@ -233,23 +215,15 @@ export default function ManageFieldsPanel({
       remember(revert);
       publish(revert);
     };
-    try {
-      const res = await fetch("/api/fixedAssets/manage", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          petition: "SetListShowBatch",
-          client,
-          data: {
-            tableId,
-            updates: ids.map((fieldId) => ({ fieldId, listShow: true })),
-          },
-        }),
-      });
-      if (!res.ok) revertFailed();
-    } catch {
-      revertFailed();
-    }
+    const ok = await postManage({
+      petition: "SetListShowBatch",
+      client,
+      data: {
+        tableId,
+        updates: ids.map((fieldId) => ({ fieldId, listShow: true })),
+      },
+    });
+    if (!ok) revertFailed();
   };
 
   const showPopup = isOpen && (triggerRect ?? exitingRect);
