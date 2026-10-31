@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import ToggleSwitch from "@/components/ui/ToggleSwitch";
@@ -55,9 +55,12 @@ export default function ManageFieldsPanel({
   tableId = "actifijo",
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const opSeq = useRef(0);
+  const fieldGen = useRef(new Map<string, number>());
   const [exitingRect, setExitingRect] = useState<TriggerRect | null>(null);
   const [position, setPosition] = useState<React.CSSProperties | null>(null);
   const [search, setSearch] = useState('');
+  const [pendingShow, setPendingShow] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (triggerRect) setExitingRect(triggerRect);
@@ -102,7 +105,45 @@ export default function ManageFieldsPanel({
     return () => document.removeEventListener('mousedown', handler);
   }, [isOpen, onClose]);
 
-  const hiddenFields = useMemo(() => fields.filter(f => !visibleIds.includes(f.IdCampo)), [fields, visibleIds]);
+  useEffect(() => {
+    setPendingShow((prev) => {
+      const next: Record<string, boolean> = {};
+      let dropped = false;
+      for (const [id, show] of Object.entries(prev)) {
+        if (visibleIds.includes(id) === show) {
+          dropped = true;
+          continue;
+        }
+        next[id] = show;
+      }
+      return dropped ? next : prev;
+    });
+  }, [visibleIds]);
+
+  const isShown = (fieldId: string): boolean =>
+    fieldId in pendingShow ? pendingShow[fieldId] : visibleIds.includes(fieldId);
+
+  const shownIds = useMemo(
+    () => fields.filter((field) => (field.IdCampo in pendingShow ? pendingShow[field.IdCampo] : visibleIds.includes(field.IdCampo))).map((field) => field.IdCampo),
+    [fields, pendingShow, visibleIds]
+  );
+  const hiddenFields = useMemo(() => fields.filter((field) => !shownIds.includes(field.IdCampo)), [fields, shownIds]);
+
+  const remember = (changes: Record<string, boolean>) => {
+    setPendingShow((prev) => ({ ...prev, ...changes }));
+  };
+
+  const publish = (changes: Record<string, boolean>) => {
+    const entries = Object.entries(changes);
+    if (entries.length === 0) return;
+    startTransition(() => {
+      if (entries.length > 1 && onVisibilityBatchChange) {
+        onVisibilityBatchChange(changes);
+        return;
+      }
+      for (const [id, show] of entries) onVisibilityChange(id, show);
+    });
+  };
 
   const searchLower = search.trim().toLowerCase();
   const filteredFields = useMemo(
@@ -112,9 +153,20 @@ export default function ManageFieldsPanel({
     [fields, searchLower]
   );
 
+  const markFields = (ids: string[]): number => {
+    const gen = ++opSeq.current;
+    for (const id of ids) fieldGen.current.set(id, gen);
+    return gen;
+  };
+
+  const stillCurrent = (ids: string[], gen: number): string[] =>
+    ids.filter((id) => fieldGen.current.get(id) === gen);
+
   const toggle = async (fieldId: string) => {
-    const listShow = !visibleIds.includes(fieldId);
-    onVisibilityChange(fieldId, listShow);
+    const listShow = !isShown(fieldId);
+    const gen = markFields([fieldId]);
+    remember({ [fieldId]: listShow });
+    publish({ [fieldId]: listShow });
     try {
       const res = await fetch('/api/fixedAssets/manage', {
         method: 'POST',
@@ -125,17 +177,32 @@ export default function ManageFieldsPanel({
           data: { fieldId, listShow, tableId },
         }),
       });
-      if (!res.ok) onVisibilityChange(fieldId, !listShow);
+      if (fieldGen.current.get(fieldId) !== gen) return;
+      if (!res.ok) {
+        remember({ [fieldId]: !listShow });
+        publish({ [fieldId]: !listShow });
+      }
     } catch {
-      onVisibilityChange(fieldId, !listShow);
+      if (fieldGen.current.get(fieldId) !== gen) return;
+      remember({ [fieldId]: !listShow });
+      publish({ [fieldId]: !listShow });
     }
   };
 
   const hideAll = async () => {
-    if (visibleIds.length === 0) return;
-    const changes = Object.fromEntries(visibleIds.map((id) => [id, false]));
-    onVisibilityBatchChange?.(changes);
-    if (!onVisibilityBatchChange) visibleIds.forEach((id) => onVisibilityChange(id, false));
+    if (shownIds.length === 0) return;
+    const ids = [...shownIds];
+    const gen = markFields(ids);
+    const changes = Object.fromEntries(ids.map((id) => [id, false]));
+    remember(changes);
+    publish(changes);
+    const revertFailed = () => {
+      const pending = stillCurrent(ids, gen);
+      if (pending.length === 0) return;
+      const revert = Object.fromEntries(pending.map((id) => [id, true]));
+      remember(revert);
+      publish(revert);
+    };
     try {
       const res = await fetch("/api/fixedAssets/manage", {
         method: "POST",
@@ -143,26 +210,29 @@ export default function ManageFieldsPanel({
         body: JSON.stringify({
           petition: "SetListShowBatch",
           client,
-          data: { tableId, updates: visibleIds.map((fieldId) => ({ fieldId, listShow: false })) },
+          data: { tableId, updates: ids.map((fieldId) => ({ fieldId, listShow: false })) },
         }),
       });
-      if (!res.ok) {
-        const revert = Object.fromEntries(visibleIds.map((id) => [id, true]));
-        onVisibilityBatchChange?.(revert);
-        if (!onVisibilityBatchChange) visibleIds.forEach((id) => onVisibilityChange(id, true));
-      }
+      if (!res.ok) revertFailed();
     } catch {
-      const revert = Object.fromEntries(visibleIds.map((id) => [id, true]));
-      onVisibilityBatchChange?.(revert);
-      if (!onVisibilityBatchChange) visibleIds.forEach((id) => onVisibilityChange(id, true));
+      revertFailed();
     }
   };
 
   const showAll = async () => {
     if (hiddenFields.length === 0) return;
-    const changes = Object.fromEntries(hiddenFields.map((f) => [f.IdCampo, true]));
-    onVisibilityBatchChange?.(changes);
-    if (!onVisibilityBatchChange) hiddenFields.forEach((f) => onVisibilityChange(f.IdCampo, true));
+    const ids = hiddenFields.map((f) => f.IdCampo);
+    const gen = markFields(ids);
+    const changes = Object.fromEntries(ids.map((id) => [id, true]));
+    remember(changes);
+    publish(changes);
+    const revertFailed = () => {
+      const pending = stillCurrent(ids, gen);
+      if (pending.length === 0) return;
+      const revert = Object.fromEntries(pending.map((id) => [id, false]));
+      remember(revert);
+      publish(revert);
+    };
     try {
       const res = await fetch("/api/fixedAssets/manage", {
         method: "POST",
@@ -172,19 +242,13 @@ export default function ManageFieldsPanel({
           client,
           data: {
             tableId,
-            updates: hiddenFields.map((f) => ({ fieldId: f.IdCampo, listShow: true })),
+            updates: ids.map((fieldId) => ({ fieldId, listShow: true })),
           },
         }),
       });
-      if (!res.ok) {
-        const revert = Object.fromEntries(hiddenFields.map((f) => [f.IdCampo, false]));
-        onVisibilityBatchChange?.(revert);
-        if (!onVisibilityBatchChange) hiddenFields.forEach((f) => onVisibilityChange(f.IdCampo, false));
-      }
+      if (!res.ok) revertFailed();
     } catch {
-      const revert = Object.fromEntries(hiddenFields.map((f) => [f.IdCampo, false]));
-      onVisibilityBatchChange?.(revert);
-      if (!onVisibilityBatchChange) hiddenFields.forEach((f) => onVisibilityChange(f.IdCampo, false));
+      revertFailed();
     }
   };
 
@@ -247,7 +311,7 @@ export default function ManageFieldsPanel({
                     </td>
                     <td className="w-12 py-1.5">
                       <div className="flex items-center justify-end">
-                        <ToggleSwitch on={visibleIds.includes(field.IdCampo)} onClick={() => toggle(field.IdCampo)} />
+                        <ToggleSwitch eager on={isShown(field.IdCampo)} onClick={() => toggle(field.IdCampo)} />
                       </div>
                     </td>
                   </tr>

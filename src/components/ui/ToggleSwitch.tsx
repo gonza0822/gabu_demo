@@ -1,21 +1,31 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 export type ToggleSwitchProps = {
   on: boolean;
   onClick: () => void;
+  /** Avisa el cambio en el click, sin esperar a que termine la animación. */
+  eager?: boolean;
 };
 
-export default function ToggleSwitch({ on: isOn, onClick }: ToggleSwitchProps) {
+export default function ToggleSwitch({ on: isOn, onClick, eager = false }: ToggleSwitchProps) {
   const [animatingTo, setAnimatingTo] = useState<boolean | null>(null);
   const displayOn = animatingTo !== null ? animatingTo : isOn;
+
+  useEffect(() => {
+    if (animatingTo !== null && isOn === animatingTo) setAnimatingTo(null);
+  }, [isOn, animatingTo]);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (animatingTo !== null) return;
     const target = !isOn;
     setAnimatingTo(target);
+    if (eager) {
+      onClick();
+      return;
+    }
     window.setTimeout(() => {
       onClick();
       setAnimatingTo(null);
@@ -26,7 +36,7 @@ export default function ToggleSwitch({ on: isOn, onClick }: ToggleSwitchProps) {
     <button
       type="button"
       role="switch"
-      aria-checked={isOn}
+      aria-checked={displayOn}
       onClick={handleClick}
       className="relative inline-flex items-center justify-center cursor-pointer select-none"
     >

@@ -79,10 +79,27 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     const MANAGE_CACHE_DATA_VER = '5';
     const manageCacheKey = useMemo(() => `${client}::${mode}::${user}::${MANAGE_CACHE_DATA_VER}`, [client, mode, user]);
     const cachedManageData = useMemo(() => getManageDataFromCache(manageCacheKey), [manageCacheKey]);
+    /** Si el usuario ya tocó la visibilidad, un Get anterior no puede volver a copiar listShow. */
+    const visibilityLockRef = useRef(false);
     const fetchConfig = useMemo(() => ({
         initialData: cachedManageData,
         skipInitialFetch: cachedManageData != null,
-        onData: (nextData: FixedAssetsData) => setManageDataInCache(manageCacheKey, nextData),
+        onData: (nextData: FixedAssetsData) => {
+            if (!visibilityLockRef.current) {
+                setManageDataInCache(manageCacheKey, nextData);
+                return;
+            }
+            const cached = getManageDataFromCache(manageCacheKey);
+            const listShowById = new Map((cached?.fieldsManage ?? []).map((field) => [field.IdCampo, field.listShow]));
+            setManageDataInCache(manageCacheKey, {
+                ...nextData,
+                fieldsManage: nextData.fieldsManage.map((field) =>
+                    listShowById.has(field.IdCampo)
+                        ? { ...field, listShow: listShowById.get(field.IdCampo) }
+                        : field
+                ),
+            });
+        },
     }), [cachedManageData, manageCacheKey]);
 
     const { data:fixedAssetsData, error, loading, refetch } = useFetch<FixedAssetsData>("/api/fixedAssets/manage", options, fetchConfig);
@@ -193,6 +210,10 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     }, [actionsOpenRowId]);
 
     useEffect(() => {
+        visibilityLockRef.current = false;
+    }, [client, isSimulationMode]);
+
+    useEffect(() => {
         const fields = fixedAssetsData?.fieldsManage ?? [];
         if (fields.length > 0) {
             const sorted = [...fields].sort((a, b) => (a.lisordencampos ?? 0) - (b.lisordencampos ?? 0));
@@ -202,6 +223,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                 const withoutSelect = base.filter((id) => id !== "seleccionar");
                 return isSimulationMode ? withoutSelect : ["seleccionar", ...withoutSelect];
             });
+            if (visibilityLockRef.current) return;
             setColumnVisibility(
                 Object.fromEntries([
                     ...sorted.map((f) => [f.IdCampo, f.listShow]),
@@ -357,13 +379,19 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
     }, [manageCacheKey]);
 
     const handleVisibilityChange = useCallback((fieldId: string, listShow: boolean) => {
+        visibilityLockRef.current = true;
         setColumnVisibility(prev => ({ ...prev, [fieldId]: listShow }));
         syncListShowInCache({ [fieldId]: listShow });
     }, [syncListShowInCache]);
     const handleVisibilityBatchChange = useCallback((changes: Record<string, boolean>) => {
+        visibilityLockRef.current = true;
         setColumnVisibility((prev) => ({ ...prev, ...changes }));
         syncListShowInCache(changes);
     }, [syncListShowInCache]);
+    const reloadManageGrid = useCallback(() => {
+        visibilityLockRef.current = false;
+        void refetch();
+    }, [refetch]);
 
     const filterFieldIds = useMemo(() => {
         const fields = fixedAssetsData?.fieldsManage ?? [];
@@ -1250,7 +1278,7 @@ export default function ManageContainer({ mode = "activo-fijo" }: { mode?: "acti
                     </div>
                 </div>
                 <div className="d-flex flex justify-end gap-1.5 xl:gap-2.5 shrink-0 flex-wrap [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:gap-1">
-                    <div className="btn btn-sm bg-gabu-700 rounded-md p-1 xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center justify-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-w-7 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-h-7" onClick={() => refetch()} title="Recargar tabla">
+                    <div className="btn btn-sm bg-gabu-700 rounded-md p-1 xl:p-1.5 cursor-pointer hover:bg-gabu-300 transition-colors duration-100 flex items-center justify-center [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:p-0.5 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-w-7 [@media(min-width:1100px)_and_(max-width:1366px)_and_(max-height:620px)]:min-h-7" onClick={reloadManageGrid} title="Recargar tabla">
                         <Reload style="!h-3.5 !w-3.5 xl:!h-4 xl:!w-4 shrink-0 fill-current text-gabu-100"/>
                     </div>
                     <div
